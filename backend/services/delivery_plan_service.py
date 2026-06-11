@@ -38,6 +38,11 @@ def _sanitize(text: str) -> str:
         return m.group(0) if count <= MAX_BREAKS else ''
     text = re.sub(r'<break[^>]*/>', _cap, text)
 
+    # Add a small sentence-gap pause wherever a sentence boundary has no break yet.
+    # Pattern matches [.!?] followed by whitespace+uppercase — meaning the next token
+    # starts directly with a capital, so no break tag is sitting between them.
+    text = re.sub(r'([.!?])\s+(?=[A-Z])', r'\1 <break time="0.2s"/> ', text)
+
     return text
 
 

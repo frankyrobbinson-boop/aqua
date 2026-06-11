@@ -212,18 +212,20 @@ def generate_audio(project_name: str) -> list:
         words = entry["words"]
         speech_start = words[0]["start"] if words else 0.0
         speech_end = words[-1]["end"] if words else entry["duration"]
+        speech_duration = speech_end - speech_start
 
-        entry["timeline_start"] = round(cursor + speech_start, 3)
-        entry["timeline_end"] = round(cursor + speech_end, 3)
-        # Store speech_end so assembly_service can trim each file to this duration
-        # in the concat list, keeping the assembled audio in sync with these timestamps.
+        # assembly_service trims leading silence via inpoint, so speech starts exactly
+        # at cursor in the assembled file — no speech_start offset in timeline coords.
+        entry["timeline_start"] = round(cursor, 3)
+        entry["timeline_end"] = round(cursor + speech_duration, 3)
+        entry["speech_start"] = round(speech_start, 3)
         entry["speech_end"] = round(speech_end, 3)
 
         for word in words:
-            word["global_start"] = round(word["start"] + cursor, 3)
-            word["global_end"] = round(word["end"] + cursor, 3)
+            word["global_start"] = round(word["start"] - speech_start + cursor, 3)
+            word["global_end"] = round(word["end"] - speech_start + cursor, 3)
 
-        cursor += speech_end + CHUNK_GAP
+        cursor += speech_duration + CHUNK_GAP
 
         timeline.append(entry)
 

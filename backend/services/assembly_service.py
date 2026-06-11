@@ -43,11 +43,14 @@ def assemble_audio(project_name: str) -> str:
     with open(concat_path, "w") as f:
         for i, entry in enumerate(timeline):
             chunk_path = os.path.abspath(os.path.join(audio_dir, entry["audio_file"]))
-            # Trim each file to speech_end so trailing ElevenLabs silence is excluded;
-            # this keeps the assembled audio positions in sync with the timeline timestamps.
-            chunk_duration = entry.get("speech_end", entry["duration"])
+            # Trim both leading and trailing ElevenLabs silence so each chunk contributes
+            # exactly speech_duration seconds. This makes the gap between any two chunks a
+            # consistent CHUNK_GAP (0.3 s) regardless of variable ElevenLabs padding.
+            inpoint = entry.get("speech_start", 0.0)
+            outpoint = entry.get("speech_end", entry["duration"])
             f.write(f"file '{chunk_path}'\n")
-            f.write(f"duration {chunk_duration}\n")
+            f.write(f"inpoint {inpoint}\n")
+            f.write(f"outpoint {outpoint}\n")
             if i < len(timeline) - 1:
                 f.write(f"file '{os.path.abspath(gap_path)}'\n")
                 f.write(f"duration {CHUNK_GAP}\n")
