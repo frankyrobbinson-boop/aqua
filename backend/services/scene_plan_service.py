@@ -1,0 +1,83 @@
+import json
+import os
+from dotenv import load_dotenv
+import anthropic
+
+from services.script_edit_service import load_script_edit
+
+load_dotenv()
+
+client = anthropic.Anthropic(
+    api_key=os.getenv("ANTHROPIC_API_KEY")
+)
+
+SCENE_PLAN_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "scene_intent": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "integer"},
+                    "narration": {"type": "string"},
+                    "emotional_purpose": {"type": "string"},
+                    "visual_description": {"type": "string"},
+                    "on_screen_text": {"type": "string"}
+                },
+                "required": ["id", "narration", "emotional_purpose", "visual_description", "on_screen_text"],
+                "additionalProperties": False
+            }
+        }
+    },
+    "required": ["scene_intent"],
+    "additionalProperties": False
+}
+
+
+def load_scene_plan_prompt():
+    with open("prompts/scene_plan.md", "r") as f:
+        return f.read()
+
+
+def generate_scene_plan(project_name):
+
+    script_edit = load_script_edit(project_name)
+    prompt = load_scene_plan_prompt()
+
+    with client.messages.stream(
+        model="claude-opus-4-7",
+        max_tokens=8096,
+        thinking={"type": "adaptive"},
+        output_config={"format": {"type": "json_schema", "schema": SCENE_PLAN_SCHEMA}},
+        messages=[
+            {
+                "role": "user",
+                "content": f"""
+{prompt}
+
+SCRIPT:
+{json.dumps(script_edit, indent=2)}
+"""
+            }
+        ]
+    ) as stream:
+        response = stream.get_final_message()
+
+    text = next((b.text for b in response.content if b.type == "text"), None)
+    if text is None:
+        raise RuntimeError(
+            f"No text block in Claude response; block types present: "
+            f"{[b.type for b in response.content]}"
+        )
+    return json.loads(text)
+
+
+def save_scene_plan(project_name, scene_plan):
+
+    folder = f"../projects/{project_name}"
+
+    os.makedirs(folder, exist_ok=True)
+
+    with open(f"{folder}/scene_plan.json", "w") as f:
+        json.dump(scene_plan, f, indent=2)
