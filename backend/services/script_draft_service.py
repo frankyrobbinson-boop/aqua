@@ -3,14 +3,21 @@ import os
 from dotenv import load_dotenv
 import anthropic
 
+from services.channel_registry import resolve_channel
 from services.outline_service import load_outline
 from services.research_service import load_research
+from services.video_type_registry import (
+    compose_script_prompt,
+    resolve_modules,
+)
 
 load_dotenv()
 
 client = anthropic.Anthropic(
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
+
+WORDS_PER_MINUTE = 150  # spoken narration pace
 
 SCRIPT_SCHEMA = {
     "type": "object",
@@ -19,10 +26,9 @@ SCRIPT_SCHEMA = {
         "hook": {
             "type": "object",
             "properties": {
-                "text": {"type": "string"},
-                "duration_seconds": {"type": "number"}
+                "narration": {"type": "string"}
             },
-            "required": ["text", "duration_seconds"],
+            "required": ["narration"],
             "additionalProperties": False
         },
         "segments": {
@@ -41,10 +47,10 @@ SCRIPT_SCHEMA = {
         "conclusion": {
             "type": "object",
             "properties": {
-                "text": {"type": "string"},
+                "narration": {"type": "string"},
                 "cta": {"type": "string"}
             },
-            "required": ["text", "cta"],
+            "required": ["narration", "cta"],
             "additionalProperties": False
         }
     },
@@ -53,20 +59,46 @@ SCRIPT_SCHEMA = {
 }
 
 
-def load_script_draft_prompt():
-    with open("prompts/script_draft.md", "r") as f:
+def _load_script_base() -> str:
+    with open("prompts/script_base.md", "r") as f:
         return f.read()
 
 
-def generate_script_draft(project_name):
-
+def generate_script_draft(
+    project_name,
+    topic: str,
+    target_minutes: int,
+    channel: str | None = None,
+    video_type: str | None = None,
+    additional_instructions: str | None = None,
+    sample_script: str | None = None,
+):
     outline = load_outline(project_name)
     research = load_research(project_name)
-    prompt = load_script_draft_prompt()
+    base = _load_script_base()
+    channel_content = resolve_channel(channel)
+    _, script_module = resolve_modules(video_type)
+
+    n_sections = max(1, len(outline.get("sections", [])))
+    total_word_target = target_minutes * WORDS_PER_MINUTE
+    # Hook + conclusion ~75 words each; remainder split across sections.
+    words_per_segment = max(100, (total_word_target - 150) // n_sections)
+
+    prompt = compose_script_prompt(
+        base,
+        channel_content,
+        script_module,
+        topic=topic,
+        target_minutes=target_minutes,
+        total_word_target=total_word_target,
+        words_per_segment=words_per_segment,
+        additional_instructions=additional_instructions,
+        sample_script=sample_script,
+    )
 
     with client.messages.stream(
         model="claude-opus-4-7",
-        max_tokens=4096,
+        max_tokens=8192,
         thinking={"type": "adaptive"},
         output_config={"format": {"type": "json_schema", "schema": SCRIPT_SCHEMA}},
         messages=[
@@ -79,7 +111,7 @@ OUTLINE:
 {json.dumps(outline, indent=2)}
 
 RESEARCH:
-{research["research"]}
+{json.dumps(research["research"], indent=2)}
 """
             }
         ]
@@ -96,13 +128,11 @@ RESEARCH:
 
 
 def save_script_draft(project_name, script_draft):
-
     folder = f"../projects/{project_name}"
-
     os.makedirs(folder, exist_ok=True)
-
     with open(f"{folder}/script_draft.json", "w") as f:
         json.dump(script_draft, f, indent=2)
+
 
 def load_script_draft(project_name):
     with open(

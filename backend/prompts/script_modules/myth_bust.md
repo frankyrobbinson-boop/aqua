@@ -1,0 +1,5 @@
+- One segment per myth, in the outline's order.
+- Open each segment by voicing the myth the way the viewer believes it — sympathetically, so they feel seen, not scolded.
+- Then the turn ("here's what's actually happening"), the mechanism or evidence, and the corrected action.
+- End each segment by teasing that the next belief is even more wrong ("if that one stung, the next is worse").
+- Keep conventional wisdom as the running antagonist.

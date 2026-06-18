@@ -1,0 +1,4 @@
+- The segments are a sequence; each picks up where the last left off.
+- Withhold the full how-to. Early segments build the why, the stakes, and the surprising detail; the complete step-by-step lands in the back half.
+- Never let an early segment fully satisfy the viewer — always leave the most actionable part still ahead.
+- Distribute the "common mistake" beats across segments.

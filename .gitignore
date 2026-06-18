@@ -1,3 +1,13 @@
 .env
 venv/
 __pycache__/
+
+# Generated video output — large binaries, regenerated on demand
+# Anchored to repo root so frontend/src/app/projects/ isn't matched.
+/projects/
+
+# macOS Finder metadata
+.DS_Store
+
+# Local Claude Code settings (per-machine permissions); commit .claude/agents/
+.claude/settings.local.json

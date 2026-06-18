@@ -3,7 +3,8 @@ import os
 from dotenv import load_dotenv
 import anthropic
 
-from services.script_edit_service import load_script_edit
+from services.research_service import load_research
+from services.script_draft_service import load_script_draft
 
 load_dotenv()
 
@@ -20,12 +21,22 @@ SCENE_PLAN_SCHEMA = {
                 "type": "object",
                 "properties": {
                     "id": {"type": "integer"},
+                    "segment_id": {"type": "integer"},
+                    "segment_title": {"type": "string"},
                     "narration": {"type": "string"},
                     "emotional_purpose": {"type": "string"},
                     "visual_description": {"type": "string"},
                     "on_screen_text": {"type": "string"}
                 },
-                "required": ["id", "narration", "emotional_purpose", "visual_description", "on_screen_text"],
+                "required": [
+                    "id",
+                    "segment_id",
+                    "segment_title",
+                    "narration",
+                    "emotional_purpose",
+                    "visual_description",
+                    "on_screen_text",
+                ],
                 "additionalProperties": False
             }
         }
@@ -42,12 +53,14 @@ def load_scene_plan_prompt():
 
 def generate_scene_plan(project_name):
 
-    script_edit = load_script_edit(project_name)
-    prompt = load_scene_plan_prompt()
+    script = load_script_draft(project_name)
+    research = load_research(project_name)
+    topic = research.get("topic", script.get("title", ""))
+    prompt = load_scene_plan_prompt().replace("{topic}", topic)
 
     with client.messages.stream(
         model="claude-opus-4-7",
-        max_tokens=8096,
+        max_tokens=32000,
         thinking={"type": "adaptive"},
         output_config={"format": {"type": "json_schema", "schema": SCENE_PLAN_SCHEMA}},
         messages=[
@@ -57,7 +70,7 @@ def generate_scene_plan(project_name):
 {prompt}
 
 SCRIPT:
-{json.dumps(script_edit, indent=2)}
+{json.dumps(script, indent=2)}
 """
             }
         ]

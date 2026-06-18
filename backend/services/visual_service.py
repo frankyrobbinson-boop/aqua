@@ -1,62 +1,145 @@
+"""Fetch stock-footage clips for each scene via a StockProvider.
+
+Each scene's visual_description (from scene_plan) is used as the search query.
+Downloaded raw clips land in ../projects/{project}/footage/scene_NNN.mp4.
+Assembly trims + scales them to the final video format.
+"""
+
+import json
 import os
-from PIL import Image, ImageDraw, ImageFont
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional
 
-# Distinct colors per scene — rotate so adjacent scenes are visually different
-_PALETTE = [
-    (31, 97, 141),   # steel blue
-    (118, 68, 138),  # purple
-    (23, 165, 137),  # teal
-    (186, 74, 0),    # burnt orange
-    (39, 174, 96),   # green
-    (192, 57, 43),   # red
-    (93, 109, 126),  # slate
-    (142, 68, 173),  # violet
-]
+from services.stock_provider import StockProvider, pick_best
+from services.visual_rerank import rerank_candidates
 
-W, H = 2304, 1296  # 1.2× 1080p so zoompan has room to move
+# Bounded concurrency. Pexels free tier is 200 req/hr — at 8 workers we'll burn
+# at most ~16 requests/sec, well within budget. Anthropic Haiku has no hard
+# concurrency cap at our usage level.
+_MAX_WORKERS = 8
 
 
-def generate_placeholder(scene: dict, output_path: str):
-    color = _PALETTE[scene['id'] % len(_PALETTE)]
-    img = Image.new('RGB', (W, H), color)
-    draw = ImageDraw.Draw(img)
-
-    font_large = font_small = None
-    for candidate in ['/System/Library/Fonts/Helvetica.ttc',
-                      '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf']:
-        if os.path.exists(candidate):
-            try:
-                font_large = ImageFont.truetype(candidate, 120)
-                font_small = ImageFont.truetype(candidate, 60)
-            except Exception:
-                pass
-            break
-
-    _draw_centered(draw, f"Scene {scene['id']}", W // 2, H // 2 - 120, font_large, (255, 255, 255))
-    window = f"{scene['start_time']:.1f}s – {scene['end_time']:.1f}s  ({scene['duration']:.1f}s)"
-    _draw_centered(draw, window, W // 2, H // 2 + 20, font_small, (220, 220, 220))
-    hint = scene.get('visual_description', '')[:80]
-    _draw_centered(draw, hint, W // 2, H // 2 + 120, font_small, (180, 180, 180))
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    img.save(output_path, 'PNG')
+def _footage_cache_path(output_path: str) -> str:
+    return output_path + ".cache.json"
 
 
-def _draw_centered(draw, text, cx, cy, font, fill):
-    if font:
-        bbox = draw.textbbox((0, 0), text, font=font)
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        draw.text((cx - tw // 2, cy - th // 2), text, font=font, fill=fill)
-    else:
-        draw.text((cx, cy), text, fill=fill)
+def _footage_cache_hit(scene: dict, output_path: str) -> bool:
+    """True iff a previously-downloaded clip is still valid for this scene.
+
+    Keyed by the scene's visual_description: editing the scene's query in the
+    UI must invalidate the cache (otherwise a stale clip for the OLD query
+    would silently re-use). File existence + size > 0 isn't enough on its own
+    because scene IDs are stable across re-plans."""
+    cache_path = _footage_cache_path(output_path)
+    if not (os.path.exists(output_path) and os.path.exists(cache_path)):
+        return False
+    if os.path.getsize(output_path) == 0:
+        return False
+    try:
+        with open(cache_path) as f:
+            cache = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+    return cache.get("visual_description") == (scene.get("visual_description") or "").strip()
 
 
-def generate_all_placeholders(project_name: str, scene_windows: list) -> dict:
-    """Generate one placeholder PNG per scene. Returns {scene_id: path}."""
-    img_dir = f"../projects/{project_name}/images"
-    paths = {}
+def fetch_scene_footage(
+    project_name: str,
+    scene_windows: list,
+    provider: StockProvider,
+) -> dict:
+    """Search + download one stock clip per scene. Returns {scene_id: raw_clip_path}.
+
+    Scenes are processed in parallel (each scene is independent — different
+    Pexels search, different rerank call, different download). Cached clips
+    are detected first so we never pay for them. Failures abort the run via
+    the first exception that surfaces from as_completed."""
+    footage_dir = f"../projects/{project_name}/footage"
+    os.makedirs(footage_dir, exist_ok=True)
+
+    # First pass: identify what's cached vs what needs work. Done synchronously
+    # so cache hits stream as a tight block of log lines before the parallel
+    # downloads start interleaving.
+    paths: dict[int, str] = {}
+    todo: list[dict] = []
     for scene in scene_windows:
-        path = os.path.join(img_dir, f"scene_{scene['id']:03d}.png")
-        generate_placeholder(scene, path)
-        paths[scene['id']] = path
+        sid = scene["id"]
+        path = os.path.join(footage_dir, f"scene_{sid:03d}.mp4")
+        if _footage_cache_hit(scene, path):
+            print(f"  [scene {sid}] cached → {path}", flush=True)
+            paths[sid] = path
+            continue
+        todo.append(scene)
+
+    if not todo:
+        return paths
+
+    print(
+        f"  Fetching {len(todo)} scenes in parallel (max {_MAX_WORKERS} workers)...",
+        flush=True,
+    )
+
+    def _fetch_one(scene: dict) -> tuple[int, str]:
+        sid = scene["id"]
+        path = os.path.join(footage_dir, f"scene_{sid:03d}.mp4")
+        query = (scene.get("visual_description") or "").strip()
+        if not query:
+            raise ValueError(f"Scene {sid} has no visual_description to search with")
+
+        candidates = provider.search(query, min_duration=scene["duration"])
+        if not candidates:
+            raise RuntimeError(
+                f"No {provider.name} footage found for scene {sid} (query={query!r})"
+            )
+
+        # Filter to candidates that meet duration first, then LLM-rerank by
+        # visual fit. Falls through to pick_best heuristics if rerank has nothing
+        # to pick from (single candidate, missing previews, or API failure).
+        qualifying = [c for c in candidates if c.duration >= scene["duration"]]
+        rerank_pool = qualifying or candidates
+        best = rerank_candidates(
+            narration=scene.get("narration", ""),
+            visual_description=query,
+            candidates=rerank_pool,
+        )
+        if best is None:
+            best = pick_best(candidates, scene["duration"])
+        if best is None:
+            raise RuntimeError(
+                f"No usable candidate for scene {sid} (query={query!r})"
+            )
+
+        print(
+            f"  [scene {sid}] {provider.name} {best.id}  "
+            f"{best.width}x{best.height}  {best.duration:.1f}s  → {path}",
+            flush=True,
+        )
+        provider.download(best, path)
+        # Sidecar written AFTER the download finishes so a partial file never
+        # gets mistaken for a cache hit. Keyed by visual_description so re-plans
+        # that rewrite the query invalidate this clip.
+        with open(_footage_cache_path(path), "w") as cf:
+            json.dump({"visual_description": query, "stock_id": best.id}, cf)
+        return sid, path
+
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        futures = {pool.submit(_fetch_one, scene): scene["id"] for scene in todo}
+        first_exc: Optional[BaseException] = None
+        for fut in as_completed(futures):
+            try:
+                sid, path = fut.result()
+                paths[sid] = path
+            except BaseException as exc:
+                # Capture the first exception but let other in-flight downloads
+                # finish writing what they've already paid for. We re-raise after.
+                if first_exc is None:
+                    first_exc = exc
+                    print(
+                        f"  ERROR scene {futures[fut]}: {exc!r} — waiting for "
+                        f"in-flight downloads to settle before aborting...",
+                        flush=True,
+                    )
+        if first_exc is not None:
+            raise first_exc
+
     return paths

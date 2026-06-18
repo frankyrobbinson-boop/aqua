@@ -10,7 +10,7 @@ Name the source (publication, study, institution) when you know it. If you don't
 Content goals:
 
 Prioritize surprising, counterintuitive, or emotionally resonant material over encyclopedic coverage.
-Include 8–12 key facts and 4–8 statistics.
+Include 8–12 key facts and some statistics (if applicable).
 Angles should be framings a YouTube video could be built around, not just subtopics.
 
 Return ONLY valid JSON parsable by Python json.loads(). No markdown, no backticks, no explanations, no extra text.

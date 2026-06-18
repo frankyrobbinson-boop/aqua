@@ -74,7 +74,7 @@ def build_voice_units(project_name: str) -> list:
     units = []
     uid = 0
 
-    for raw_chunk in _chunk_text(script["hook"]["text"]):
+    for raw_chunk in _chunk_text(script["hook"]["narration"]):
         units.append({
             "id": uid, "type": "hook", "title": "Hook",
             "segment_key": "hook",
@@ -93,7 +93,7 @@ def build_voice_units(project_name: str) -> list:
             })
             uid += 1
 
-    for raw_chunk in _chunk_text(script["conclusion"]["text"]):
+    for raw_chunk in _chunk_text(script["conclusion"]["narration"]):
         units.append({
             "id": uid, "type": "conclusion", "title": "Conclusion",
             "segment_key": "conclusion",

@@ -1,0 +1,5 @@
+- Write in scenes, not bullet points. Each segment is an act.
+- Keep a character at the center (a scientist, a culture, a plant) and follow them.
+- End each segment on an unresolved beat — a question, a reversal, a cliff.
+- Hold the practical takeaway until the final segment; it's the story's payoff, not a mid-roll tip.
+- Sensory and concrete throughout — the viewer should see and smell the scene.

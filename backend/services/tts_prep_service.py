@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 import anthropic
 
-from services.script_edit_service import load_script_edit, SCRIPT_SCHEMA
+from services.script_draft_service import load_script_draft, SCRIPT_SCHEMA
 
 load_dotenv()
 
@@ -24,7 +24,7 @@ Rewrite each text field so it sounds natural when read aloud:
 
 
 def generate_tts_prep(project_name: str) -> dict:
-    script = load_script_edit(project_name)
+    script = load_script_draft(project_name)
 
     with client.messages.stream(
         model="claude-opus-4-7",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 ElevenLabs voice generation test.
-Runs against the potato project which has a finished script_edit.json.
+Runs against a project that has a finished script_draft.json.
 
 Usage:
   python test_voice.py            # prep only — no API call, free
@@ -61,7 +61,7 @@ def _print_words(words: list, n: int = 6):
 # ── stages ────────────────────────────────────────────────────────────────────
 
 def run_prep():
-    """Build voice units from script_edit.json. No API call."""
+    """Build voice units from tts_script.json. No API call."""
     from services.voice_prep_service import build_voice_units, save_voice_units
 
     print("=" * 60)

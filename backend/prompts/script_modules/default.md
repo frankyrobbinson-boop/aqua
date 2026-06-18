@@ -1,0 +1,5 @@
+- Write each segment as a self-contained payoff: one idea, revealed well.
+- Lead each segment with its most interesting angle, not a definition.
+- Land the common mistake where the outline calls for it.
+- End every segment on an open loop into the next.
+- Vary how segments open so they don't feel templated.

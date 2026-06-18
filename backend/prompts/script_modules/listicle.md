@@ -1,0 +1,5 @@
+- One segment per item, in the outline's order.
+- **Open each item by making it intriguing** — a question, a counterintuitive claim, or "here's what everyone gets wrong about this." Never open with a definition or a variety list.
+- Then: the sensory reveal of the mechanism (what it does, what it looks and smells like working), the common mistake that ruins it, and an open loop to the next item that contrasts them ("this one feeds the plant — but the next doesn't feed the plant at all…").
+- **Vary the opening move across items** — a question, a "what if," a myth, a tiny story — so the segments don't share an obvious template.
+- Do not write a recap or "playbook" segment. The last item is the last segment.

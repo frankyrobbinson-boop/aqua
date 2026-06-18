@@ -2,11 +2,20 @@ import base64
 import json
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import groupby
+from typing import Optional
+
 from dotenv import load_dotenv
 from elevenlabs.client import ElevenLabs
 from elevenlabs import VoiceSettings
 
 from services.voice_prep_service import load_voice_units
+
+# ElevenLabs concurrency: free tier allows 2, paid tiers allow more. Default 3
+# is safe on most plans. Set ELEVENLABS_CONCURRENCY to override (drop to 2 on
+# free tier if you see 429s).
+_ELEVEN_CONCURRENCY = int(os.getenv("ELEVENLABS_CONCURRENCY", "3"))
 
 load_dotenv()
 
@@ -16,14 +25,34 @@ MODEL_ID = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
 
 # Fixed across every chunk so prosody stays consistent throughout the video
 SEED = 42
-VOICE_SETTINGS = VoiceSettings(
-    stability=0.5,
-    similarity_boost=0.75,
-    style=0.0,
-    use_speaker_boost=True,
-)
+
+# ElevenLabs `speed` accepts ~0.7–1.2; clamp to a safer 0.8–1.2 range and treat
+# anything else as 1.0 to avoid request rejections.
+_SPEED_MIN, _SPEED_MAX = 0.8, 1.2
+
+
+def _voice_settings(speed: float = 1.0) -> VoiceSettings:
+    """Build a VoiceSettings with the given speed; other params are fixed so
+    voice character stays consistent across runs."""
+    speed = max(_SPEED_MIN, min(_SPEED_MAX, float(speed)))
+    return VoiceSettings(
+        stability=0.5,
+        similarity_boost=0.75,
+        style=0.0,
+        use_speaker_boost=True,
+        speed=speed,
+    )
+
 
 CHUNK_GAP = 0.3  # silence added between chunks in the timeline (no in-audio break tag)
+
+# Trim a small slice off the end of each chunk's spoken span before stamping
+# timeline coords. ElevenLabs occasionally emits a tiny artifact (lip smack,
+# click, breath) after the last word's transcript-end timestamp; trimming
+# before speech_end keeps that artifact out of the assembled audio. The
+# timeline reflects the trimmed span, so assembly_service consumes
+# speech_end as-is — no second trim downstream.
+TRAILING_TRIM = 0.03
 
 
 def _tail_sentences(unit: dict, n: int = 2) -> str:
@@ -90,6 +119,7 @@ def _chars_to_words(characters: list, start_times: list, end_times: list) -> lis
 def _generate_unit(
     unit: dict,
     audio_dir: str,
+    voice_speed: float = 1.0,
     previous_text: str = "",
     next_text: str = "",
     previous_request_id: str = "",
@@ -104,7 +134,12 @@ def _generate_unit(
     if os.path.exists(filepath) and os.path.exists(cache_path):
         with open(cache_path) as f:
             cached = json.load(f)
-        if cached.get("tts_source") == tts_text and cached.get("seed") == seed:
+        # Cache key includes voice_speed so a speed change forces regeneration.
+        if (
+            cached.get("tts_source") == tts_text
+            and cached.get("seed") == seed
+            and cached.get("voice_speed", 1.0) == voice_speed
+        ):
             return cached
 
     kwargs = dict(
@@ -116,7 +151,7 @@ def _generate_unit(
         previous_text=previous_text,
         next_text=next_text,
         seed=seed,
-        voice_settings=VOICE_SETTINGS,
+        voice_settings=_voice_settings(voice_speed),
     )
     if previous_request_id:
         kwargs["previous_request_ids"] = [previous_request_id]
@@ -126,7 +161,7 @@ def _generate_unit(
     try:
         raw = client.text_to_speech.with_raw_response.convert_with_timestamps(**kwargs)
         request_id = raw.headers.get("request-id") or raw.headers.get("x-request-id") or ""
-        response = raw.parse()
+        response = raw.data
     except Exception as exc:
         print(f"  WARNING: with_raw_response failed for {unit['title']!r} ({exc!r}); "
               f"retrying without request_id — prosody stitching disabled for this chunk")
@@ -171,6 +206,7 @@ def _generate_unit(
         "words": words,
         "tts_source": tts_text,
         "seed": seed,
+        "voice_speed": voice_speed,
         "request_id": request_id,
     }
 
@@ -180,53 +216,97 @@ def _generate_unit(
     return result
 
 
-def generate_audio(project_name: str) -> list:
+def generate_audio(project_name: str, voice_speed: float = 1.0) -> list:
     units = load_voice_units(project_name)
     audio_dir = f"../projects/{project_name}/audio"
     os.makedirs(audio_dir, exist_ok=True)
 
-    timeline = []
-    cursor = 0.0
-
-    prev_request_id = ""
-
+    # Pre-compute previous_text/next_text for every unit from global neighbors.
+    # These are prosody HINTS only (not spoken), so segment boundaries can still
+    # share neighbor context across the boundary.
+    contexts: list[dict] = []
     for i, unit in enumerate(units):
-        print(f"  Generating: {unit['title']}...")
-
         prev_unit = units[i - 1] if i > 0 else None
         next_unit = units[i + 1] if i < len(units) - 1 else None
+        contexts.append({
+            "previous_text": _tail_sentences(prev_unit) if prev_unit else "",
+            "next_text": _head_sentences(next_unit) if next_unit else "",
+        })
 
-        # Reset stitching at segment boundaries — carrying prosody across segments
-        # causes the delivery style of one segment's ending to bleed into the next.
-        # Use segment_key (index-based) rather than title to handle duplicate titles.
-        same_segment = prev_unit and prev_unit.get("segment_key") == unit.get("segment_key")
-        if not same_segment:
-            prev_request_id = ""
+    # Group unit indices by segment_key. Within a segment, units must run
+    # sequentially so previous_request_id can chain (request stitching). The
+    # original code already reset prev_request_id at segment boundaries, so
+    # different segments are independent and run in parallel.
+    segments: list[list[int]] = [
+        list(group)
+        for _, group in groupby(range(len(units)), key=lambda i: units[i].get("segment_key"))
+    ]
 
-        previous_text = _tail_sentences(prev_unit) if prev_unit else ""
-        next_text = _head_sentences(next_unit) if next_unit else ""
+    def _run_segment(seg: list[int]) -> dict[int, dict]:
+        local: dict[int, dict] = {}
+        prev_request_id = ""
+        for idx in seg:
+            unit = units[idx]
+            print(f"  Generating: {unit['title']}...", flush=True)
+            entry = _generate_unit(
+                unit, audio_dir, voice_speed,
+                contexts[idx]["previous_text"], contexts[idx]["next_text"],
+                prev_request_id,
+            )
+            prev_request_id = entry.get("request_id", "")
+            local[idx] = entry
+        return local
 
-        entry = _generate_unit(unit, audio_dir, previous_text, next_text, prev_request_id)
-        prev_request_id = entry.get("request_id", "")
+    workers = max(1, min(_ELEVEN_CONCURRENCY, len(segments)))
+    print(f"  Generating {len(segments)} segment(s) with {workers} parallel worker(s)...", flush=True)
 
+    results: dict[int, dict] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(_run_segment, seg) for seg in segments]
+        first_exc: Optional[BaseException] = None
+        for fut in as_completed(futures):
+            try:
+                results.update(fut.result())
+            except BaseException as exc:
+                if first_exc is None:
+                    first_exc = exc
+                    print(f"  ERROR in voiceover worker: {exc!r} — "
+                          f"waiting for in-flight segments to settle...", flush=True)
+        if first_exc is not None:
+            raise first_exc
+
+    # Walk units in ORIGINAL order to build the timeline, threading cursor
+    # through. cursor is purely arithmetic — no ordering issue with parallelism.
+    timeline = []
+    cursor = 0.0
+    for i in range(len(units)):
+        entry = results[i]
         words = entry["words"]
         speech_start = words[0]["start"] if words else 0.0
-        speech_end = words[-1]["end"] if words else entry["duration"]
+        raw_speech_end = words[-1]["end"] if words else entry["duration"]
+        # Trim before the last word's transcript-end to drop ElevenLabs artifacts.
+        # Floor at speech_start + 0.05 so chunks with very short single-word spans
+        # never collapse to <=0 duration (mirrors the safety floor assembly_service
+        # used previously).
+        speech_end = max(speech_start + 0.05, raw_speech_end - TRAILING_TRIM)
         speech_duration = speech_end - speech_start
 
-        # assembly_service trims leading silence via inpoint, so speech starts exactly
-        # at cursor in the assembled file — no speech_start offset in timeline coords.
         entry["timeline_start"] = round(cursor, 3)
         entry["timeline_end"] = round(cursor + speech_duration, 3)
         entry["speech_start"] = round(speech_start, 3)
         entry["speech_end"] = round(speech_end, 3)
 
+        # Clip any word whose end exceeds the trimmed speech_end (see edge-case
+        # note in plan), then stamp global_*.
         for word in words:
+            if word["end"] > speech_end:
+                word["end"] = speech_end
+            if word["start"] > speech_end:
+                word["start"] = speech_end  # zero-width; will be filtered/clamped
             word["global_start"] = round(word["start"] - speech_start + cursor, 3)
             word["global_end"] = round(word["end"] - speech_start + cursor, 3)
 
         cursor += speech_duration + CHUNK_GAP
-
         timeline.append(entry)
 
     return timeline

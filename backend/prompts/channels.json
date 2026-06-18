@@ -1,0 +1,11 @@
+{
+  "default_channel": "gardening",
+  "channels": [
+    {
+      "id": "gardening",
+      "name": "Gardening",
+      "description": "An everyday gardener channel — practical, conversational, leans on sensory detail.",
+      "channel_module": "channels/gardening.md"
+    }
+  ]
+}
