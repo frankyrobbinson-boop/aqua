@@ -1,0 +1,1 @@
+Open inside a concrete tableau the viewer can picture — a single moment, a single place, a single object in motion. Build it from sensory specifics (sight, sound, smell, texture, weight) and let the channel's voice rules choose which senses to lean on. Never narrate the act of imagining: no "picture this," no "imagine," no "let's say." Start *inside* the scene, not next to it.

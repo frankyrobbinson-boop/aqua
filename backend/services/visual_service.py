@@ -7,6 +7,7 @@ Assembly trims + scales them to the final video format.
 
 import json
 import os
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
@@ -57,6 +58,12 @@ def fetch_scene_footage(
     footage_dir = f"../projects/{project_name}/footage"
     os.makedirs(footage_dir, exist_ok=True)
 
+    # Track every stock clip ID we've committed to in this run. Both the cached-
+    # scene pass and the parallel-fetch pass write into it, and the per-scene
+    # worker consults it under a lock to avoid two scenes picking the same clip.
+    used_clip_ids: set[str] = set()
+    used_lock = threading.Lock()
+
     # First pass: identify what's cached vs what needs work. Done synchronously
     # so cache hits stream as a tight block of log lines before the parallel
     # downloads start interleaving.
@@ -68,6 +75,19 @@ def fetch_scene_footage(
         if _footage_cache_hit(scene, path):
             print(f"  [scene {sid}] cached → {path}", flush=True)
             paths[sid] = path
+            # Pre-populate the used set so fresh fetches in this run respect
+            # what's already on disk. Legacy sidecars without stock_id are
+            # silently skipped — the only cost is a possible duplicate against
+            # them, which the next run will resolve once the new sidecar is
+            # written with stock_id.
+            try:
+                with open(_footage_cache_path(path)) as cf:
+                    cached = json.load(cf)
+                cid = cached.get("stock_id")
+                if cid is not None:
+                    used_clip_ids.add(str(cid))
+            except (OSError, json.JSONDecodeError):
+                pass
             continue
         todo.append(scene)
 
@@ -108,6 +128,32 @@ def fetch_scene_footage(
             raise RuntimeError(
                 f"No usable candidate for scene {sid} (query={query!r})"
             )
+
+        # Avoid duplicate clip IDs across scenes. The critical section is
+        # tiny (set ops over <=10 candidates); the slow I/O — search,
+        # rerank, download — runs OUTSIDE the lock, so parallelism is
+        # preserved. Fallback "accept duplicate if every candidate is
+        # already used" prevents deadlock when the pool is exhausted.
+        with used_lock:
+            if str(best.id) in used_clip_ids:
+                alt = next(
+                    (c for c in rerank_pool if str(c.id) not in used_clip_ids),
+                    None,
+                )
+                if alt is not None:
+                    print(
+                        f"  [scene {sid}] avoiding duplicate of clip "
+                        f"{best.id}, using {alt.id}",
+                        flush=True,
+                    )
+                    best = alt
+                else:
+                    print(
+                        f"  [scene {sid}] WARNING: all candidates already "
+                        f"used, accepting duplicate {best.id}",
+                        flush=True,
+                    )
+            used_clip_ids.add(str(best.id))
 
         print(
             f"  [scene {sid}] {provider.name} {best.id}  "

@@ -13,6 +13,8 @@ Prioritize surprising, counterintuitive, or emotionally resonant material over e
 Include 8–12 key facts and some statistics (if applicable).
 Angles should be framings a YouTube video could be built around, not just subtopics.
 
+{{AUDIENCE_BLOCK}}
+
 Return ONLY valid JSON parsable by Python json.loads(). No markdown, no backticks, no explanations, no extra text.
 The JSON must follow this structure exactly:
 {

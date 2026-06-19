@@ -54,6 +54,46 @@ def resolve_channel(channel_id: str | None) -> str:
     return (_PROMPTS_DIR / c["channel_module"]).read_text()
 
 
+def resolve_channel_section(channel_id: str | None, section: str) -> str:
+    """Return the BODY of a `## <section>` heading from the channel's module.
+
+    Matching is case-insensitive on the heading text. Body = lines after the
+    heading up to the next `## ` heading or EOF, stripped of leading/trailing
+    whitespace. Raises ValueError if the section is absent so misconfiguration
+    fails loudly instead of silently producing an empty audience block.
+    """
+    c = _resolve(channel_id)
+    resolved_id = c["id"]
+    text = (_PROMPTS_DIR / c["channel_module"]).read_text()
+    target = section.strip().lower()
+    lines = text.splitlines()
+    in_section = False
+    body: list[str] = []
+    for line in lines:
+        if line.startswith("## "):
+            if in_section:
+                break
+            if line[3:].strip().lower() == target:
+                in_section = True
+                continue
+        elif in_section:
+            body.append(line)
+    if not in_section:
+        raise ValueError(
+            f"Channel {resolved_id!r} module has no '## {section}' section"
+        )
+    return "\n".join(body).strip()
+
+
+def channel_preferred_hook_archetype(channel_id: str | None) -> str | None:
+    """Return the channel's preferred_hook_archetype field, or None if absent.
+
+    Used by hook_archetype_registry.resolve_archetype to walk the fallback chain
+    without reaching into private internals."""
+    c = _resolve(channel_id)
+    return c.get("preferred_hook_archetype")
+
+
 def verify_channel_modules_exist() -> None:
     """Raise if any module file referenced by the registry is missing."""
     reg = _load_registry()
@@ -66,3 +106,24 @@ def verify_channel_modules_exist() -> None:
         raise RuntimeError(
             "channels.json references missing module files:\n  " + "\n  ".join(missing)
         )
+
+
+def list_channel_sections(channel_id: str | None) -> dict[str, str]:
+    """Return ALL `## <heading>` sections of the channel module as
+    {heading_text: body_text}, preserving file order. Returns {} if the module
+    has no `## ` headings. Raises ValueError for unknown channel_id.
+
+    Used by the UI's channel detail page so future channels with new sections
+    (e.g. `## Pacing`) surface automatically without code changes.
+    """
+    c = _resolve(channel_id)
+    text = (_PROMPTS_DIR / c["channel_module"]).read_text()
+    sections: dict[str, list[str]] = {}
+    current: str | None = None
+    for line in text.splitlines():
+        if line.startswith("## "):
+            current = line[3:].strip()
+            sections[current] = []
+        elif current is not None:
+            sections[current].append(line)
+    return {k: "\n".join(v).strip() for k, v in sections.items()}

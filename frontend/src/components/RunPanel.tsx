@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { streamTaskLogs, type TaskStatus } from "@/lib/api";
+import { streamTaskLogs, listTasks, getTaskStatus, type TaskStatus } from "@/lib/api";
 
 type RunState = {
   taskId: string;
@@ -20,6 +20,10 @@ type Props = {
   completedLabel?: string;
   failedLabel?: string;
   disabled?: boolean;
+  /** Identifies which stage this panel runs. When set with projectSlug,
+   *  RunPanel auto-restores in-flight runs after a page reload. */
+  stage?: string;
+  projectSlug?: string;
   /** What to show as the "next step" link when the run completes. If omitted,
    *  a Refresh button is shown that re-fetches the server-rendered tree. */
   nextHref?: (slug: string) => string;
@@ -33,6 +37,8 @@ export function RunPanel({
   completedLabel = "Done",
   failedLabel = "Failed",
   disabled = false,
+  stage,
+  projectSlug,
   nextHref,
   nextLabel = "Next →",
 }: Props) {
@@ -43,6 +49,79 @@ export function RunPanel({
   const cleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => () => cleanupRef.current?.(), []);
+
+  // Hydrate from an in-flight task on mount. If the user reloaded the page
+  // while a run was active, the backend's _REGISTRY still has it; reattach
+  // the log stream so the progress box reappears.
+  //
+  // The `attached` flag guards against a race: if the user clicks "start"
+  // during the await window, we must back off entirely — both from setting
+  // state and from attaching a stream — so we don't tear down the manual
+  // run's SSE stream or pollute its state.
+  useEffect(() => {
+    if (!stage || !projectSlug) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        let tasks = await listTasks({
+          project_slug: projectSlug,
+          kind: stage,
+          status: "running",
+        });
+        if (tasks.length === 0) {
+          tasks = await listTasks({
+            project_slug: projectSlug,
+            kind: stage,
+            status: "pending",
+          });
+        }
+        if (cancelled || tasks.length === 0) return;
+
+        const t = tasks[0];
+        const detail = await getTaskStatus(t.id);
+        if (cancelled) return;
+
+        let attached = false;
+        setRun((prev) => {
+          if (prev !== null) return prev;
+          attached = true;
+          return {
+            taskId: t.id,
+            projectSlug,
+            logs: detail.logs,
+            status: detail.status,
+          };
+        });
+        if (!attached) return;
+
+        if (detail.status === "running" || detail.status === "pending") {
+          cleanupRef.current?.();
+          cleanupRef.current = streamTaskLogs(
+            t.id,
+            (line) =>
+              setRun((prev) =>
+                prev && prev.taskId === t.id
+                  ? { ...prev, logs: [...prev.logs, line] }
+                  : prev,
+              ),
+            (status) =>
+              setRun((prev) =>
+                prev && prev.taskId === t.id ? { ...prev, status } : prev,
+              ),
+          );
+        }
+      } catch {
+        // Hydration is best-effort. A failed query just leaves run=null.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const isRunning = run?.status === "running" || submitting;
 

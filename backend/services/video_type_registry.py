@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Iterable
 
 from services.channel_registry import CHANNEL_SLOT
+from services.hook_archetype_registry import HOOK_ARCHETYPE_SLOT
 
 _PROMPTS_DIR = Path("prompts")
 _REGISTRY_PATH = _PROMPTS_DIR / "video_types.json"
@@ -104,6 +105,7 @@ def compose_script_prompt(
     target_minutes: int,
     total_word_target: int,
     words_per_segment: int,
+    hook_archetype_block: str,
     additional_instructions: str | None = None,
     sample_script: str | None = None,
 ) -> str:
@@ -112,6 +114,7 @@ def compose_script_prompt(
     Sample script goes through last so any braces in pasted content are inert."""
     text = base.replace(CHANNEL_SLOT, channel_content)
     text = text.replace(STRUCTURE_SLOT, structure_module)
+    text = text.replace(HOOK_ARCHETYPE_SLOT, hook_archetype_block)
     text = (
         text.replace("{topic}", topic)
         .replace("{target_minutes}", str(target_minutes))

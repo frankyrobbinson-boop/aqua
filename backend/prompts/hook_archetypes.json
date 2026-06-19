@@ -1,0 +1,10 @@
+{
+  "default_archetype": "scene",
+  "archetypes": [
+    { "id": "scene",            "label": "Scene",            "description": "Open inside a sensory tableau the viewer can picture.",                            "prompt_module": "hook_archetypes/scene.md" },
+    { "id": "contrast",         "label": "Contrast",         "description": "Snap together two things that should align but don't.",                            "prompt_module": "hook_archetypes/contrast.md" },
+    { "id": "counter_claim",    "label": "Counter-claim",    "description": "Directly contradict a belief the audience walks in holding.",                     "prompt_module": "hook_archetypes/counter_claim.md" },
+    { "id": "specific_result",  "label": "Specific result",  "description": "Lead with one concrete, surprising outcome (number, measurement, before/after).", "prompt_module": "hook_archetypes/specific_result.md" },
+    { "id": "bold_claim",       "label": "Bold claim",       "description": "Stake a strong, falsifiable position in one declarative sentence.",                "prompt_module": "hook_archetypes/bold_claim.md" }
+  ]
+}

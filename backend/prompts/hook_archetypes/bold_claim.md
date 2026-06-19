@@ -1,0 +1,1 @@
+Open with a single declarative sentence that stakes a strong position the audience didn't expect. No hedging language ("might," "sometimes," "in my opinion"). The claim must be falsifiable enough that the body of the video can defend it — a bold claim with no body to back it is bait.

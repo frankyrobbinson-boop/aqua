@@ -19,23 +19,24 @@ OUT_W, OUT_H = 1920, 1080
 # ---------------------------------------------------------------------------
 
 def assemble_audio(project_name: str) -> str:
-    """Concatenate audio chunks into a single MP3 with CHUNK_GAP silence between them."""
+    """Concatenate audio chunks into a single MP3 with CHUNK_GAP silence between them.
+
+    Uses the ffmpeg concat *filter* (not the concat demuxer) so each chunk decodes
+    in its own stream and gaps are inserted as inline `anullsrc` segments inside
+    the filter graph. This avoids two prior failure modes:
+      1. Mixed-format inputs (MP3 chunks + WAV gap) crashing the demuxer's shared
+         decoder with "Invalid data found when processing input".
+      2. MP3-frame-quantized gaps (~26 ms granularity) drifting ~40 ms per gap
+         from the sample-accurate timeline.
+
+    Gap duration is sample-accurate because `anullsrc` is a synthesized PCM source
+    inside the graph — `d=0.3` at 44100 Hz is exactly 13230 samples.
+    """
     timeline = load_audio_timeline(project_name)
     audio_dir = f"../projects/{project_name}/audio"
     video_dir = f"../projects/{project_name}/video"
     os.makedirs(video_dir, exist_ok=True)
 
-    # Generate a short silence file used as gap filler
-    gap_path = os.path.join(video_dir, "gap.mp3")
-    if not os.path.exists(gap_path):
-        subprocess.run([
-            "ffmpeg", "-y",
-            "-f", "lavfi", "-i", f"aevalsrc=0:c=mono:s=44100:d={CHUNK_GAP}",
-            "-c:a", "libmp3lame", "-ar", "44100", gap_path,
-        ], check=True, capture_output=True)
-
-    # Build concat list: chunk, gap, chunk, gap, ...
-    concat_path = os.path.join(video_dir, "audio_concat.txt")
     missing = [
         entry["audio_file"] for entry in timeline
         if not os.path.exists(os.path.join(audio_dir, entry["audio_file"]))
@@ -45,37 +46,75 @@ def assemble_audio(project_name: str) -> str:
             f"Missing audio chunks — run audio generation first: {missing}"
         )
 
-    with open(concat_path, "w") as f:
-        for i, entry in enumerate(timeline):
-            chunk_path = os.path.abspath(os.path.join(audio_dir, entry["audio_file"]))
-            # Trim leading silence to speech_start. speech_end is already trim-adjusted
-            # by voice_service (TRAILING_TRIM applied at timeline-stamp time), so consume
-            # it as-is — do not subtract again.
-            inpoint = entry.get("speech_start", 0.0)
-            outpoint = entry.get("speech_end", entry["duration"])
-            f.write(f"file '{chunk_path}'\n")
-            f.write(f"inpoint {inpoint}\n")
-            f.write(f"outpoint {outpoint}\n")
-            if i < len(timeline) - 1:
-                f.write(f"file '{os.path.abspath(gap_path)}'\n")
-                f.write(f"duration {CHUNK_GAP}\n")
+    # Build -i input args and the filter_complex graph.
+    # For each chunk i:
+    #   [i:a] atrim=start=speech_start:end=speech_end, asetpts=PTS-STARTPTS,
+    #         aresample=44100, aformat=channel_layouts=mono [c{i}]
+    # Between consecutive chunks:
+    #   anullsrc=r=44100:cl=mono:d=CHUNK_GAP [g{i}]
+    # Then concat=n=2N-1:v=0:a=1 → post filter chain → [out].
+    #
+    # aresample + aformat normalize each chunk to 44.1 kHz mono before concat;
+    # concat requires every input to share sample rate, channel layout, and
+    # sample format. ElevenLabs `mp3_44100_128` is mono 44.1 kHz already, so
+    # these are defensive no-ops — but they keep the graph robust if a chunk
+    # ever ships stereo or at a different rate.
+    input_args: list[str] = []
+    chunk_filters: list[str] = []
+    concat_labels: list[str] = []
+
+    for i, entry in enumerate(timeline):
+        chunk_path = os.path.abspath(os.path.join(audio_dir, entry["audio_file"]))
+        inpoint = entry.get("speech_start", 0.0)
+        outpoint = entry.get("speech_end", entry["duration"])
+
+        input_args += ["-i", chunk_path]
+        chunk_filters.append(
+            f"[{i}:a]atrim=start={inpoint}:end={outpoint},"
+            f"asetpts=PTS-STARTPTS,aresample=44100,"
+            f"aformat=sample_rates=44100:channel_layouts=mono[c{i}]"
+        )
+        concat_labels.append(f"[c{i}]")
+        if i < len(timeline) - 1:
+            chunk_filters.append(
+                f"anullsrc=r=44100:cl=mono:d={CHUNK_GAP}[g{i}]"
+            )
+            concat_labels.append(f"[g{i}]")
+
+    n_segments = len(concat_labels)  # = 2N-1 for N>=2, = 1 for N=1
+    concat_chain = (
+        f"{''.join(concat_labels)}concat=n={n_segments}:v=0:a=1[concat];"
+        f"[concat]dynaudnorm=f=200:p=0.85:s=20,"
+        f"loudnorm=I=-16:TP=-1.5:LRA=11,"
+        f"alimiter=limit=0.891251:level=disabled[out]"
+    )
+    filter_complex = ";".join(chunk_filters) + ";" + concat_chain
 
     out_path = os.path.join(video_dir, "full_audio.mp3")
-    # Filter chain (left-to-right):
+    # Filter chain on [concat] (left-to-right):
     #   dynaudnorm — smooth chunk-to-chunk loudness variance. p=0.85 leaves more
     #     headroom for loudnorm; s=20 reduces gain-pump artifacts.
     #   loudnorm   — single-pass EBU R128 to -16 LUFS / TP -1.5 (YouTube spec).
-    #   alimiter   — belt-and-suspenders true-peak limiter at -1.0 dB so any
+    #   alimiter   — belt-and-suspenders true-peak limiter at -1.0 dBFS so any
     #     residual clip from loudnorm's single-pass approximation is caught.
-    subprocess.run([
+    #     ffmpeg 8.x expects `limit` in linear amplitude (0.0625–1.0), not dB —
+    #     0.891251 ≈ 10^(-1/20), i.e. -1.0 dBFS.
+    cmd = [
         "ffmpeg", "-y",
-        "-f", "concat", "-safe", "0", "-i", concat_path,
-        "-af",
-        "dynaudnorm=f=200:p=0.85:s=20,"
-        "loudnorm=I=-16:TP=-1.5:LRA=11,"
-        "alimiter=limit=-1.0:level=disabled",
+        *input_args,
+        "-filter_complex", filter_complex,
+        "-map", "[out]",
         "-c:a", "libmp3lame", "-ar", "44100", out_path,
-    ], check=True, capture_output=True)
+    ]
+    try:
+        subprocess.run(cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        # capture_output swallowed ffmpeg's diagnostics on prior bugs (e.g. the
+        # alimiter unit confusion). Surface stderr before re-raising so future
+        # failures aren't silent.
+        stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+        print(f"ffmpeg failed assembling audio for {project_name}:\n{stderr}")
+        raise
 
     return out_path
 

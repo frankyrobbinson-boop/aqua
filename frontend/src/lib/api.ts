@@ -44,6 +44,7 @@ export type ScriptRequest = {
   project_slug?: string;
   /** Selects the outline/script structure module from video_types.json. */
   video_type?: string;
+  hook_archetype?: string;
   /** ElevenLabs voice speed (0.8–1.2). 1.0 = native rate. */
   voice_speed?: number;
   /** Notes / list / context to seed the GPT-5 research prompt. */
@@ -68,12 +69,67 @@ export async function getVideoTypes(): Promise<VideoTypesResponse> {
   return getJSON<VideoTypesResponse>("/video-types");
 }
 
+export type HookArchetype = {
+  id: string;
+  label: string;
+  description: string;
+};
+
+export type HookArchetypesResponse = {
+  default_archetype: string;
+  archetypes: HookArchetype[];
+};
+
+export async function getHookArchetypes(): Promise<HookArchetypesResponse> {
+  return getJSON<HookArchetypesResponse>("/hook-archetypes");
+}
+
+export type Channel = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type ChannelsResponse = {
+  default_channel: string;
+  channels: Channel[];
+};
+
+export type ChannelDetail = {
+  id: string;
+  name: string;
+  description: string;
+  preferred_hook_archetype: string | null;
+  preferred_hook_archetype_label: string | null;
+  sections: Record<string, string>;
+};
+
+export async function getChannels(): Promise<ChannelsResponse> {
+  return getJSON<ChannelsResponse>("/channels");
+}
+
+export async function getChannel(id: string): Promise<ChannelDetail> {
+  return getJSON<ChannelDetail>(`/channels/${encodeURIComponent(id)}`);
+}
+
 export type StartScriptResponse = {
   task_id: string;
   project_slug: string;
 };
 
 export type TaskStatus = "pending" | "running" | "completed" | "failed";
+
+export type TaskSummary = {
+  id: string;
+  status: TaskStatus;
+  exit_code: number | null;
+  started_at: number | null;
+  finished_at: number | null;
+  log_count: number;
+  metadata: Record<string, unknown>;
+};
+
+export type TaskWithLogs = TaskSummary & { logs: string[] };
 
 async function getJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -214,4 +270,24 @@ export function streamTaskLogs(
     source.close();
   };
   return () => source.close();
+}
+
+/** List active tasks, optionally filtered. Used by RunPanel to recover an
+ *  in-flight run after page reload. */
+export async function listTasks(params?: {
+  project_slug?: string;
+  kind?: string;
+  status?: string;
+}): Promise<TaskSummary[]> {
+  const qs = new URLSearchParams();
+  if (params?.project_slug) qs.set("project_slug", params.project_slug);
+  if (params?.kind) qs.set("kind", params.kind);
+  if (params?.status) qs.set("status", params.status);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return getJSON<TaskSummary[]>(`/tasks${suffix}`);
+}
+
+/** Fetch a task's current state plus its full log buffer. */
+export async function getTaskStatus(taskId: string): Promise<TaskWithLogs> {
+  return getJSON<TaskWithLogs>(`/tasks/${encodeURIComponent(taskId)}`);
 }

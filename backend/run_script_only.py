@@ -81,12 +81,15 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
     config = _load_script_config(project_dir)
     channel = config.get("channel")
     video_type = config.get("video_type")
+    hook_archetype = config.get("hook_archetype")
     additional_instructions = config.get("additional_instructions")
     sample_script = config.get("sample_script")
     if channel:
         print(f"      channel: {channel}", flush=True)
     if video_type:
         print(f"      video_type: {video_type}", flush=True)
+    if hook_archetype:
+        print(f"      hook_archetype: {hook_archetype}", flush=True)
 
     if os.path.exists(research_path):
         print(f"\n[1/3] Research already exists — skipping generation.")
@@ -102,7 +105,7 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
         else:
             print(f"\n[1/3] Research...  (topic: {topic!r}, {target_minutes}-min target)")
 
-        research = generate_research(topic, pre_research=pre_research)
+        research = generate_research(topic, pre_research=pre_research, channel=channel)
         save_research(project_name, {"topic": topic, "research": research})
         print("      research saved")
 
@@ -125,6 +128,7 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
         target_minutes,
         channel=channel,
         video_type=video_type,
+        hook_archetype=hook_archetype,
         additional_instructions=additional_instructions,
         sample_script=sample_script,
     )

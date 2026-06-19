@@ -7,7 +7,7 @@ import os
 import time
 import uuid
 from collections import OrderedDict
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Optional
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -155,8 +155,32 @@ def get_task(task_id: str) -> Task:
 
 
 @router.get("")
-def list_tasks() -> list[dict[str, Any]]:
-    return [t.summary() for t in _REGISTRY.values()]
+def list_tasks(
+    project_slug: Optional[str] = None,
+    kind: Optional[str] = None,
+    status: Optional[str] = None,
+) -> list[dict[str, Any]]:
+    """List tasks, optionally filtered by project_slug, kind, or status.
+
+    Filtered listing is how the frontend recovers in-flight runs after a page
+    reload: RunPanel queries (project_slug=X, kind=Y, status=running) to find
+    its own task and re-attach the SSE stream.
+
+    Sort order: most-recently-started first, with pending tasks (started_at
+    still None) ahead of any started task so a fresh start beats a stale run."""
+    results = list(_REGISTRY.values())
+    if project_slug is not None:
+        results = [t for t in results if t.metadata.get("project_slug") == project_slug]
+    if kind is not None:
+        results = [t for t in results if t.metadata.get("kind") == kind]
+    if status is not None:
+        results = [t for t in results if t.status == status]
+    # started_at=None (pending) sorts highest. Otherwise newest first.
+    results.sort(
+        key=lambda t: (t.started_at is None, t.started_at or 0.0),
+        reverse=True,
+    )
+    return [t.summary() for t in results]
 
 
 @router.get("/{task_id}")

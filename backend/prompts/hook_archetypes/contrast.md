@@ -1,0 +1,1 @@
+Open by snapping two things together that the viewer expects to be aligned but are not — what most people do vs. what actually works, what looks true vs. what is true, the safe move vs. the right one. The contrast must be sharp and concrete (not abstract). Don't resolve the gap in Beat 1; the tension *is* the hook.

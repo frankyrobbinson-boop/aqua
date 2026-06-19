@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -10,6 +11,8 @@ import {
   type TaskStatus,
 } from "@/lib/api";
 
+import { ChannelSelect } from "@/components/ChannelSelect";
+import { HookArchetypeSelect } from "@/components/HookArchetypeSelect";
 import { VideoTypeSelect } from "@/components/VideoTypeSelect";
 
 /**
@@ -37,6 +40,8 @@ export function ScriptCreationForm({
   const [preResearch, setPreResearch] = useState("");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [sampleScript, setSampleScript] = useState("");
+  const [hookArchetype, setHookArchetype] = useState<string | undefined>(undefined);
+  const [channel, setChannel] = useState<string | undefined>(undefined);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -46,6 +51,8 @@ export function ScriptCreationForm({
     status: TaskStatus;
     mode: "script" | "pipeline";
   } | null>(null);
+
+  const router = useRouter();
 
   const cleanupRef = useRef<(() => void) | null>(null);
   useEffect(() => () => cleanupRef.current?.(), []);
@@ -64,6 +71,8 @@ export function ScriptCreationForm({
       target_minutes: targetMinutes,
       project_slug: projectSlug,
       video_type: videoType,
+      hook_archetype: hookArchetype,
+      channel: channel,
       pre_research: preResearch.trim() || undefined,
       additional_instructions: additionalInstructions.trim() || undefined,
       sample_script: sampleScript.trim() || undefined,
@@ -79,6 +88,20 @@ export function ScriptCreationForm({
         status: "running",
         mode,
       });
+
+      // Backend may have renamed a draft slug to a topic-derived one. If the form
+      // was mounted from /projects/[draft-slug], navigate to the new URL so the
+      // user lands on the renamed project. router.replace (not push) — the draft
+      // URL isn't worth keeping in history.
+      //
+      // NOTE: This unmounts ScriptCreationForm on the per-project page (the route
+      // segment changes), so the in-flight run state here is lost. That's
+      // acceptable — Fix 2 (RunPanel hydration) plus the page's own re-render
+      // against the new slug recover the streaming progress immediately. On
+      // /create there's no [slug] route segment, so the form stays mounted.
+      if (projectSlug && resp.project_slug !== projectSlug) {
+        router.replace(`/projects/${resp.project_slug}`);
+      }
 
       cleanupRef.current = streamTaskLogs(
         resp.task_id,
@@ -121,12 +144,18 @@ export function ScriptCreationForm({
           />
         </Row>
 
-        <Row label="Channel" hint="Presets coming" placeholder>
-          <select className="form-input" disabled value="default">
-            <option value="default">Default</option>
-          </select>
+        <Row label="Channel" hint="Channel preset">
+          <ChannelSelect value={channel} onChange={setChannel} disabled={submitting} />
         </Row>
       </div>
+
+      <Row label="Hook opening" optional hint="Beat 1 archetype">
+        <HookArchetypeSelect
+          value={hookArchetype}
+          onChange={setHookArchetype}
+          disabled={submitting}
+        />
+      </Row>
 
       <Row
         label="Target length"

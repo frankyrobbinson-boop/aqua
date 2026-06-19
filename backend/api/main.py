@@ -11,11 +11,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from api.routes import pipeline, projects, scripts, tasks
+from services.hook_archetype_registry import (
+    verify_archetype_modules_exist,
+    verify_hook_slot,
+)
+from services.research_service import verify_research_slot
 from services.video_type_registry import verify_base_slots, verify_modules_exist
 
 # Fail fast if the prompt bundle is broken — better at boot than mid-run.
 verify_modules_exist()
 verify_base_slots()
+verify_research_slot()
+verify_archetype_modules_exist()
+verify_hook_slot()
 
 
 app = FastAPI(title="Aqua API", version="0.1.0")

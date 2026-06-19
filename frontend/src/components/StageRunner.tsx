@@ -54,6 +54,8 @@ export function StageRunner({
       completedLabel={cfg.completedLabel}
       failedLabel={cfg.failedLabel}
       disabled={disabled}
+      stage={stage}
+      projectSlug={slug}
     />
   );
 }

@@ -5,7 +5,8 @@
       "id": "gardening",
       "name": "Gardening",
       "description": "An everyday gardener channel — practical, conversational, leans on sensory detail.",
-      "channel_module": "channels/gardening.md"
+      "channel_module": "channels/gardening.md",
+      "preferred_hook_archetype": "scene"
     }
   ]
 }

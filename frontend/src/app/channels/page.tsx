@@ -1,0 +1,59 @@
+import Link from "next/link";
+import { getChannels } from "@/lib/api";
+
+export const dynamic = "force-dynamic";
+
+export default async function ChannelsPage() {
+  let data;
+  let error: string | null = null;
+  try {
+    data = await getChannels();
+  } catch (err) {
+    data = { default_channel: "", channels: [] };
+    error = err instanceof Error ? err.message : String(err);
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Channels</h1>
+        <p className="mt-1 text-sm text-muted">
+          Channel presets define narrator voice, audience, and tone rules.
+          Edit the underlying <span className="font-mono">.md</span> files to make changes.
+        </p>
+      </div>
+
+      {error && (
+        <div className="mb-6 rounded-lg border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+          Could not reach API at <span className="font-mono">{error}</span>.
+          Is the FastAPI service running on port 8000?
+        </div>
+      )}
+
+      {data.channels.length === 0 && !error ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-12 text-center">
+          <p className="text-sm text-muted">No channels configured.</p>
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {data.channels.map((c) => (
+            <Link
+              key={c.id}
+              href={`/channels/${c.id}`}
+              className="block rounded-lg border border-border bg-surface p-5 hover:border-accent hover:bg-surface-2 transition-colors"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="font-medium text-foreground">{c.name}</h2>
+                {c.id === data.default_channel && (
+                  <span className="text-[10px] uppercase tracking-wide text-muted">Default</span>
+                )}
+              </div>
+              <p className="mt-1 font-mono text-xs text-muted">{c.id}</p>
+              <p className="mt-3 text-sm text-muted-strong">{c.description}</p>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

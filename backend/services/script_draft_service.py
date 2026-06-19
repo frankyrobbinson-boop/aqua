@@ -70,6 +70,7 @@ def generate_script_draft(
     target_minutes: int,
     channel: str | None = None,
     video_type: str | None = None,
+    hook_archetype: str | None = None,
     additional_instructions: str | None = None,
     sample_script: str | None = None,
 ):
@@ -78,6 +79,9 @@ def generate_script_draft(
     base = _load_script_base()
     channel_content = resolve_channel(channel)
     _, script_module = resolve_modules(video_type)
+    from services.hook_archetype_registry import resolve_archetype, build_archetype_block
+    resolved_archetype_id = resolve_archetype(hook_archetype, channel)
+    hook_archetype_block = build_archetype_block(resolved_archetype_id)
 
     n_sections = max(1, len(outline.get("sections", [])))
     total_word_target = target_minutes * WORDS_PER_MINUTE
@@ -92,6 +96,7 @@ def generate_script_draft(
         target_minutes=target_minutes,
         total_word_target=total_word_target,
         words_per_segment=words_per_segment,
+        hook_archetype_block=hook_archetype_block,
         additional_instructions=additional_instructions,
         sample_script=sample_script,
     )

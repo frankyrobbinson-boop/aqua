@@ -2,16 +2,29 @@
 
 import json
 import os
+import re
+import shutil
 import sys
 import tempfile
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from api.routes.projects import PROJECTS_ROOT
 from api.routes.tasks import start_task
-from services.channel_registry import default_channel_id, list_channels
+from services.channel_registry import (
+    default_channel_id,
+    list_channel_sections,
+    list_channels,
+    _resolve as _resolve_channel,
+)
+from services.hook_archetype_registry import (
+    default_archetype_id,
+    list_archetypes,
+    _resolve as _resolve_archetype,
+)
 from services.research_service import slugify
 from services.video_type_registry import (
     default_type_id,
@@ -20,6 +33,10 @@ from services.video_type_registry import (
 
 
 router = APIRouter(tags=["scripts"])
+
+# Matches the draft slug shape created by POST /projects: draft-{epoch}-{4 hex}.
+# Anchored so it never matches a legitimate topic-derived slug.
+_DRAFT_SLUG_RE = re.compile(r"^draft-\d+-[a-f0-9]+$")
 
 
 class ScriptRequest(BaseModel):
@@ -31,6 +48,7 @@ class ScriptRequest(BaseModel):
     # Selects the outline/script structure module from video_types.json.
     # None falls back to the registry's default_type at run time.
     video_type: Optional[str] = None
+    hook_archetype: Optional[str] = None
     # ElevenLabs `speed` voice setting (0.8–1.2). 1.0 = native rate.
     voice_speed: Optional[float] = Field(default=None, ge=0.8, le=1.2)
     # If provided, included in the GPT-5 research prompt as a starting point.
@@ -69,6 +87,7 @@ def _write_script_config(backend_dir: Path, project_slug: str, req: "ScriptReque
         "additional_instructions": req.additional_instructions,
         "sample_script": req.sample_script,
         "voice_speed": req.voice_speed if req.voice_speed is not None else 1.0,
+        "hook_archetype": req.hook_archetype,
     }
     # Atomic write so a concurrent reader (the script subprocess) can't see a
     # half-written file. tempfile in same dir → os.replace is atomic on POSIX.
@@ -90,6 +109,51 @@ def _resolve_slug(req: ScriptRequest) -> str:
     return req.project_slug or slugify(req.topic)
 
 
+def _migrate_draft_slug(req: ScriptRequest) -> str:
+    """If `req.project_slug` is a draft slug from POST /projects, rename its
+    folder to the topic-derived slug and return the new slug. Otherwise return
+    `_resolve_slug(req)` unchanged.
+
+    Collisions with an existing non-draft project are resolved by suffixing
+    -2, -3, ... — the renamed folder never overwrites another project."""
+    slug = _resolve_slug(req)
+    if req.project_slug is None or not _DRAFT_SLUG_RE.match(req.project_slug):
+        return slug
+
+    desired = slugify(req.topic)  # raises ValueError on empty topic
+    if desired == req.project_slug:
+        return desired  # defensive: a topic happened to look like the draft
+
+    src = PROJECTS_ROOT / req.project_slug
+    if not src.is_dir():
+        # Draft folder vanished (e.g. user deleted it elsewhere). Bail to the
+        # topic slug so subsequent writes still land somewhere sensible.
+        return desired
+
+    # Pick a unique target. Collisions only happen if the same topic was used
+    # before; suffix until free.
+    target = PROJECTS_ROOT / desired
+    if target.exists():
+        n = 2
+        while (PROJECTS_ROOT / f"{desired}-{n}").exists():
+            n += 1
+        desired = f"{desired}-{n}"
+        target = PROJECTS_ROOT / desired
+
+    shutil.move(str(src), str(target))
+    return desired
+
+
+def _validate_hook_archetype(archetype_id: Optional[str]) -> None:
+    """Fail loud with 400 if a per-video override doesn't exist in the registry."""
+    if archetype_id is None:
+        return
+    try:
+        _resolve_archetype(archetype_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ---------------------------------------------------------------------------
 # Video type registry — exposed for the UI dropdown
 # ---------------------------------------------------------------------------
@@ -109,10 +173,48 @@ def get_channels() -> dict:
     return {"default_channel": default_channel_id(), "channels": list_channels()}
 
 
+@router.get("/channels/{channel_id}")
+def get_channel_detail(channel_id: str) -> dict:
+    """Read-only detail view of a channel for the /channels/[id] UI page.
+
+    Returns id/name/description (from channels.json), the preferred hook
+    archetype + its human label, and ALL `## ` sections of the channel module
+    body as {heading: body_text}. Future channel fields and new sections
+    surface here automatically."""
+    try:
+        c = _resolve_channel(channel_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    pref_id = c.get("preferred_hook_archetype")
+    pref_label: Optional[str] = None
+    if pref_id:
+        try:
+            pref_label = _resolve_archetype(pref_id)["label"]
+        except ValueError:
+            pref_label = None  # boot guards normally prevent this; stay defensive
+
+    return {
+        "id": c["id"],
+        "name": c["name"],
+        "description": c["description"],
+        "preferred_hook_archetype": pref_id,
+        "preferred_hook_archetype_label": pref_label,
+        "sections": list_channel_sections(channel_id),
+    }
+
+
+@router.get("/hook-archetypes")
+def get_hook_archetypes() -> dict:
+    """Public hook-archetype registry: id, label, description + default_archetype."""
+    return {"default_archetype": default_archetype_id(), "archetypes": list_archetypes()}
+
+
 @router.post("/scripts", response_model=ScriptResponse)
 async def create_script(req: ScriptRequest) -> ScriptResponse:
     """Start a script-only generation run."""
-    project_slug = _resolve_slug(req)
+    _validate_hook_archetype(req.hook_archetype)
+    project_slug = _migrate_draft_slug(req)
     backend_dir = Path(__file__).resolve().parent.parent.parent
     _write_pre_research(backend_dir, project_slug, req.pre_research)
     _write_script_config(backend_dir, project_slug, req)
@@ -142,7 +244,8 @@ async def create_script(req: ScriptRequest) -> ScriptResponse:
 @router.post("/pipeline", response_model=ScriptResponse)
 async def create_pipeline(req: ScriptRequest) -> ScriptResponse:
     """Start an end-to-end pipeline run: script → voiceover → visuals → render."""
-    project_slug = _resolve_slug(req)
+    _validate_hook_archetype(req.hook_archetype)
+    project_slug = _migrate_draft_slug(req)
     backend_dir = Path(__file__).resolve().parent.parent.parent
     _write_pre_research(backend_dir, project_slug, req.pre_research)
     _write_script_config(backend_dir, project_slug, req)

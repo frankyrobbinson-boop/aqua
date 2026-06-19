@@ -1,0 +1,1 @@
+Open by directly contradicting a belief the audience walks in holding. Name the belief in the viewer's own framing first, then puncture it in the same breath. The claim must be defensible from the research — don't pick a fight you can't finish later in the video.
