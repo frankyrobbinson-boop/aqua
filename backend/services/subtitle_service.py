@@ -48,6 +48,19 @@ _HL_OFF = f"{{\\c{PRIMARY_INLINE}}}"
 
 _SENTENCE_END_CHARS = (".", "?", "!")
 
+# Em-dash (—) and en-dash (–) are stripped from subtitle display — they're
+# phrase-separator typography that reads as visual noise on screen. Regular
+# hyphens (-) are kept so compound words like "year-old" stay intact.
+_EM_DASHES = ("—", "–")
+
+# Card-to-card transition behavior. By default the next card appears the
+# frame the current one disappears (no flash of empty screen). Only when the
+# silent gap between cards is genuinely long do we let the current card
+# disappear naturally and leave a beat of silence — the kind of pause that's
+# meaningful for the viewer (em-dash beats, sentence breaths). Tune below.
+GAP_BRIDGE_THRESHOLD = 0.5   # s. Gap < this → cards transition back-to-back.
+NATURAL_TAIL = 0.1           # s. Hold the last frame this long when we DON'T bridge.
+
 
 def _format_time(seconds: float) -> str:
     """ASS time format: H:MM:SS.cc (centisecond precision)."""
@@ -99,11 +112,26 @@ def _split_into_cards(sentence: List[Dict], max_words: int) -> List[List[Dict]]:
     return cards
 
 
+def _is_dash_token(token: str) -> bool:
+    """True if token is purely em/en dashes (and whitespace). Used as a
+    phrase-separator in the script; should not render in subtitles."""
+    stripped = token.strip()
+    return stripped != "" and all(ch in _EM_DASHES for ch in stripped)
+
+
+def _clean_display(token: str) -> str:
+    """Strip em-dashes (—) and en-dashes (–) for subtitle display. Keep
+    regular hyphens (-) so compound words like 'year-old' stay intact."""
+    for d in _EM_DASHES:
+        token = token.replace(d, "")
+    return token
+
+
 def _render_card_with_highlight(words: List[Dict], highlight_idx: int) -> str:
     """Return ASS line text with the word at highlight_idx wrapped in highlight tags."""
     parts = []
     for i, w in enumerate(words):
-        token = w["word"]
+        token = _clean_display(w["word"])
         if i == highlight_idx:
             parts.append(f"{_HL_ON}{token}{_HL_OFF}")
         else:
@@ -147,22 +175,46 @@ def build_subtitles(project_name: str, output_path: str) -> str:
 
     sentences = _group_by_sentence(words)
 
-    dialogue_lines: List[str] = []
+    # Flatten sentences → cards, filtering pure-dash tokens (em-dashes used as
+    # phrase separators). The dash's time slot is absorbed via the bridging
+    # logic below — the previous word's display extends across it.
+    all_cards: List[List[Dict]] = []
     for sentence in sentences:
         for card_words in _split_into_cards(sentence, MAX_WORDS_PER_CARD):
-            for i, w in enumerate(card_words):
-                start = w["global_start"]
-                # Hold the highlight until the next word actually starts so the
-                # display doesn't flicker between words during micro-silences.
-                if i + 1 < len(card_words):
-                    end = card_words[i + 1]["global_start"]
+            cleaned = [w for w in card_words if not _is_dash_token(w["word"])]
+            if cleaned:
+                all_cards.append(cleaned)
+
+    dialogue_lines: List[str] = []
+    for ci, card_words in enumerate(all_cards):
+        # Where does the next card start? Used to bridge consecutive cards
+        # back-to-back when the gap is small (the common case) and let the
+        # current card disappear naturally when the gap is genuinely long.
+        next_card_start = (
+            all_cards[ci + 1][0]["global_start"]
+            if ci + 1 < len(all_cards)
+            else None
+        )
+        for wi, w in enumerate(card_words):
+            start = w["global_start"]
+            if wi + 1 < len(card_words):
+                # Mid-card: hold the highlight until the next word starts so
+                # the display doesn't flicker between words during micro-silences.
+                end = card_words[wi + 1]["global_start"]
+            else:
+                # Last word of card. Decide whether to bridge into the next card.
+                natural_end = w["global_end"]
+                if next_card_start is None:
+                    end = natural_end  # final card of the video
+                elif next_card_start - natural_end < GAP_BRIDGE_THRESHOLD:
+                    end = next_card_start  # bridge: next card appears the frame this one ends
                 else:
-                    end = w["global_end"]
-                text = _render_card_with_highlight(card_words, i)
-                dialogue_lines.append(
-                    f"Dialogue: 0,{_format_time(start)},{_format_time(end)},"
-                    f"Default,,0,0,0,,{text}\n"
-                )
+                    end = natural_end + NATURAL_TAIL  # real silent gap; fade with readability tail
+            text = _render_card_with_highlight(card_words, wi)
+            dialogue_lines.append(
+                f"Dialogue: 0,{_format_time(start)},{_format_time(end)},"
+                f"Default,,0,0,0,,{text}\n"
+            )
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as f:

@@ -11,12 +11,8 @@ Your outline is the plan that pays off what the title promised.
 
 # Universal rules (every channel, every video type obeys these)
 
-- **Voice rules govern how you speak; structure rules govern how you organize.** If they appear to conflict, voice wins. The channel definition above sets voice and audience; the rules below set structure.
-- **The title is the engagement contract.** Every section reinforces it. Nothing wanders off-topic.
-- **Section 1 IS the first payoff.** The viewer's reward starts in section 1 — never a preamble, a "why this matters," a definitions section, or background. If the title promises items, section 1 is the first item.
-- **Every section earns the next one.** End each section by opening a loop into the next — framed as a revelation or a raised stake ("but the next one does something this can't…"), never as a logistics question ("so how big should it be?").
-- **Curiosity over completeness.** A section that reveals one thing well beats a section that catalogs five. Plan for depth, not coverage.
-- **The video has a thesis, not just a list.** Identify the thesis in one sentence — a claim stronger than "here are N things about X." Examples (illustrative only): *"Your kitchen waste is wealth the fertilizer industry hides from you." / "Why most people's cucumber vines stop producing in July."* Each section's `purpose` must visibly advance this thesis. If a section can't, replace or cut it.
+- **Voice rules govern how you speak; structure rules govern how you organize.** 
+- **The title is the engagement contract.** Every section reinforces it.
 
 # Structure for this video type
 
@@ -33,6 +29,7 @@ Return ONLY valid JSON parsable by Python json.loads(). No markdown, no backtick
 {
   "title": "",
   "hook": "",
+  "echo_phrase": "",
   "sections": [
     { "title": "", "purpose": "", "key_material": "" }
   ],
@@ -41,12 +38,16 @@ Return ONLY valid JSON parsable by Python json.loads(). No markdown, no backtick
 
 Field notes:
 - "hook" and "conclusion" are concepts/descriptions for the scriptwriter, not finished narration.
-- "hook" must be a single string that internally covers four labeled elements, in this order:
-    Stakes: the pain or stuck situation the hook opens on.
-    Villain: the external antagonist named (industry, conventional wisdom, an assumption that's been sold to the viewer) — never the viewer.
-    Withheld promise: what the hook promises without revealing — e.g. "N free fertilizers your kitchen makes nightly" WITHOUT naming any of them. This field must NOT contain the names of items the body will reveal.
+- "hook" must be a single string. The hook string must contain ALL of these elements; order is dictated by rhythm, not by a fixed list. The scriptwriter will arrange them.
+    Stakes: the pain or stuck-state the hook opens on — named as a private failure the viewer has lived ("you've killed X before," "your X keeps Ying"), not an abstract problem. The viewer must feel caught, not curious.
+    Felt-pain tableau: the specific physical image of the viewer's failed [subject] right now ("a pile of dried twigs," "a sad leggy stick with three brown leaves") — not a generic problem statement.
+    Villain: external antagonist — industry, conventional wisdom, the assumption that was sold to the viewer. Vague, not specifically named.
+    Withheld promise: what the hook promises without revealing — e.g. "N free fertilizers your kitchen makes nightly" WITHOUT naming any of them. Self-check: scan section titles in `sections[]`; if any section's key noun appears in the hook string or conclusion, rewrite the hook with a category label.
+    Numbered bookmark: pick ONE later section number (not section 1, not the final section) that carries the heaviest payoff and name it for the scriptwriter — e.g. "call out section 3 by number in the hook as the one that saves more plants than anything else." The scriptwriter will plant this as a deferred loop in the hook and pay it off when that section arrives. The named number must match the section index.
+    End-state: a one-line description of the transformation the viewer will reach by the end — phrased as a future-state, not a list of tips ("you'll know exactly why your roses stall, exactly how to fix it, and exactly what to do this week" — not "you'll learn ten secrets"). Use the triadic "exactly…exactly…exactly" rhythm where it fits.
     Transition thread: the tension thread carried from hook into the first segment and through the body.
-  Write these as four short labeled lines within the single "hook" string.
-- "conclusion" is a worldview/identity beat plus a callback to the opening scene and the villain — NEVER a summary of the items.
-- "purpose" states (a) the curiosity gap this section opens on — a question, myth, or what-if; (b) the named-authority anchor it can rely on **only if the research actually has one** (skip otherwise — never invent or stretch one); (c) the mistake corrected, framed as something the viewer was *led into*, not something they did wrong; and (d) the open loop it ends on.
+- "conclusion" is a worldview/identity beat plus a callback to the opening scene and the villain. It must specify ONE single concrete next move for the viewer to do this week (e.g. "pick the one secret that hit hardest and fix just that"), not a checklist. Plan the close as: compressed-recap drumroll → single-action directive → identity beat → callback. The compressed-recap drumroll is built by the scriptwriter from `sections[]` titles in order — the outline does not need to spell it out. A padded prose recap is banned; a compressed rhythmic recap as cadence is the entire point.
+- "echo_phrase" is a single signature image, metaphor, or refrain (3–8 words) drawn from the topic's central image or the channel's voice. The script writer will plant it in the hook or first section and restate it — same phrasing or tight variation — in at least two later sections and once in the conclusion. Examples: "a Mediterranean hillside in your backyard," "rhythm beats randomness," "a desert survivor in luxury." Never generic; never a slogan; never bolt-on.
+- "purpose" states (a) the curiosity gap this section opens on — a question, myth, or what-if; (b) the *mechanism anchor* — the physical, biological, or causal reason the section's claim is true, in one short phrase the script can paraphrase ("deadheading hijacks the plant's seed-setting program," "wet cold roots rot the crown"); a named-expert anchor (researcher + year + institution) is *optional* and only when the research has one — default to mechanism; (c) the mistake corrected, framed as something the viewer was *led into*, not something they did wrong; (d) the open loop it ends on; (e) for listicles, a `stakes_rank` of "baseline" or "escalation" — at least two sections must be marked "escalation" (the ones the script will flag as "the big one"); and (f) whether this section is a **peak** — i.e. one of the one or two highest-leverage sections. Mark at most two sections as peak. The hook's numbered bookmark must point to a peak/escalation section.
 - "key_material" lists which facts or statistics from the research that section should use.
+- Each section title must be a micro-thesis, not a label. Test: would this title alone make someone curious? "Pruning" fails; "Prune With Purpose, Not Fear" passes. Use contrast, metaphor, or a verb-driven imperative — never a category noun. Examples from the gardening channel: "STOP TREATING IT LIKE A PLANT, START TREATING IT LIKE A WEED," "Roses Don't Want Sun. They're Addicted to It." The title itself is a hook for the section.

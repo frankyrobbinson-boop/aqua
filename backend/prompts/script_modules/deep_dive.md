@@ -2,3 +2,5 @@
 - Withhold the full how-to. Early segments build the why, the stakes, and the surprising detail; the complete step-by-step lands in the back half.
 - Never let an early segment fully satisfy the viewer — always leave the most actionable part still ahead.
 - Distribute the "common mistake" beats across segments.
+- Escalate the stakes across segments. At least one mid-or-late segment must be explicitly labeled as the most consequential beat in the video — "this is the part that, if you take nothing else from this video, will change everything" or equivalent. Don't let the segments feel equally weighted; the viewer needs a reason to stay through the middle.
+- End each segment on a one-line aphorism that distills its lesson into something portable — short, balanced, quotable. The aphorism is the segment's gift to the viewer.

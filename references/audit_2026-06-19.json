@@ -1,0 +1,896 @@
+{
+  "summary": "Compare current prompts against 2 successful sample scripts; produce ranked edit recommendations across 5 lenses with adversarial verification and completeness critique",
+  "agentCount": 17,
+  "logs": [
+    "Lens analysis complete: 5 lenses, 48 mechanics identified total",
+    "Audit complete: 113 total proposed edits across all lenses",
+    "Refute complete: 14 mechanics refuted",
+    "Completeness: 11 missed patterns, 10 vestigial rules"
+  ],
+  "result": {
+    "summary": "Across five lenses and 50 mechanics, the dominant finding is that the current prompts encode the *intent* of the gardening-script voice (external villain, withheld reveals, open loops, \"calmly certain\" narrator) but consistently understate the *concrete moves* the samples use — numbered hook cliffhangers paid off later, anticipation scaffolds before payoff lines, mechanism-as-authority replacing citations, escalating peak markers, compressed-recap drumroll conclusions, and reframing metaphors as section spines. A secondary structural finding: the current strict beat-and-word-count scaffolding for hooks/conclusions and the \"named authority with year + institution\" preference in listicle/research actively fight the voice — they should be loosened or inverted. Highest leverage edits concentrate in script_base.md, script_modules/listicle.md, and channels/gardening.md, where ~30 surviving mechanics + 11 completeness patterns converge.",
+    "edits_by_file": [
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Universal rules — replace the 'Ground every claim in the research' bullet area; add affirmative mechanism-as-authority rule",
+            "proposed": "Keep 'Ground every claim in the research. Don't invent facts, names, or numbers.' Add immediately after: 'The mechanism IS the proof. When you make a claim — especially a counterintuitive one — earn it by explaining *why* it works in physical, biological, or causal terms the viewer can feel. Never lean on \"studies show\" or \"experts say\" as a substitute. A vivid one-sentence mechanism (\"the essential oils concentrate when the plant is stressed,\" \"a defoliated rose cannot flower because blooming is solar-powered\") does more work than any citation. If you can't explain the why, cut the claim.' Add a paired bullet: 'Do not write in the citation register. No researcher names, no university affiliations, no \"a 2019 study,\" no \"according to the USDA,\" no journal references. Authority comes from mechanism, origin, domain vocabulary, calibrated specifics, and confident declaratives. The one exception: a named figure may appear when the research has a real, surprising story attached.'",
+            "rationale": "Current prompt only forbids invention; doesn't teach that mechanism is the load-bearing substitute for citation. Also actively retires the citation register that breaks the friend-to-friend voice.",
+            "supporting_lenses": [
+              "authority",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 2,
+            "location": "Universal rules — new bullet on anticipation scaffolding (after 'Earn every sentence')",
+            "proposed": "Add: 'Label the payoff before you deliver it. Inside a segment, when you're about to land the most useful sentence, flag it first with an anticipation marker — \"here's the part nobody mentions,\" \"here's the rule that actually works,\" \"and this is the part people skip\" — then deliver. Use this at least once per segment. Don't deliver the secret naked; the label is what makes the viewer lean in.'",
+            "rationale": "Currently partial: scaffolding language only shows up implicitly. Pulling it out as a universal rule converts it from a once-per-script accident into a per-segment habit.",
+            "supporting_lenses": [
+              "retention"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 3,
+            "location": "Universal rules — new bullet: Fragments are weapons (after 'Earn every sentence')",
+            "proposed": "Add: 'Fragments are weapons. Break long sentences with deliberate 2–5 word fragments that land like percussion. Use them to slam a single idea, contradict the prior sentence, or punctuate a reveal. Examples of the shape: \"Don't lie.\" \"Almost entirely.\" \"Be decisive.\" \"Catastrophically wrong.\" At least one such fragment per segment.'",
+            "rationale": "Fragment-as-punch is currently only implied by 'punctuation is your pacing tool.' Makes pattern explicit with concrete shape examples from the samples and sets a minimum rate.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 4,
+            "location": "Universal rules — new bullet: Rule of three (after Fragments)",
+            "proposed": "Add: 'Rule of three. Stack parallel clauses or fragments in groups of three for any key beat — escalating in weight, not just repeating. The third beat should sharpen or invert the first two. Shapes: three parallel diagnoses (\"The watering advice is wrong. The soil advice is wrong. The pruning advice? Catastrophically wrong.\"), three stacked sensory phrases (\"baked by sun, battered by wind, and ignored by rain\"), or three one-word adjectives that name a rhythm (\"Deep, lazy, low.\"). Use at least twice per script — once in the hook block, at least once mid-body. Triadic structures often resolve in a fragment — the compound move is more powerful than either alone.'",
+            "rationale": "Mechanic absent today. Naming device, showing shapes, quantifying frequency teaches it strongly. Completeness lens noted triplet-resolving-in-fragment is the actual compound move.",
+            "supporting_lenses": [
+              "language-craft",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 5,
+            "location": "Universal structure → Hook block — REVISE Beat 1/2/3 scaffolding to be an unordered element checklist",
+            "proposed": "Replace the strict three-beat scaffold with: 'The hook (~200–300 words, may run as one flowing paragraph or several) must contain ALL of these elements; order and length are dictated by rhythm, not by a fixed beat count: (a) Pattern interrupt — a private failure the viewer recognizes and refuses to let them hide from (\"you've killed X before — don't lie\"); (b) Felt-pain tableau — the exact stuck-state the viewer is living inside, rendered in second person; (c) External-villain absolution — blame lifted off the viewer in the same breath as the villain is named (\"X doesn't die because you're a bad gardener; it dies because almost everything you've been told is wrong\"); (d) Triadic indictment of the bad advice (optional but high-leverage, especially for counter_claim/myth_bust); (e) Withheld promise — count and stakes, never the items themselves; (f) Numbered curiosity bookmark — name ONE later section by its number (\"stick with me, because secret #N is the one almost no one gets right\"); (g) Front-loaded end-state promise — \"by the end of this video, you'll…\" followed by 2–3 concrete capabilities, ideally using the triadic \"exactly…exactly…exactly\" rhythm; (h) Transition thread / open-loop into segment 1.'",
+            "rationale": "Completeness critic flagged that neither sample obeys the strict three-beat scaffold; current rule produces mechanical hooks. Unifies retention's named-cliffhanger, end-state, viewer-centered's accusatory open + absolution + felt-pain visual, structural's triple-wrong + numbered bookmark, and completeness's 'exactly x3' rhythm into one element checklist.",
+            "supporting_lenses": [
+              "retention",
+              "viewer-centered",
+              "structural-rhythm",
+              "language-craft",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 6,
+            "location": "Universal structure → Conclusion — REVISE the ~75 word / no recap rule to a three-beat conclusion",
+            "proposed": "Replace with: 'Conclusion (~120–180 words). Three rhythmic beats in this order: (1) Compressed-recap drumroll — a single rhythmic sentence or short fragment chain that sprints through every section in parallel imperatives (3–7 words per beat, one beat per section): \"Treat it like a weed, not a pet. Build it a hillside, not a flowerbed. Water it almost never...\" This is a percussive finale, not a paragraph of recap. (2) Single-action prescriptive close paired with permission-not-to-do-the-rest — \"Don't try to do all ten at once. Pick the one that hit you hardest — the one where you went 'oh, that's what I've been doing wrong' — and fix just that this week.\" (3) Identity-conferring beat + villain callback — a future-tense picture of who the viewer now is (\"the kind of gardener whose plants are so resilient you could forget about them for a month\"). Land the final beat on an aphorism — one compact, quotable line. A warm sign-off after the identity beat is fine (\"Until next time…\"); the ban is on polite *replacements* for the identity beat, not on bookend phrasing. The CTA goes in the separate `cta` field.'",
+            "rationale": "Completeness critic showed both scripts violate every part of the current rule (length, no-recap, no-sign-off). Restructures into three named beats that match the samples and absorbs single-action directive + permission-to-stop + drumroll + identity-close + aphorism.",
+            "supporting_lenses": [
+              "structural-rhythm",
+              "viewer-centered",
+              "language-craft",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 7,
+            "location": "Universal rules — new bullet: Saturate with second person",
+            "proposed": "Add: 'Saturate with second person. \"You\" / \"your\" / imperatives aimed at the viewer must appear in every paragraph. The viewer is the grammatical subject of the script; third-person plant-biology or industry-history mode is allowed only in short bursts (2–3 sentences) before the script snaps back to \"so what you do is,\" \"stick your finger in,\" \"walk your garden.\" If a paragraph has no \"you,\" rewrite it.'",
+            "rationale": "Rule currently partial (channel says \"talk to one person\" but allows long third-person drifts). Hard per-paragraph rule with rewrite trigger is the simplest enforcement.",
+            "supporting_lenses": [
+              "viewer-centered"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 8,
+            "location": "Universal rules — new bullet: Insider-status flip (after 'Ground every claim')",
+            "proposed": "Add: 'Insider-status flip. At least twice in the body, lift the viewer above a faceless out-group — \"ninety percent of buyers,\" \"the people who panic-prune,\" \"most beginners,\" \"everyone who walks into the nursery without this.\" Knowing what they now know puts them ahead of that group. Status, not just information, is the reward for watching.'",
+            "rationale": "Mechanic fully absent today. Universal rule with minimum count is cheapest way to install across all video types.",
+            "supporting_lenses": [
+              "viewer-centered"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 9,
+            "location": "Universal rules — new bullet: Permission to do less",
+            "proposed": "Add: 'Permission to do less. At least once in the body, the rescue must be \"stop doing something,\" not \"add another step.\" Tell the viewer to stop watering, stop feeding, stop fussing, stop forcing — and frame the stop as relief, not a new chore. Prefer \"stop doing X\" over \"start doing Y\" when correcting a mistake. For an exhausted viewer, permission to put a chore down is a felt reward; another to-do is friction.'",
+            "rationale": "Absent today and structurally significant for retention. Completeness lens reinforced as inverted-instruction structure — highest-energy directives are negations of the viewer's current effort.",
+            "supporting_lenses": [
+              "viewer-centered",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 10,
+            "location": "Universal rules — new bullet: Direct-address check-ins",
+            "proposed": "Add: 'Turn to the viewer mid-script. At least twice in the body, break the lecture and address the viewer as if mid-conversation — anticipate their reaction before they have it (\"I know that sounds insane,\" \"if you've ever done X, raise your hand,\" \"are you ready?\", \"if I could fix one habit, it would be this\"). Validates resistance before it becomes a reason to click away. Do not overuse — these land because they're rare.'",
+            "rationale": "Absent today; minimum-twice rule with concrete phrasings installs the parasocial break without making it a tic.",
+            "supporting_lenses": [
+              "viewer-centered"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 11,
+            "location": "Universal rules — new bullet: Paint the stuck-state",
+            "proposed": "Add: 'Paint the stuck-state, don't describe the problem. When naming a problem, render the exact tableau the viewer is currently living inside — the dead twigs, the leggy stick, the three brown leaves, the jar that never sold. Specific enough that the viewer thinks \"that's literally mine.\" Generic descriptions (\"your plant struggles,\" \"things go wrong\") are banned; show the failure, don't label it.'",
+            "rationale": "Reinforces felt-pain visual outside the hook — covers mid-script problem statements too.",
+            "supporting_lenses": [
+              "viewer-centered"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 12,
+            "location": "Universal rules — new bullet: Pictures beat diagnoses",
+            "proposed": "Add: 'Pictures beat diagnoses. When describing a problem, result, or state, give the viewer the physical image first; the label (overwatered, root-bound, leggy, deficient) is optional and comes after. \"A woody, hollow, dead-looking donut with green only at the tips\" before \"that's lavender that was pruned into old wood.\" Abstract status words alone (\"healthy,\" \"stressed,\" \"happy\") are not enough — pair them with a tableau or cut them.'",
+            "rationale": "Sequences image-before-label explicitly, reinforces concrete sensory imagery as a universal pattern across channels.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 13,
+            "location": "Universal rules — new bullet: Verbs do the work",
+            "proposed": "Add: 'Verbs do the work. Choose kinetic, physical verbs over neutral ones — drown, smother, butcher, sabotage, hijack, pump, flood, starve, choke, cook, strangle. The verb should carry the emotion so adverbs become unnecessary. \"You're smothering a desert survivor\" beats \"you're watering it too much.\" Audit every sentence: if the verb is to-be, to-have, to-do, or to-get, replace it unless the meaning truly demands it.'",
+            "rationale": "Mechanic absent. Names the pattern, provides vocabulary, gives a concrete audit heuristic.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 14,
+            "location": "Universal rules — REPLACE 'Punctuation is your pacing tool' bullet",
+            "proposed": "Replace with: 'Punctuation is breath, not grammar. TTS reads this verbatim, so write for the ear. Use em-dashes for the speaker's mid-thought turn or aside (\"The pruning advice? Catastrophically wrong.\"). Use stacked commas for accelerating lists that mimic a speaker piling on detail (\"The wilting, the yellowing lower leaves, the sad gray cast that makes you reach for the hose — those are signs of overwatering.\"). Use question-mark mid-sentence to flag a single word the speaker is challenging. Use periods to slow down and land. Write numbers the way they should be spoken.'",
+            "rationale": "Current rule generic. Names three specific cadence devices with sample-derived shapes.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 15,
+            "location": "Universal rules — new bullet: Talk with the viewer",
+            "proposed": "Add: 'Talk with the viewer, not at them. Use second-person imperatives and rhetorical questions to break the fourth wall and turn passive listening into call-and-response. At least one direct command per segment (\"Stick your finger in the soil. If you feel any moisture at all, walk away.\") and at least one rhetorical question per segment that the viewer is implicitly nodding to. Address one person, not a crowd — \"you,\" never \"you guys\" or \"everyone.\"'",
+            "rationale": "Channel doc says 'use you constantly' but doesn't specify imperatives, questions, or minimums. Makes pattern enforceable.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 16,
+            "location": "Universal rules — new bullet: One reframing metaphor per segment",
+            "proposed": "Add: 'One reframing metaphor per segment. Find a single arresting metaphor that flips how the viewer mentally categorizes the subject (\"lavender is a tough Mediterranean weed wearing a pretty dress,\" \"roses are solar-powered machines,\" \"fresh stems are flower factories\"). The metaphor isn't decoration — it does the conceptual work of the whole segment, so the rest of the segment can lean on it. Use one strong metaphor per segment, not three weak ones. If you can't find one that genuinely reframes, skip rather than reach.'",
+            "rationale": "Listicle module mentions analogy as optional; elevates to structural device with a quality bar and three sample-derived exemplars.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 17,
+            "location": "Universal rules — new bullet: Translate jargon in the same breath",
+            "proposed": "Add: 'Translate jargon in the same breath. When a technical term, Latin name, cultivar, or specialist label appears, attach a plain-language tag immediately — never let the term stand alone. The pattern is term + comma + humanizing description: \"the stoechas varieties, the funny little rabbit-ear ones,\" \"lavandin, the big robust workhorses you see in commercial fields,\" \"floribunda, the roses literally engineered to flower wave after wave.\" Signals expertise without alienating a beginner. If you can't translate it, don't use it.'",
+            "rationale": "Mechanic absent. Names exact term-plus-tag construction, gives three sample shapes, adds fallback (cut if untranslatable).",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 18,
+            "location": "Universal rules — REPLACE 'Transitions are open loops' bullet",
+            "proposed": "Replace with: 'Transitions are open loops that escalate stakes. Each segment ends by naming what's at stake in the next segment as a revelation, an escalation, or a turn against the shared antagonist — never as logistics. Banned patterns: \"next, we'll talk about…\", \"now let's move on to…\", \"another thing to consider is…\". Required shape: the transition either (a) reveals that the next idea undoes or outranks this one (\"this one feeds the plant — but the next doesn't feed the plant at all\"), (b) raises the previous section's stake higher (\"now that your soil is rich, let's talk about feeding — because timing matters as much as the fertilizer itself\"), or (c) declares the next section the master key (\"here's the final secret, and it's the one that determines whether any of the previous four even matter\").'",
+            "rationale": "Current rule correct but thin. Banning common logistics phrases and naming three shapes (undo, raise-stakes, master-key) gives the model a checklist.",
+            "supporting_lenses": [
+              "retention",
+              "structural-rhythm"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 19,
+            "location": "Universal rules — REPLACE 'Tension thread must carry' bullet",
+            "proposed": "Replace with: 'Tension thread must carry, AND a thematic echo phrase must recur. (a) The antagonist installed in the hook resurfaces in at least 2 mid-body segment transitions and pays off explicitly near the end. (b) Hook promises must be paid off out loud: if the hook forward-referenced a numbered item or made any \"stick with me, because…\" promise, the script MUST cash it with an explicit callback line at the moment of delivery — \"here's the one I promised you,\" \"this is the secret I told you to stay for.\" Silent payoff is a broken promise. (c) Separately, install ONE signature image, metaphor, or refrain in the hook or first section and restate it — same exact phrasing or a tight variation — in at least two later sections and once in the conclusion (\"a Mediterranean hillside in your backyard,\" \"rhythm beats randomness\"). Pick the echo from the channel's voice or the topic's central image.'",
+            "rationale": "Combines retention's payoff-callback discipline with structural's thematic echo phrase into the existing tension-thread rule for a tighter universal block.",
+            "supporting_lenses": [
+              "retention",
+              "structural-rhythm"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 20,
+            "location": "Orientation — REPLACE 'External villain' bullet",
+            "proposed": "Replace with: 'External villain — vague, not named — and absolution before instruction. Within the first ~75 words, blame must be explicitly lifted off the viewer and redirected to an outside antagonist — an industry that profits from their ignorance, conventional wisdom that's measurably wrong, an assumption that's been sold to them (e.g. \"free = worthless\"). Use the absolution move directly: \"X doesn't die because you're a bad gardener — it dies because almost everything you've been told is wrong.\" Keep the antagonist *faceless*: \"what they tell you,\" \"every blog,\" \"the advice that gets repeated everywhere\" — not a named competitor, brand, or expert; a vague \"they\" can't push back. Add a second-layer physical antagonist the body teaches the viewer to recognize (rot, root-cooking, defoliation, leaching) — the advice-villain explains why the viewer was misled; the physical-villain gives them an enemy they can see. The viewer is never the source of the problem. Mistakes are something the viewer was *led into*. Grammar of inherited error: \"someone told you,\" \"you've probably heard,\" \"the instinct is.\" Banned framings: \"your mistake,\" \"you keep doing,\" \"you're getting it wrong.\"'",
+            "rationale": "Folds absolution + vague-they + grammar-of-inherited-error + completeness's physical-villain second layer into one consolidated villain rule. Highest-density consolidation point.",
+            "supporting_lenses": [
+              "viewer-centered",
+              "authority",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 21,
+            "location": "Orientation — new bullet: Subject as protagonist (after External villain)",
+            "proposed": "Add: 'Subject as protagonist with strategic intent. Whatever the video is about — a plant, a habit, a tool, a market — give it agency, and specifically give it a survival agenda or biological goal (\"a rose has exactly one goal in life — reproduce,\" \"the plant thinks mission accomplished and pours its energy into seeds\"). It wants, refuses, hides, rewards, demands. The viewer's job becomes reading what it wants, not executing steps on it. Turns instruction into a relationship and mechanism explanation into character motivation. (Channel voice rules govern tone — adult motives, not cute mascots.)'",
+            "rationale": "Generalizes plant-as-agent to all channels with the strategic-intent specificity completeness lens flagged as missing.",
+            "supporting_lenses": [
+              "language-craft",
+              "completeness"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 22,
+            "location": "Universal rules — new bullet: Speak in declaratives",
+            "proposed": "Add: 'Speak in declaratives. Certainty is the credential. Ban hedging: no \"might,\" \"maybe,\" \"sometimes,\" \"in my opinion,\" \"studies suggest,\" \"it's generally thought.\" Counterintuitive claims must land as established fact — \"A defoliated rose cannot flower. Period.\" \"Lavender wood does not regenerate.\" \"In winter, you don't water at all. None.\" If a claim isn't defensible enough to assert flatly, cut it.'",
+            "rationale": "Lifts no-hedging from hook archetypes to a universal rule governing entire body. Names the mechanism (certainty = credential).",
+            "supporting_lenses": [
+              "authority"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 23,
+            "location": "Universal rules — new bullet: Concentrate specifics at action moments",
+            "proposed": "Add: 'Concentrate specifics at the moments that matter. Authority isn't built by spraying numbers everywhere — it's built by placing one calibrated specific at each high-leverage moment: an exact depth (\"two inches down\"), a time window (\"two to three weeks\"), a count (\"six hours of direct sun\"), a ratio (\"twice as wide as the root ball but only as deep\"). One precise number wrapped in plain language reads as tested and lived-in. Every section should land at least one such specific where the action happens; never invent one — pull from research or omit.'",
+            "rationale": "Current prompts ask for sensory detail but not numeric specificity at action moments. Teaches placement, not just inclusion.",
+            "supporting_lenses": [
+              "authority"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 24,
+            "location": "Universal rules — new bullet: Folksy quantifiers (amends 'Don't invent')",
+            "proposed": "Add as paired bullet after 'Ground every claim in the research': 'Exception: *rhetorical quantifiers* (\"nine times out of ten,\" \"ninety percent of buyers,\" \"almost nobody gets this right\") are allowed and encouraged when summarizing a real pattern — they do the work of a citation by implying long observation, without claiming a study. Use them sparingly, at moments where you're naming a common failure or widespread mistake. Do not present them as measured statistics.'",
+            "rationale": "Without explicit permission, model treats all numbers as needing citation. Explicit license + guardrails unlocks the technique safely.",
+            "supporting_lenses": [
+              "authority"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 25,
+            "location": "Universal rules — new bullet: Origin-as-authority",
+            "proposed": "Add: 'Origin-as-authority beats credential-as-authority. When the topic has a natural, traditional, or original context (where it grew up, how it was historically done, what it evolved to do), invoke *that* as the ground truth instead of a researcher's name. \"How it actually works in the wild\" is more persuasive in this register than \"a 2019 Cornell study found.\"'",
+            "rationale": "Generalizes gardening folk-origin to all channels with natural/traditional context as a preference order, not a mandate.",
+            "supporting_lenses": [
+              "authority"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 26,
+            "location": "Universal structure → Main segments — replace flat per-segment word count with peak/valley weighting + peak markers",
+            "proposed": "Replace 'Main segments: one per outline section, ~{words_per_segment} words each.' with: 'Main segments: one per outline section, averaging ~{words_per_segment} words but **not uniform**. Peak segments (the 1–2 marked as peak in the outline / bookmarked in the hook) run 1.4×–1.8× the average word count and carry more sub-beats — extra sensory specifics, an extra mechanism step, a warning, or a small story. Supporting segments run lean, closer to 0.7×–0.9× the average. Cumulative total still hits ~{total_word_target} words. Peaks and valleys, not a metronome.\n\nPeak markers (1–2 per video, never more): exactly one or two segments — the genuine highest-leverage ideas, usually the section the hook bookmarked plus at most one other — must open with a verbal escalation marker that flags \"this matters most\": \"this is the big one,\" \"if you take nothing else from this video,\" \"if I could fix one habit for every beginner, it would be this one,\" \"here's the secret I promised you.\" Use the marker only where content earns it; using it on every section neutralizes the device.\n\nEach segment needs a `visual_notes`: one short line on mood and subject.'",
+            "rationale": "Unifies length-weighting + escalation-marker + numbered-bookmark payoff into one block. Currently the prompt enforces uniform per-segment count; rule fights the listicle rhythm.",
+            "supporting_lenses": [
+              "structural-rhythm",
+              "retention"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 27,
+            "location": "Universal rules — new bullet: Diagnostic checklist (one-sentence tests the viewer can run)",
+            "proposed": "Add: 'Where possible, give the viewer a one-sentence diagnostic they can run on their own situation today — finger-in-soil test, count the hours of sun, look for X color/pattern. Recognition tasks are more engaging than abstract knowledge; the viewer pauses the video to go check.'",
+            "rationale": "Completeness lens flagged this as a pervasive sample-script move not encoded anywhere.",
+            "supporting_lenses": [
+              "completeness"
+            ],
+            "leverage": "medium"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Top of file — new bullet about hook cliffhanger pointing into the body",
+            "proposed": "Add after the first bullet ('One segment per item, in the outline's order.'): 'The hook names one numbered item as the cliffhanger. Read the outline's `named-secret cliffhanger` field and execute it in the hook — \"stick with me, because secret #N is the one almost no one gets right\" (or equivalent). When the script reaches that section, the section MUST open with a payoff callback (see item-section beat 1).'",
+            "rationale": "Anchors the numbered-cliffhanger mechanic in the listicle module where it lives, explicitly linking hook setup to body payoff.",
+            "supporting_lenses": [
+              "retention"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 2,
+            "location": "Existing 'hook may promise count but must NOT name items' bullet — extend to conclusion",
+            "proposed": "Append to the existing bullet: 'This rule applies to the conclusion too: never recap the list of items by name. The viewer should feel that watching the body was the only way to get the answers. (Note: a compressed-recap drumroll using parallel imperatives is allowed and encouraged — it cadences the lessons, it does not re-name the items.) If you find yourself writing \"as we covered, the five are…\", delete it.'",
+            "rationale": "Closes a loophole; recaps in conclusion retroactively make the body skippable. Reconciles with the conclusion drumroll rule.",
+            "supporting_lenses": [
+              "retention",
+              "structural-rhythm"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 3,
+            "location": "Item-section beats — REPLACE the '6–8 beats' framing with three-beat arc + hard-rule closer",
+            "proposed": "Replace 'Each item-section runs 6–8 beats, roughly in this order:' with: 'Each item-section follows a three-beat internal arc: reframe → mechanism → hard rule. The reframe is the opener (beat 1). The mechanism is the body (beats 2–5). The hard rule is the closer (new beat 6c) — a single short imperative or short fragment chain the viewer should walk away repeating, separate from the open-loop transition (\"Deep, lazy, low. That's the rhythm.\" / \"Treat it like a weed, not a pet.\"). Keep the arc consistent across every section so the listicle accumulates rhythm; vary the content inside each beat so it never feels templated. The 6–8 beats below fit inside this arc:'",
+            "rationale": "Current beats list is mechanism-heavy and has no dedicated hard-rule close. Naming the three-beat arc captures rhythmic consistency the samples use.",
+            "supporting_lenses": [
+              "structural-rhythm"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 4,
+            "location": "Item-section beats — REPLACE beat 1 with a reframe taxonomy that also handles callback if bookmarked",
+            "proposed": "Replace beat 1 with: '1. Open with a reframe, never a definition. The opener must install this section's micro-loop in one sentence so the viewer leans forward before the technique arrives. Pick one of: (a) a mindset shift (\"here's your first mindset shift, and it changes everything…\"), (b) a confessional question that names the failure the viewer has lived (\"if you've ever pruned your lavender and watched it turn into a woody dead-looking donut, raise your hand\"), (c) a \"here's where most beginners get it backwards\" framing, (d) a counterintuitive claim that contradicts the obvious move, or (e) a direct-address check-in (\"are you ready?\" — at most twice across the whole script). Never open with a definition. Never open with the item's name. Never open with logistics (\"the next thing we'll talk about is…\"). **If this section is the numbered cliffhanger named in the hook, open with an explicit callback** — \"here's the one I promised you,\" \"this is secret #N, the one almost nobody gets right,\" \"this is the big one\" — BEFORE the reframe.'",
+            "rationale": "Unifies reframe taxonomy + hook-payoff callback + check-in option at the riskiest beat (section opening). Consolidates four overlapping edits.",
+            "supporting_lenses": [
+              "retention",
+              "structural-rhythm",
+              "viewer-centered"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 5,
+            "location": "Item-section beats — REPLACE beat 2 'Reveal the item 1–2 sentences in'",
+            "proposed": "Replace with: '2. Reveal the item 1–2 sentences in. The reveal is a payoff. *Exception*: if the section title already names the item (e.g. \"SECRET 6: Deadheading…\"), the opening sentence should reframe its significance rather than re-announce the name. If this section was forward-referenced in the hook by number, the reveal is a callback — cash the promise explicitly in the line immediately before naming the item: \"here's the secret I promised you,\" \"this is the big one I said to stick around for.\" The callback line and the reveal line are two adjacent sentences; do not separate them with mechanism, analogy, or mistake — those come after.'",
+            "rationale": "Adjacent-sentence rule keeps callback from being buried; the title-also-reveals exception (from completeness critic) prevents double-reveals.",
+            "supporting_lenses": [
+              "retention",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 6,
+            "location": "Item-section beats — REPLACE beat 3 'Mechanism' to incorporate authority + anticipation scaffold + image-first + triplet",
+            "proposed": "Replace beat 3 with: '3. Mechanism — this is your authority. Explain *why* in physical, biological, or causal terms the viewer can intuit (\"the plant thinks mission accomplished and pours its energy into seeds,\" \"wet roots plus cold soil rot the crown\"). A felt mechanism replaces a citation — never punt to \"experts agree\" or \"studies show.\" Show the physical picture before any abstract label. Prefer a triplet here — three stacked sensory phrases or three parallel causes — over a single descriptive sentence; the parallelism is the music. Flag at least one upcoming sentence with an anticipation marker — \"here's the part nobody emphasizes,\" \"here's the rule that actually works,\" \"this is where almost everyone goes wrong\" — then land it.'",
+            "rationale": "Single highest-leverage beat consolidating mechanism-as-authority, anticipation scaffold, pictures-before-labels, and rule-of-three — all converge on the mechanism beat.",
+            "supporting_lenses": [
+              "authority",
+              "retention",
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 7,
+            "location": "Item-section beats — REPLACE beat 4 'Authority anchor — optional'",
+            "proposed": "Replace beat 4 with: '4. Pair the counterintuitive claim with its mechanism — not a citation. Whenever this item inverts conventional wisdom (\"stop watering,\" \"pick the worst spot,\" \"don't fertilize\"), the very next sentence must give the physical reason the inversion works (\"rich soil makes lavender grow soft and disease-prone,\" \"shallow watering trains roots to stay near the surface\"). The mechanism turns the contrarian claim into a felt obvious truth. Named-expert anchors (researcher + year + institution) are *optional and rare* — include only when the research has one and the audience expects that register; default to mechanism.'",
+            "rationale": "Reverses the priority: mechanism is the default, citation is the exception. Directly teaches the sample-script pattern.",
+            "supporting_lenses": [
+              "authority"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 8,
+            "location": "Item-section beats — REPLACE beat 5 'Analogy or metaphor — optional'",
+            "proposed": "Replace with: '5. Reframing metaphor. One arresting metaphor that flips how the viewer categorizes this item — not decoration, but the conceptual spine of the section (\"lavender is a tough Mediterranean weed wearing a pretty dress,\" \"roses are solar-powered machines,\" \"fresh stems are flower factories\"). The rest of the section can lean on it. Skip only if you genuinely can't find one that reframes — never force a flat comparison, but don't default to skipping either.'",
+            "rationale": "Reframes metaphor from optional decoration to conceptual spine, matching how samples use it as load-bearing.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 9,
+            "location": "Item-section beats — REPLACE beat 6 'Mistake-as-cliffhanger'",
+            "proposed": "Replace with: '6. Mistake-as-cliffhanger with concession-then-correction. Before naming the corrected behavior, voice the mistaken instinct generously — in the viewer\\'s own words, with their reasoning made to sound understandable (\"every instinct as a gardener tells you a plant needs water in summer,\" \"the instinct is to give your rose a quick splash every day, a little drink to keep it happy\"). Then pivot — \"but lavender\\'s tired look is not thirst,\" \"that instinct is quietly sabotaging you.\" The pattern: (a) describe the painful, common failure mode vividly enough that the viewer recognizes themselves doing it (\"if you\\'ve ever watched your X turn into a hollow donut, raise your hand\"), (b) pause for a beat, (c) name the fix. The wound must come before the fix; flipping the order kills the suspense. Position the viewer as the *recipient* of bad advice, not its source — \"someone told you to,\" \"the instinct is,\" \"you\\'ve probably heard\" — never \"you keep making the mistake of.\"'",
+            "rationale": "Consolidates mistake-as-cliffhanger expansion + inherited-error grammar + concession-then-correction (completeness) into one beat. Most-edited beat across lenses.",
+            "supporting_lenses": [
+              "retention",
+              "viewer-centered",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 10,
+            "location": "Item-section beats — NEW beat 6c: hard-rule closer",
+            "proposed": "Insert before beat 7: '6c. Hard rule before you leave. Drop a single short imperative or fragment-chain the viewer can repeat — the corrective rule distilled to a beat. Where possible, deliver as a hard line (\"never X,\" \"X does not Y,\" \"X means Z, period\") rather than a range or hedge. Absolutes are more memorable than \"generally\" or \"usually\" and they read as expertise. Examples: \"Deep, lazy, low. That's the rhythm.\" / \"Treat it like a weed, not a pet.\" / \"Water deep. Water rarely. Walk away.\" Keep it under 10 words. The rule looks backward at this section; the open loop (beat 7) looks forward at the next.'",
+            "rationale": "Missing third leg of the sample-script rhythm. Adding as its own numbered beat forces a repeatable take-home per section. Incorporates negative-space/absolute formulation from completeness.",
+            "supporting_lenses": [
+              "structural-rhythm",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 11,
+            "location": "Item-section beats — REPLACE beat 7 'Open loop' with three-shape variant",
+            "proposed": "Replace with: '7. Open loop into the next item. Pick one of three shapes: (a) undo — the next item reverses or outranks this one (\"this one feeds the plant — but the next doesn\\'t feed the plant at all\"); (b) escalate — the next item raises this one\\'s stakes (\"now that your soil is rich, let\\'s talk about feeding — because timing matters as much as the fertilizer itself\"); (c) master-key — the next item is the one that decides whether anything else matters (\"here\\'s the final secret, and it\\'s the one that determines whether any of the previous four even matter\"). Never logistics. Never \"next we\\'ll talk about.\" Vary the shape across sections so the transitions don\\'t all sound the same.'",
+            "rationale": "Reinforces universal rule at module level with three named shapes plus variety constraint.",
+            "supporting_lenses": [
+              "retention",
+              "structural-rhythm"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 12,
+            "location": "Item-section beats — NEW beat 8: Aphorism button",
+            "proposed": "Add: '8. Aphorism button. Close the item (before the open-loop transition) with one compact, quotable line that distills the lesson into something proverbial — short, balanced, often using parallelism or contrast. Shapes: \"A pampered lavender is a boring lavender.\" \"Lavender wants the leftovers.\" \"Rhythm beats randomness.\" One per item. If you can\\'t write one that earns being remembered, skip — don\\'t force a flat sentence.'",
+            "rationale": "Mechanic absent. Adding explicit closing beat with three sample shapes teaches the model to manufacture the portable takeaway samples consistently land.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 13,
+            "location": "After existing 'Do not write a recap or playbook segment' bullet — REVISE to permit drumroll inside conclusion",
+            "proposed": "Replace with: 'Do not write a recap or \"playbook\" **segment** — the last item is the last segment. The compressed-recap drumroll lives inside the `conclusion.narration` field only: a single rhythmic sentence or fragment chain that sprints through every item in parallel imperatives, one beat per item, in section order. Each beat must be 3–7 words, same grammatical shape, no elaboration. Example: \"Pick the right variety, flood it with morning sun, build living soil, water deep and lazy, mulch heavily, deadhead like you mean it, prune with confidence, feed in rhythm, prevent disease before it starts, work with the seasons.\" In the conclusion, do not tell the viewer to do all the items — explicitly tell them to pick the ONE that hit hardest and fix just that this week.'",
+            "rationale": "Resolves the contradiction between 'no recap' and sample-script practice. Distinguishes recap segment (banned) from compressed recap inside conclusion (required). Incorporates single-action close.",
+            "supporting_lenses": [
+              "structural-rhythm",
+              "viewer-centered",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 14,
+            "location": "New bullet at end: escalating-stakes ranking + bookmark anchoring",
+            "proposed": "Add: 'Escalating-stakes ranking inside the body. At least two mid-or-late items must be explicitly labeled as bigger than earlier ones — \"this is the big one,\" \"this is the secret that, if you take nothing else from this video, will transform your X,\" \"here\\'s the final secret, and it\\'s the one that determines whether any of the previous matter.\" Don\\'t let every item feel co-equal; reset the importance gradient at least twice so the middle and the last item both feel like reasons to stay. The numbered-cliffhanger item from the hook must be one of these escalations.'",
+            "rationale": "Absent in current prompts. Forces explicit labeling that fights middle slump and ties back to hook's numbered cliffhanger.",
+            "supporting_lenses": [
+              "retention"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 15,
+            "location": "New bullet: cross-reference between back-half items",
+            "proposed": "Add: 'In the back half, explicitly cross-reference earlier items when the mechanism connects (\"this loops right back into secret 3,\" \"now that your soil is rich AND your pruning is sharp...\"). Converts a flat list into an interlocking system and rewards the viewer for having watched the whole thing.'",
+            "rationale": "Completeness pattern — both sample scripts use item-level callbacks to feel like one system rather than ten disconnected tips.",
+            "supporting_lenses": [
+              "completeness"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 16,
+            "location": "New bullet: opening move variety + folksy quantifier placement",
+            "proposed": "Add: 'Vary the opening move across items — a question, a \"what if,\" a myth, a tiny story, an imperative (\"stop watering it. Almost entirely.\"). Drop a rhetorical quantifier on the highest-leverage failure mode in 1–2 of the items: \"nine times out of ten,\" \"almost no one gets this right,\" \"more than half of buyers walk past the one that actually works.\" Don\\'t use them in every section — they lose force.'",
+            "rationale": "Concrete placement guidance for opening variety + folksy quantifier in the dominant module with frequency cap.",
+            "supporting_lenses": [
+              "language-craft",
+              "authority"
+            ],
+            "leverage": "medium"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/outline_base.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Hook field notes — REVISE the four-element 'Stakes/Villain/Withheld/Transition' scheme into an unordered element checklist",
+            "proposed": "Replace the four labeled elements with: 'The hook string must contain ALL of these elements; order is dictated by rhythm, not by a fixed list. The scriptwriter will arrange them.\\n    Stakes: the pain or stuck-state the hook opens on — named as a private failure the viewer has lived (\"you\\'ve killed X before,\" \"your X keeps Ying\"), not an abstract problem. The viewer must feel caught, not curious.\\n    Felt-pain tableau: the specific physical image of the viewer\\'s failed [subject] right now (\"a pile of dried twigs,\" \"a sad leggy stick with three brown leaves\") — not a generic problem statement.\\n    Villain: external antagonist — industry, conventional wisdom, the assumption that was sold to the viewer. Vague, not specifically named.\\n    Withheld promise: what the hook promises without revealing — e.g. \"N free fertilizers your kitchen makes nightly\" WITHOUT naming any of them. Self-check: scan section titles in `sections[]`; if any section\\'s key noun appears in the hook string or conclusion, rewrite the hook with a category label.\\n    Numbered bookmark: pick ONE later section number (not section 1, not the final section) that carries the heaviest payoff and name it for the scriptwriter — e.g. \"call out section 3 by number in the hook as the one that saves more plants than anything else.\" The scriptwriter will plant this as a deferred loop in the hook and pay it off when that section arrives. The named number must match the section index.\\n    End-state: a one-line description of the transformation the viewer will reach by the end — phrased as a future-state, not a list of tips (\"you\\'ll know exactly why your roses stall, exactly how to fix it, and exactly what to do this week\" — not \"you\\'ll learn ten secrets\"). Use the triadic \"exactly…exactly…exactly\" rhythm where it fits.\\n    Transition thread: the tension thread carried from hook into the first segment and through the body.'",
+            "rationale": "Single highest-impact outline edit. Completeness critic flagged that current four-element scheme is incomplete AND over-prescriptive on order. Consolidates retention's named-cliffhanger + end-state + withheld-self-check, viewer-centered's accusatory + felt-pain, structural's numbered bookmark, and completeness's exactly-x3 rhythm.",
+            "supporting_lenses": [
+              "retention",
+              "viewer-centered",
+              "structural-rhythm",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 2,
+            "location": "Field notes — REPLACE 'purpose' bullet",
+            "proposed": "Replace with: '\"purpose\" states (a) the curiosity gap this section opens on — a question, myth, or what-if; (b) the *mechanism anchor* — the physical, biological, or causal reason the section\\'s claim is true, in one short phrase the script can paraphrase (\"deadheading hijacks the plant\\'s seed-setting program,\" \"wet cold roots rot the crown\"); a named-expert anchor (researcher + year + institution) is *optional* and only when the research has one — default to mechanism; (c) the mistake corrected, framed as something the viewer was *led into*, not something they did wrong; (d) the open loop it ends on; (e) for listicles, a `stakes_rank` of \"baseline\" or \"escalation\" — at least two sections must be marked \"escalation\" (the ones the script will flag as \"the big one\"); and (f) whether this section is a **peak** — i.e. one of the one or two highest-leverage sections. Mark at most two sections as peak. The hook\\'s numbered bookmark must point to a peak/escalation section.'",
+            "rationale": "Single dense edit replacing the named-authority default with mechanism, adding escalation + peak marking, all tied to hook bookmark. Forces outline-stage planning of the crescendo.",
+            "supporting_lenses": [
+              "authority",
+              "retention",
+              "structural-rhythm"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 3,
+            "location": "JSON output schema — add echo_phrase field",
+            "proposed": "Add `\"echo_phrase\": \"\"` between hook and sections so the schema becomes: `{ \"title\": \"\", \"hook\": \"\", \"echo_phrase\": \"\", \"sections\": [...], \"conclusion\": \"\" }`",
+            "rationale": "Surfacing the echo phrase as its own field forces the strategist to pick one deliberately so the script writer has a real refrain to plant and restate.",
+            "supporting_lenses": [
+              "structural-rhythm"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 4,
+            "location": "Field notes — REPLACE 'conclusion' bullet AND add echo_phrase note",
+            "proposed": "Replace conclusion bullet with: '\"conclusion\" is a worldview/identity beat plus a callback to the opening scene and the villain. It must specify ONE single concrete next move for the viewer to do this week (e.g. \"pick the one secret that hit hardest and fix just that\"), not a checklist. Plan the close as: compressed-recap drumroll → single-action directive → identity beat → callback. The compressed-recap drumroll is built by the scriptwriter from `sections[]` titles in order — the outline does not need to spell it out. A padded prose recap is banned; a compressed rhythmic recap as cadence is the entire point.'\\n\\nAdd new bullet: '\"echo_phrase\" is a single signature image, metaphor, or refrain (3–8 words) drawn from the topic\\'s central image or the channel\\'s voice. The script writer will plant it in the hook or first section and restate it — same phrasing or tight variation — in at least two later sections and once in the conclusion. Examples: \"a Mediterranean hillside in your backyard,\" \"rhythm beats randomness,\" \"a desert survivor in luxury.\" Never generic; never a slogan; never bolt-on.'",
+            "rationale": "Resolves no-recap contradiction (completeness lens) AND adds single-action directive + echo_phrase definition in one consolidated edit.",
+            "supporting_lenses": [
+              "structural-rhythm",
+              "viewer-centered",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 5,
+            "location": "Field notes — new bullet about section titles as micro-hooks",
+            "proposed": "Add: 'Each section title must be a micro-thesis, not a label. Test: would this title alone make someone curious? \"Pruning\" fails; \"Prune With Purpose, Not Fear\" passes. Use contrast, metaphor, or a verb-driven imperative — never a category noun. Examples from the gardening channel: \"STOP TREATING IT LIKE A PLANT, START TREATING IT LIKE A WEED,\" \"Roses Don\\'t Want Sun. They\\'re Addicted to It.\" The title itself is a hook for the section.'",
+            "rationale": "Completeness lens flagged that current prompts produce label-style titles, but samples use contrarian capitalized micro-thesis statements that do major retention work.",
+            "supporting_lenses": [
+              "completeness"
+            ],
+            "leverage": "high"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/channels/gardening.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Narrator paragraph — REPLACE 'calmly certain' and 'use you constantly' with sharpened versions",
+            "proposed": "Replace the narrator paragraph with: 'A practical, experienced gardener — the kind of friend a viewer would trust with their tomato beds. Warm, down-to-earth, loving, and **calmly certain** — you commit to every claim flatly, without hedging. \"You don\\'t water. None.\" \"This kills more lavender than anything else.\" \"Period.\" The confidence is what earns trust; a hedged sentence undoes a paragraph of authority. You talk to one person at a time and use \"you\" constantly — every paragraph keeps the viewer as the grammatical subject, with imperatives aimed at them (\"stick your finger in,\" \"walk your garden,\" \"save your good soil for your tomatoes\"). When you must explain biology or history, keep it to 2–3 sentences before snapping back to what the viewer does. Sentence length varies. Lean on sensory detail (color, texture, smell, weight, sound) over abstract claims. You speak as one rung above the viewer, not from a pedestal — you figured this out the hard way too. Never use credential-flavored phrases (\"in my 20 years of experience,\" \"as a master gardener\"); earn trust through mechanism and concrete recognition of the viewer\\'s exact failure state.'",
+            "rationale": "Single consolidated narrator-voice rewrite combining no-hedging, second-person saturation, and completeness's writer-as-fellow-traveler pattern.",
+            "supporting_lenses": [
+              "viewer-centered",
+              "authority",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 2,
+            "location": "Voice rules — REPLACE 'Be specific and sensory' with concrete-picture rule",
+            "proposed": "Replace 'Be specific and sensory. Smell, color, texture, sound...' with: 'Show the picture, don\\'t state the condition. Never say a plant is \"unhealthy,\" \"dead,\" \"struggling,\" or \"thriving\" without giving the viewer the physical image that proves it. Replace the abstract diagnosis with a specific tableau the viewer can see and touch: \"a pile of dried twigs someone forgot to throw away,\" \"a woody, hollow, dead-looking donut with green only at the tips,\" \"a sad, leggy stick with three brown leaves wondering where it all went wrong.\" Abstract health words are banned unless paired with a concrete picture in the same sentence. Smell, color, texture, sound — the deep amber of the liquid, the sour tang, the give of warm soil.'",
+            "rationale": "Current bullet asks for sensory detail but doesn't forbid the abstract alternative. Replacement bans the failure mode and provides three exact-shape exemplars.",
+            "supporting_lenses": [
+              "language-craft",
+              "viewer-centered"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 3,
+            "location": "Voice rules — new bullet: Plant as character with strategic intent",
+            "proposed": "Add: 'The plant is a character with a survival agenda, not a substrate. Grant it intentions, moods, appetites, and a biological goal — it sulks, sleeps, hoards, gets addicted, demands, ignores, rewards. Frame gardening as a relationship with a creature that wants things, not a maintenance schedule. The personification should be *strategic-intent* (\"a rose has exactly one goal in life — reproduce,\" \"the plant thinks mission accomplished and pours its energy into seeds\") so mechanism explanation feels like character motivation. Examples: \"Your lavender is sleeping. Let it sleep dry.\" \"Roses are addicted to sun.\" \"Lavender wants the leftovers.\" Never anthropomorphize cutely (no \"Mr. Tomato\") — give it adult motives.'",
+            "rationale": "Names the device, guards against cutesy failure modes, seeds three exemplars, and adds completeness's strategic-intent specificity.",
+            "supporting_lenses": [
+              "language-craft",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 4,
+            "location": "Voice rules — REPLACE villain bullet with vague-they version",
+            "proposed": "Replace 'Carry the villain installed in the hook...' with: 'Carry the villain installed in the hook through every transition. The antagonist is external (industry, conventional wisdom, the \"free = worthless\" assumption) — never the viewer\\'s behavior. When pointing out mistakes, frame them as things the viewer was *led into*, not things they did wrong. Name the discredited authority vaguely, never specifically: \"what they tell you at the garden center,\" \"what\\'s on the back of the seed packet,\" \"every gardening blog,\" \"the advice you\\'ve heard a hundred times.\" Don\\'t name a specific competitor, channel, brand, or expert — a vague \"they\" can\\'t push back, and the narrator becomes the lone source of real knowledge. Use a recurring third-person \"they\" / \"most people\" / \"the beginner\" composite to dramatize the wrong behavior — alternate freely between \"they do X\" and \"you do Y\" so the viewer can recognize themselves from a small distance without being directly accused.'",
+            "rationale": "Sharpens villain rule with concrete phrasings + adds completeness's sympathetic third-person 'they' embodiment in one consolidated edit.",
+            "supporting_lenses": [
+              "authority",
+              "viewer-centered",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 5,
+            "location": "Voice rules — new bullet: Anticipation scaffolding",
+            "proposed": "Add: 'Flag your best lines before you say them. When the next sentence is the actual rule, the real reason, or the part most viewers miss, label it first — \"here\\'s the part nobody mentions,\" \"here\\'s the rule that actually works,\" \"and this is where it stings\" — then deliver. The label is how a trusted friend talks; it also gives the viewer a tiny reason to keep listening.'",
+            "rationale": "Channel-voice reinforcement of universal anticipation-scaffolding rule, framed as friend-narrator natural behavior.",
+            "supporting_lenses": [
+              "retention"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 6,
+            "location": "Voice rules — new bullet: Authority from how the plant actually behaves",
+            "proposed": "Add: 'Authority comes from how the plant actually behaves, not from who said so. Anchor claims in the plant\\'s wild origin (\"in its natural habitat it grows out of cracks in limestone\"), its biology (\"roses are solar-powered machines\"), or its evolutionary goal (\"a rose has exactly one goal in life — reproduce\"). The wild context overrides what the garden center tells you. Don\\'t name researchers, studies, universities, or years — the channel doesn\\'t speak that language.'",
+            "rationale": "Folk-origin is channel-flavored. Scopes the substitute-authority pattern correctly with explicit ban on citation register.",
+            "supporting_lenses": [
+              "authority"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 7,
+            "location": "Voice rules — new bullet: Domain vocabulary fluently",
+            "proposed": "Add: 'Use domain vocabulary fluently — it\\'s your credential. Cultivar names (Munstead, Hidcote, Grosso), category terms (angustifolia, lavandin, floribunda, modern shrub), and craft jargon (deadheading, basal break, crown rot, friable, leggy) signal \"I work in this field\" more strongly than any citation. Sprinkle them naturally — and always attach a humanizing tag in the same breath (\"stoechas, the funny little rabbit-ear flowers,\" \"lavandin, the big robust workhorses\") so the Latin doesn\\'t alienate the beginner. Pull terms only from research. Never invent a cultivar name.'",
+            "rationale": "Combines named-taxonomy authority + jargon-translation discipline at the channel level where it lives most naturally.",
+            "supporting_lenses": [
+              "authority",
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 8,
+            "location": "Voice rules — new bullet: Insider-status flip",
+            "proposed": "Add: 'Promote the viewer above the crowd. When you teach something most gardeners don\\'t know, name the crowd they\\'re now ahead of — \"ninety percent of buyers,\" \"the people who panic-prune at the first frost,\" \"everyone who waters on instinct.\" Status, not just information, is the reward for watching.'",
+            "rationale": "Channel-level reinforcement using the exact out-group phrasings the sample scripts deploy.",
+            "supporting_lenses": [
+              "viewer-centered"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 9,
+            "location": "Voice rules — new bullet: Rescue is less, not more",
+            "proposed": "Add: 'The rescue is often less, not more. Gardeners are exhausted by everything they\\'ve been told to do. When the right move is to stop watering, stop feeding, stop fussing, stop forcing — say so plainly and frame it as relief (\"almost entirely,\" \"do nothing,\" \"let it alone\"). Doing less is the gift; never bury it under a longer to-do list.'",
+            "rationale": "Channel-specific reinforcement of permission-to-do-less with sample-script phrasings.",
+            "supporting_lenses": [
+              "viewer-centered"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 10,
+            "location": "Voice rules — new bullet: Hands-in-the-soil commands",
+            "proposed": "Add: 'Hands-in-the-soil commands. Give the viewer at least one tactile imperative per segment that they could literally do this afternoon — \"Stick your finger in the soil two knuckles deep,\" \"Squeeze a handful and watch what it does,\" \"Walk out before sunset and check the lower leaves.\" The command makes the script participatory, not theoretical.'",
+            "rationale": "Channel-specific reinforcement matching the lavender script's tactile-imperative move.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 11,
+            "location": "Voice rules — new bullet: Two-beat sentences",
+            "proposed": "Add: 'Two-beat sentences. After a longer explanation, drop a short fragment to land it. Long sentence carrying nuance, then a two-to-four-word slam (\"Don\\'t lie.\" / \"Stop being gentle.\" / \"Let it sleep dry.\"). The fragment is the closer, not an aside.'",
+            "rationale": "Channel-level reinforcement of fragment-as-punch with gardening voice exemplars.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 12,
+            "location": "Voice rules — new bullet: Muscular gardening verbs",
+            "proposed": "Add: 'Muscular gardening verbs. Lean on physical verbs that name what\\'s actually happening underground or in the cells: drown, smother, cook, suffocate, starve, butcher, scorch, baby, pamper, flood, hijack. The gardener\\'s actions and the plant\\'s reactions both deserve strong verbs. \"You\\'re smothering a desert survivor in luxury\" beats \"too much water and fertilizer is bad for it.\"'",
+            "rationale": "Channel-specific verb palette tied to gardening with contrasting weak/strong exemplar.",
+            "supporting_lenses": [
+              "language-craft"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 13,
+            "location": "Voice rules — new bullet: Echo phrase per video",
+            "proposed": "Add: 'One echo phrase per video. Pick one signature image tied to the topic — \"a Mediterranean hillside in your backyard,\" \"a desert survivor in luxury,\" \"rhythm beats randomness,\" \"treat it like a weed, not a pet\" — install it early and restate it in at least two later sections and once in the conclusion. The echo is what makes the video feel like one piece instead of a list.'",
+            "rationale": "Channel-flavored reinforcement of thematic echo phrase mechanic with sample-derived templates.",
+            "supporting_lenses": [
+              "structural-rhythm"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 14,
+            "location": "Voice rules — new bullet: Promise a transformation",
+            "proposed": "Add: 'Promise a transformation, not a tip count. When the hook paints the end-state, talk about the viewer\\'s garden, their plants, their confidence — \"plants so tough they\\'ll outlive your interest in gardening\" — not \"by the end you\\'ll know N tricks.\" The viewer didn\\'t click for a number; they clicked for a different outcome with their plants.'",
+            "rationale": "Channel-scoped reinforcement of end-state promise in gardener register (sensory and outcome-shaped).",
+            "supporting_lenses": [
+              "retention"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 15,
+            "location": "Voice rules — new bullet: Nicknames for the subject",
+            "proposed": "Add: 'Coin one or two memorable nicknames for the subject early (\"desert survivor,\" \"solar-powered machine,\" \"flower factory\") and reactivate them across sections. The nickname carries the worldview shift more efficiently than repeating an argument — it becomes a private vocabulary between narrator and viewer.'",
+            "rationale": "Completeness lens flagged as recurring pattern — distinct from echo phrase (which is a refrain); these are nicknames for the subject specifically.",
+            "supporting_lenses": [
+              "completeness"
+            ],
+            "leverage": "medium"
+          },
+          {
+            "rank": 16,
+            "location": "Voice rules — new bullet: Geographic/contextual gating",
+            "proposed": "Add: 'When advice is climate-, zone-, or context-dependent, name the gating condition rather than papering over it. Acknowledging \"this works if you\\'re in X, but in Y you need Z instead\" reads as expert humility, not weakness, and converts vague universal tips into trustworthy, applicable ones.'",
+            "rationale": "Completeness lens flagged a Secret #5 pattern (lavender) — climate gating as authority signal not encoded.",
+            "supporting_lenses": [
+              "completeness"
+            ],
+            "leverage": "low"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/hook_archetypes/counter_claim.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Whole-file rewrite — consolidate all counter_claim edits",
+            "proposed": "Replace file content with: 'Open by directly contradicting a belief the audience walks in holding. Name the belief in the viewer\\'s own framing first, then puncture it in the same breath. The claim must be defensible from the research — don\\'t pick a fight you can\\'t finish later in the video.\\n\\nThe belief you puncture should be one the viewer has *acted on and failed at* — name the failure directly so they feel caught (\"you\\'ve killed lavender before — don\\'t lie,\" \"the reason your roses keep dying isn\\'t because you have a black thumb\"). Empathy comes from being seen in the failure, not from softening it.\\n\\nPreferred rhythmic shape: three short parallel fragments naming what\\'s wrong, each with the same grammatical skeleton, with the third fragment carrying an intensifier the first two didn\\'t (\"X is wrong. Y is wrong. Z? Catastrophically wrong.\"). The triple-beat compresses the whole conventional-wisdom-is-broken thesis into a percussive payoff before the promise lands.\\n\\nWhen the contradiction is genuinely shocking (\"stop watering it. almost entirely.\"), drop the instruction first, then pause with a one-line acknowledgement — \"I know that sounds insane\" / \"yes, really\" / \"hold that thought\" — BEFORE you explain the mechanism. That gap between claim and resolution is a tiny suspense window the viewer rides through the explanation to close.'",
+            "rationale": "Three lens edits all targeted this single file (accusatory-empathetic open, triple-wrong escalation, counterintuitive-with-pause). Consolidating into one rewrite avoids overlapping micro-edits.",
+            "supporting_lenses": [
+              "viewer-centered",
+              "structural-rhythm",
+              "retention"
+            ],
+            "leverage": "high"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/hook_archetypes/scene.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "End of file — append a stuck-state tableau requirement",
+            "proposed": "Append: 'The tableau must be the viewer\\'s stuck-state, not a neutral scene. Paint the exact failure they are currently living inside — the dead twigs, the leggy stick, the brown leaves, the empty jar — in second person so they recognize themselves in the first breath (\"you\\'ve been staring at...\", \"yours looks like...\"). Recognition, not curiosity, is the hook here.'",
+            "rationale": "Scene archetype currently allows any concrete tableau; samples always open inside the viewer's specific failure tableau. Forces recognition as the mechanic.",
+            "supporting_lenses": [
+              "viewer-centered"
+            ],
+            "leverage": "high"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/hook_archetypes/specific_result.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Whole-file append",
+            "proposed": "Append: 'If the video is a listicle, the specific result you front-load can double as the numbered-cliffhanger tease — point at the one item from the list that delivers this result and call it out by number without naming it (\"and secret #N is the one that did it\").'",
+            "rationale": "Wires specific_result hook archetype into the numbered-cliffhanger mechanic so they reinforce instead of competing for airtime.",
+            "supporting_lenses": [
+              "retention"
+            ],
+            "leverage": "medium"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/myth_bust.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Replace 'voice the myth sympathetically' bullet — expand with concession-then-correction + wound-vivid",
+            "proposed": "Replace with: 'Open each segment by voicing the myth the way the viewer believes it — sympathetically, so they feel seen, not scolded. Dramatize the wound: describe the painful outcome of believing the myth (the dead plant, the wasted year, the disappointing harvest) BEFORE you puncture the myth. The viewer should physically recognize themselves doing the wrong thing; only then does the correction land. Then the turn (\"here\\'s what\\'s actually happening\"), the *mechanism* — the physical or causal reason the myth is wrong, not cited studies or named experts — the corrected action, and a single short imperative or fragment-chain the viewer can repeat (the corrected action distilled to a beat under 10 words: \"Deep, lazy, low.\" / \"Treat it like a weed, not a pet.\"). Mechanism is the proof; if you can\\'t explain the why, you haven\\'t busted the myth.'",
+            "rationale": "Consolidates four edits to this file (concession-then-correction, mistake-as-cliffhanger wound-first, mechanism-primary, hard-rule closer) into one rewrite of the central rule.",
+            "supporting_lenses": [
+              "retention",
+              "viewer-centered",
+              "authority",
+              "structural-rhythm",
+              "completeness"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 2,
+            "location": "End of file — new bullets: stop-not-start + claim-pause-explain",
+            "proposed": "Add: 'At least one corrected action must be a STOP, not a START — \"stop watering,\" \"stop feeding,\" \"stop pruning in fall.\" The rescue from the myth is permission to put down a chore the viewer has been failing at, not another task to add.\\n\\nWhen the corrected action is genuinely shocking, say the instruction in a short declarative sentence, then pause with a one-line acknowledgement — \"I know that sounds insane,\" \"yes, really,\" \"trust me for one more sentence\" — and only then explain why. The gap is what makes the explanation feel earned.\\n\\nFor each myth, find one reframing metaphor that flips how the viewer categorizes the subject after the turn. The metaphor carries the correction (\"it\\'s not a houseplant, it\\'s a desert weed wearing a dress\") and gives the new mental model a handle the viewer can keep.'",
+            "rationale": "Consolidates three more myth_bust edits (permission-to-stop, counterintuitive-with-pause, reframing-metaphor) into one append.",
+            "supporting_lenses": [
+              "viewer-centered",
+              "retention",
+              "language-craft"
+            ],
+            "leverage": "high"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/deep_dive.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "End of file — append escalation + aphorism rules",
+            "proposed": "Append: 'Escalate the stakes across segments. At least one mid-or-late segment must be explicitly labeled as the most consequential beat in the video — \"this is the part that, if you take nothing else from this video, will change everything\" or equivalent. Don\\'t let the segments feel equally weighted; the viewer needs a reason to stay through the middle.\\n\\nEnd each segment on a one-line aphorism that distills its lesson into something portable — short, balanced, quotable. The aphorism is the segment\\'s gift to the viewer.'",
+            "rationale": "Extends escalation rule + aphorism button to deep_dive so they aren't listicle-only.",
+            "supporting_lenses": [
+              "retention",
+              "language-craft"
+            ],
+            "leverage": "medium"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/default.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Replace 'lead with most interesting angle' bullet and append authority bullet",
+            "proposed": "Replace 'Lead each segment with its most interesting angle, not a definition.' with: 'Lead each segment with a reframe, not a definition: a mindset shift, a confessional question naming a failure the viewer has lived, a \"here\\'s where most people get it backwards\" framing, or a counterintuitive claim. The opener installs the section\\'s micro-loop in one sentence — never with the item\\'s name, never with logistics.'\\n\\nAppend new bullet: 'Build authority from mechanism, origin, vocabulary, specifics, and confident tone — never from named researchers, studies, dates, or institutions. The citation register breaks this channel\\'s voice.'",
+            "rationale": "Aligns default module with listicle reframe taxonomy AND retires citation register at module level for any non-listed video type.",
+            "supporting_lenses": [
+              "structural-rhythm",
+              "authority"
+            ],
+            "leverage": "medium"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/research.md",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Content goals — add three new bullets (mechanism, action-specifics, taxonomy, jargon gloss)",
+            "proposed": "After 'Include 8–12 key facts and some statistics (if applicable).' add: 'For every counterintuitive fact, include the underlying *mechanism* in the notes field — the physical, biological, or causal reason it\\'s true, in one or two plain sentences the script can paraphrase. A fact without a mechanism is weak source material.\\n\\nWhenever an action or recommendation has a tested specific — a depth, a duration, a temperature, a ratio, a frequency — capture the exact number in the facts list with high confidence. The script writer places one of these at each action moment, so undersupplying them weakens every section. Never fabricate a number; omit if unknown.\\n\\nWhen the topic has a domain vocabulary — cultivar names, category terms, technical jargon, named varieties or models — include the relevant terms in the facts list with brief plain-language meanings (e.g. \"stoechas = the lavenders with the rabbit-ear flowers\"). The script uses these as authority signals AND attaches them as in-line translations; without them, the writing reads generic.'",
+            "rationale": "Pushes mechanism + calibrated specifics + named taxonomy + jargon gloss requirements upstream so the script layer has the material it needs. Without this, the script defaults to citation-shaped filler.",
+            "supporting_lenses": [
+              "authority",
+              "language-craft"
+            ],
+            "leverage": "high"
+          },
+          {
+            "rank": 2,
+            "location": "REVISE confidence-tagging / source-attribution / controversies framing (completeness critic)",
+            "proposed": "Add a clarifying note at the top of Content goals: 'The script layer in this voice does NOT cite sources, name researchers, name institutions, or hedge with confidence language. Research should still verify claims (high-confidence material only) but the OUTPUT for the script writer should be framed as a *mechanism inventory + sensory specifics + folksy quantifiers + taxonomy + climate/context gating*, not a fact + source list. Source attribution is for your verification; the script writer will not surface it.'",
+            "rationale": "Completeness critic flagged the research-vs-script mismatch directly. The research prompt is producing material the script layer mostly throws away.",
+            "supporting_lenses": [
+              "authority",
+              "completeness"
+            ],
+            "leverage": "high"
+          }
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/hook_archetypes.json",
+        "edits": [
+          {
+            "rank": 1,
+            "location": "Hook archetype selection architecture — REVISE mutually-exclusive to primary + secondary blending",
+            "proposed": "Update the architecture (likely in this JSON or in script_base.md's {{HOOK_ARCHETYPE_BLOCK}} composer) so the hook block instructs: 'Pick a *primary* hook archetype (scene / contrast / counter_claim / specific_result / bold_claim) AND blend in at least one *secondary* archetype move. The five archetypes are tools, not categories — the strongest hooks layer 2–3 of them (counter_claim + scene + bold_claim is a common combination). Single-archetype hooks read thin.'",
+            "rationale": "Completeness critic flagged that both sample hooks blend multiple archetypes; choosing one produces thinner hooks. May require touching script_base.md or the orchestrator that selects the archetype block — the exact location depends on how {{HOOK_ARCHETYPE_BLOCK}} is composed.",
+            "supporting_lenses": [
+              "completeness"
+            ],
+            "leverage": "high"
+          }
+        ]
+      }
+    ],
+    "conflicts": [
+      "script_base.md Conclusion bullet: structural-rhythm proposes a compressed-recap drumroll INSIDE the conclusion, while the existing rule (and one viewer-centered edit) says 'NOT a recap of items.' Completeness critic confirms the existing rule is wrong relative to samples. RESOLUTION embedded in rank-6 conclusion rewrite: distinguish padded prose recap (banned) from compressed rhythmic drumroll (required).",
+      "script_modules/listicle.md 'no recap or playbook' bullet: same conflict as above — current rule bans recap, samples and structural lens require compressed recap inside conclusion narration. RESOLUTION embedded in listicle rank-13 edit: ban recap *segment* but mandate drumroll inside `conclusion.narration` field.",
+      "outline_base.md hook field notes: current four-element ordered scheme (Stakes/Villain/Withheld/Transition) conflicts with completeness critic's recommendation to treat hook elements as an unordered checklist that also includes end-state, numbered cliffhanger, and felt-pain tableau. RESOLUTION: rank-1 outline edit replaces the ordered scheme with an unordered element checklist.",
+      "script_base.md Hook Beat 1/2/3 scaffold: current strict three-beat scaffold with rigid word counts conflicts with completeness critic's finding that neither sample obeys it. Multiple lens edits (retention, viewer-centered, language-craft) propose incremental additions to Beat 1/2/3, while completeness recommends scrapping the scaffold entirely. RESOLUTION: rank-5 script_base edit replaces beats with an unordered element checklist; rendering all incremental Beat 1/2/3 edits from individual lenses obsolete (they are absorbed into the checklist).",
+      "script_modules/listicle.md beat 4 'Authority anchor': listicle currently makes named-expert anchor an optional add-on; authority lens proposes inverting to mechanism-default. Outline_base.md currently mandates named-authority planning in purpose field. RESOLUTION: rank-7 listicle edit + rank-2 outline edit jointly invert the default — mechanism is required, named-expert anchor is the rare exception.",
+      "research.md confidence/source-attribution: current research prompt requires source attribution and confidence tags; samples never cite or hedge. Direct conflict between research and script layers. RESOLUTION: rank-2 research edit clarifies that source attribution is for verification only, and reframes research output as mechanism inventory + specifics + taxonomy + folksy quantifiers — not fact+source pairs.",
+      "hook_archetypes/*.md mutual exclusivity: architecture treats archetypes as mutually exclusive; samples blend them. RESOLUTION: hook_archetypes.json rank-1 edit allows primary + secondary blending. Note: actual file location may be in the script_base.md composer rather than the JSON — needs verification before applying."
+    ],
+    "top_3_actions": [
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "edit_summary": "Replace the strict Hook Beat 1/2/3 scaffold with an unordered element checklist that mandates: accusatory pattern interrupt, felt-pain tableau, external-villain absolution, withheld promise, numbered curiosity bookmark, triadic end-state promise with 'exactly...exactly...exactly' rhythm, and transition thread. Pair with a parallel rewrite of the Conclusion block into three named beats (compressed-recap drumroll → single-action prescriptive close → identity-conferring beat + villain callback) at ~120–180 words.",
+        "why_top": "Five lenses converged on this as the single highest-leverage edit pair. The current strict beat scaffold produces mechanical hooks that violate every observed pattern in the sample scripts (completeness critic verified neither sample obeys it). Replacing it absorbs ~12 individual lens edits into one structural rewrite that ships every hook with the eight elements that drive retention. The companion conclusion rewrite resolves the no-recap contradiction the completeness lens flagged in both samples. Improves every video produced by the system."
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+        "edit_summary": "Rewrite the item-section beat list around a three-beat arc (reframe → mechanism → hard rule) and substantively replace beats 1–7 plus add beats 6c (hard-rule closer) and 8 (aphorism button). Critical beat-level changes: beat 1 = reframe taxonomy + hook-payoff callback when bookmarked; beat 3 = mechanism-as-authority + image-first + triplet + anticipation marker; beat 4 = mechanism-default (not named-expert anchor); beat 5 = reframing metaphor as section spine (not optional decoration); beat 6 = wound-vivid concession-then-correction with inherited-error grammar; beat 7 = three transition shapes (undo / escalate / master-key). Also add escalating-stakes ranking + cross-references between items.",
+        "why_top": "Listicle is the dominant module used by the gardening channel and the format both sample scripts use. This rewrite touches 13 separate consolidated mechanics from all five lenses at the exact structural point each appears in every section of every listicle. Each item-section gets re-architected to deliver the retention, viewer-centered, language-craft, structural, and authority moves the samples consistently land. Scope: every listicle video shipped."
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/channels/gardening.md",
+        "edit_summary": "Sharpen the narrator voice and add ~14 new bullets. Most critical: rewrite the narrator paragraph (no-hedging declaratives + every-paragraph second-person + one-rung-above-the-viewer humility), replace 'be specific and sensory' with 'show the picture, don't state the condition' (banning abstract health words), add 'plant as character with strategic intent', sharpen villain rule to vague-they + sympathetic third-person composite, and add channel-scoped versions of: folk-origin authority, domain vocabulary with humanizing tags, insider-status flip, permission-to-do-less, hands-in-the-soil commands, two-beat sentences, muscular verbs, echo phrase, transformation promise, and nicknames.",
+        "why_top": "The gardening channel is currently the only channel and the entire calibration target. Channel voice is where the friend-narrator persona lives, so encoding the mechanics there (rather than only at the universal layer) makes them natural rather than mechanical. The narrator-paragraph rewrite alone consolidates three lens findings (no-hedging, second-person saturation, writer-as-fellow-traveler) and resets the voice baseline. Scope: every video shipped through the gardening channel, which is currently all videos."
+      }
+    ]
+  }
+}

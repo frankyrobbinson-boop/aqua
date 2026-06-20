@@ -1,5 +1,6 @@
 - Write each segment as a self-contained payoff: one idea, revealed well.
-- Lead each segment with its most interesting angle, not a definition.
+- Lead each segment with a reframe, not a definition: a mindset shift, a confessional question naming a failure the viewer has lived, a "here's where most people get it backwards" framing, or a counterintuitive claim. The opener installs the section's micro-loop in one sentence — never with the item's name, never with logistics.
 - Land the common mistake where the outline calls for it.
 - End every segment on an open loop into the next.
 - Vary how segments open so they don't feel templated.
+- Build authority from mechanism, origin, vocabulary, specifics, and confident tone — never from named researchers, studies, dates, or institutions. The citation register breaks this channel's voice.
