@@ -101,15 +101,17 @@ def generate_script_draft(
         sample_script=sample_script,
     )
 
-    # max_tokens covers thinking + structured output combined. The post-audit
-    # prompts ask for richer hooks (~250 words), longer conclusions (~150),
-    # and 6-8 beats per segment — a 10-min listicle can easily output 6-8 K
-    # tokens of JSON, plus adaptive thinking. 16K leaves ample headroom; bump
-    # higher if a very long video starts truncating again.
+    # max_tokens covers thinking + structured output combined. With ~70 rules
+    # spread across script_base + listicle + gardening, adaptive thinking can
+    # silently consume 10K+ tokens "reasoning about all the rules" and leave
+    # no room for the actual JSON — producing the truncated-JSON max_tokens
+    # crash. Cap thinking at 4K so the model can plan but not over-spiral; the
+    # remaining ~20K leaves comfortable headroom for the script JSON (which is
+    # ~3-5K tokens for a 10-min video).
     with client.messages.stream(
         model="claude-opus-4-7",
-        max_tokens=16384,
-        thinking={"type": "adaptive"},
+        max_tokens=24576,
+        thinking={"type": "enabled", "budget_tokens": 4096},
         output_config={"format": {"type": "json_schema", "schema": SCRIPT_SCHEMA}},
         messages=[
             {

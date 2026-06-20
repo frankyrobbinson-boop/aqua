@@ -1,0 +1,753 @@
+{
+  "summary": "Cut script-stage prompts by ~50% via cross-file redundancy removal + per-rule example pruning + verbose-framing deletion, without losing any round-2/3 frequency caps, bans, or structural rules.",
+  "agentCount": 5,
+  "logs": [
+    "One agent reads all script-stage prompts, identifies cross-file redundancy + per-file cut plan.",
+    "[stall] agent \"analyze\" stalled (no progress) after 514s — retrying (1/5)",
+    "Bloat plan: 18 redundancies, 57 total cuts proposed.",
+    "Parallel: 3 agents rewrite script_base / listicle / gardening per the plan.",
+    "Simplification done: script_base 44%, listicle 53%, gardening 54%",
+    "Final agent verifies substance preserved + boot test + cross-file consistency."
+  ],
+  "result": {
+    "plan": {
+      "cross_file_redundancy": [
+        {
+          "concept": "External villain — vague, faceless, viewer-was-led-into-error framing",
+          "appears_in": [
+            "script_base.md (Orientation bullet 2)",
+            "gardening.md (Voice rule 3: 'Carry the villain installed in the hook')"
+          ],
+          "recommendation": "KEEP full definition in script_base Orientation. In gardening.md, DELETE the entire villain bullet — script_base already covers vague antagonist, banned namings, 'led into' grammar, and the recurring 'they/most people' composite. Save ~700 chars."
+        },
+        {
+          "concept": "Mechanism IS the proof / no citation register / authority from origin not credentials",
+          "appears_in": [
+            "script_base.md (Universal: 'The mechanism IS the proof', 'Do not write in the citation register', 'Origin-as-authority')",
+            "listicle.md (beat 3 'Mechanism — this is your authority' AND beat 4 'Pair counterintuitive claim with mechanism not citation')",
+            "gardening.md (Voice rule 4: 'Authority comes from how the plant actually behaves')"
+          ],
+          "recommendation": "KEEP full definition in script_base. In listicle.md, COLLAPSE beat 3 and beat 4 — keep only the mechanism-floor (3-sentence minimum) which is listicle-specific; cite script_base for the rest. In gardening.md, DELETE the authority bullet — script_base already covers it. Save ~1200 chars."
+        },
+        {
+          "concept": "Saturate with second person / 'you' as grammatical subject",
+          "appears_in": [
+            "script_base.md (Universal: 'Saturate with second person')",
+            "gardening.md (Narrator paragraph: 'You talk to one person at a time and use you constantly...')"
+          ],
+          "recommendation": "KEEP in script_base. In gardening.md Narrator, COMPRESS the 'you talk to one person, every paragraph keeps the viewer as grammatical subject, imperatives aimed at them, 2-3 sentences before snapping back' down to a single phrase — script_base owns the rule. Save ~250 chars."
+        },
+        {
+          "concept": "Permission to do less / rescue is often less, not more",
+          "appears_in": [
+            "script_base.md (Universal: 'Permission to do less')",
+            "gardening.md (Voice rule: 'The rescue is often less, not more')"
+          ],
+          "recommendation": "KEEP in script_base. DELETE entire gardening.md bullet — pure restatement. Save ~300 chars."
+        },
+        {
+          "concept": "Kinetic / muscular verbs (drown, smother, butcher, etc.)",
+          "appears_in": [
+            "script_base.md (Universal: 'Verbs do the work')",
+            "gardening.md (Voice rule: 'Muscular gardening verbs')"
+          ],
+          "recommendation": "KEEP in script_base. In gardening.md, COMPRESS to a 1-line note that the verb list also includes plant-specific verbs (cook, suffocate, hijack) — drop the example sentence and the 'too-be/to-have' audit. Save ~250 chars."
+        },
+        {
+          "concept": "Picture / tableau before label / abstract status banned",
+          "appears_in": [
+            "script_base.md (Universal: 'Paint the stuck-state' AND 'Pictures beat diagnoses')",
+            "gardening.md (Voice rule 1: 'Show the picture, don't state the condition')"
+          ],
+          "recommendation": "KEEP both universals in script_base (they pair). In gardening.md, COMPRESS to a 1-liner referencing script_base, keeping ONLY the gardening-specific sensory palette (smell/color/texture cues). Save ~400 chars."
+        },
+        {
+          "concept": "Echo phrase / signature image installed once, restated 2-3x",
+          "appears_in": [
+            "script_base.md (inside Universal: 'Tension thread must carry, AND a thematic echo phrase')",
+            "gardening.md (Voice rule: 'One echo phrase per video — hard cap, metaphor-family exclusive')"
+          ],
+          "recommendation": "KEEP the basic echo-phrase rule in script_base. KEEP the metaphor-family exclusivity rule in gardening (it's gardening-specific elaboration with concrete same-family lockouts), but COMPRESS to ~150 chars: 'echo claims its semantic family — financial echo locks out bank/vault/interest; biological locks out engine/battery; same-family doubling is banned.' Save ~500 chars."
+        },
+        {
+          "concept": "Hands-in-soil / tactile imperative per segment",
+          "appears_in": [
+            "script_base.md (Universal: 'Talk with the viewer, not at them' — has 'at least one direct command per segment')",
+            "gardening.md (Voice rule: 'Hands-in-the-soil commands')"
+          ],
+          "recommendation": "KEEP in script_base. In gardening.md, COMPRESS to a single line giving 2 channel-specific examples (finger-in-soil, walk before sunset) and cite script_base. Save ~200 chars."
+        },
+        {
+          "concept": "Plant-as-character with survival agenda / strategic intent",
+          "appears_in": [
+            "script_base.md (Orientation bullet 3: 'Subject as protagonist with strategic intent')",
+            "gardening.md (Voice rule: 'The plant is a character with a survival agenda')"
+          ],
+          "recommendation": "KEEP general principle in script_base. In gardening.md, COMPRESS to a 1-line cite plus gardening-specific examples ('plant sleeps, hoards, gets addicted; no Mr. Tomato cuteness'). Save ~350 chars."
+        },
+        {
+          "concept": "Domain vocabulary / translate jargon in same breath",
+          "appears_in": [
+            "script_base.md (Universal: 'Translate jargon in the same breath — vary the syntax' — full 4-shape syntax list)",
+            "gardening.md (Voice rule: 'Use domain vocabulary fluently')"
+          ],
+          "recommendation": "KEEP the full 4-shape translation pattern in script_base (it's the substantive rule). In gardening.md, COMPRESS to one line: 'pull terms only from research (cultivar names, angustifolia/lavandin/floribunda, deadheading/crown-rot/leggy); never invent.' Save ~300 chars."
+        },
+        {
+          "concept": "Insider-status flip / promote viewer above the crowd",
+          "appears_in": [
+            "script_base.md (Universal: 'Insider-status flip')",
+            "gardening.md (Voice rule: 'Promote the viewer above the crowd')"
+          ],
+          "recommendation": "KEEP in script_base. DELETE entire gardening.md bullet — pure restatement with same examples. Save ~250 chars."
+        },
+        {
+          "concept": "Fragments / two-beat sentences — long then short slam",
+          "appears_in": [
+            "script_base.md (Universal: 'Fragments are weapons')",
+            "gardening.md (Voice rule: 'Two-beat sentences')"
+          ],
+          "recommendation": "KEEP in script_base. DELETE entire gardening.md bullet — same rule, same example shapes ('Don't lie.' is already in script_base). Save ~250 chars."
+        },
+        {
+          "concept": "Speak in declaratives / no hedging",
+          "appears_in": [
+            "script_base.md (Universal: 'Speak in declaratives')",
+            "gardening.md (Narrator paragraph: '**calmly certain** — you commit to every claim flatly, without hedging. \"None.\" \"Period.\"')"
+          ],
+          "recommendation": "KEEP in script_base. In gardening.md Narrator, COMPRESS the calmly-certain language since it duplicates script_base's hedging ban — keep only 'calmly certain' as the channel-specific tonal descriptor. Save ~150 chars."
+        },
+        {
+          "concept": "Compressed-recap drumroll in conclusion — single rhythmic sentence, parallel imperatives, no items by name",
+          "appears_in": [
+            "script_base.md (Universal structure: Conclusion beat 1)",
+            "listicle.md (final paragraph 'Do not write a recap or playbook segment')"
+          ],
+          "recommendation": "KEEP the full drumroll spec in script_base Conclusion section. In listicle.md, COMPRESS to: 'No recap segment — the last item is the last segment. Drumroll lives in conclusion.narration only (per script_base); never name items by name in hook or conclusion.' Drop the long example string. Save ~600 chars."
+        },
+        {
+          "concept": "Spoken section numbers banned everywhere except hook bookmark + payoff",
+          "appears_in": [
+            "script_base.md (Universal: 'Transitions are open loops... no spoken section numbers' — full rule with ONE exception)",
+            "listicle.md (beat 7: 'Never speak the section number aloud' — re-explains the same exception)"
+          ],
+          "recommendation": "KEEP full rule in script_base. In listicle.md beat 7, DELETE the no-spoken-numbers paragraph entirely and the exception restatement — keep only the 3 transition shapes (undo/escalate/master-key) which are listicle-specific. Save ~350 chars."
+        },
+        {
+          "concept": "Open-loop transition shapes (undo / escalate / master-key)",
+          "appears_in": [
+            "script_base.md (Universal: 'Transitions are open loops' — full shapes a/b/c)",
+            "listicle.md (beat 7 — same a/b/c shapes restated)"
+          ],
+          "recommendation": "KEEP in script_base (it's universal). In listicle.md beat 7, COMPRESS to 1 line — 'Use the three transition shapes from script_base; vary across sections.' Save ~400 chars."
+        },
+        {
+          "concept": "Numbered cliffhanger callback — payoff in the cashed section",
+          "appears_in": [
+            "script_base.md (Universal: 'Tension thread must carry' part b, and Hook element f)",
+            "listicle.md (beat 1 'If this section is the numbered cliffhanger, open with an explicit callback' AND beat 2 'cash the promise explicitly')"
+          ],
+          "recommendation": "KEEP general callback rule in script_base. In listicle.md, COLLAPSE the duplicate callback instructions in beat 1 and beat 2 into a single short note in beat 1; drop the 'two adjacent sentences, do not separate them with mechanism' over-specification. Save ~400 chars."
+        },
+        {
+          "concept": "Reframing metaphor per segment",
+          "appears_in": [
+            "script_base.md (Universal: 'One reframing metaphor per segment')",
+            "listicle.md (beat 5)"
+          ],
+          "recommendation": "KEEP in script_base. In listicle.md beat 5, COMPRESS to 1 line — 'Reframing metaphor per item (see script_base); skip if forced.' Drop the repeated examples ('Mediterranean weed in pretty dress'). Save ~250 chars."
+        }
+      ],
+      "per_file_plans": [
+        {
+          "file": "script_base",
+          "current_chars": 20377,
+          "target_chars": 10000,
+          "cuts": [
+            {
+              "what": "Orientation bullet 2 (External villain): cut the second-layer physical-antagonist sub-clause and the 'grammar of inherited error' example list; keep core rule + one example + banned framings.",
+              "reason": "Sub-clause about physical-villain doubling and 3 example fillers ('someone told you / you've probably heard / the instinct is') are illustrative; the core rule survives without them.",
+              "estimated_chars_saved": 700
+            },
+            {
+              "what": "Universal 'Transitions are open loops' — collapse the spoken-number ban from a multi-sentence treatise to one sentence. Cut the redundant 'ONE exception is the numbered cliffhanger' explainer (just say 'except the hook bookmark callback'). Drop the 3-example a/b/c illustration to one example each.",
+              "reason": "Currently ~450 words on one rule. Substance is: no spoken numbers, three shapes (undo/escalate/master-key). Examples for each shape are repeated in listicle beat 7 anyway.",
+              "estimated_chars_saved": 900
+            },
+            {
+              "what": "Universal 'Tension thread must carry' — merge sub-parts (a) antagonist resurfacing, (b) hook-promise payoff, (c) echo phrase into a tight 3-line list; drop the duplicated payoff-line examples.",
+              "reason": "All three sub-rules are valid but currently each carries 2 example phrasings; keep one example per sub-rule.",
+              "estimated_chars_saved": 500
+            },
+            {
+              "what": "Universal 'Rule of three' — cut the three shape examples down to one; drop the 'compound move' explainer paragraph.",
+              "reason": "The rule itself is short; current text inflates it with 3 example shapes and a paragraph on triadic+fragment compounds. The round-3 closer-ban must stay.",
+              "estimated_chars_saved": 400
+            },
+            {
+              "what": "Universal 'Translate jargon — vary the syntax': keep all four shapes (substantive), but drop the example phrase after each shape number and drop the discouragement paragraph about 3-adjective stacks.",
+              "reason": "The four shape labels alone communicate the variety requirement; the example phrases inflate without adding rule-substance.",
+              "estimated_chars_saved": 550
+            },
+            {
+              "what": "Universal 'Trust your metaphor — don't pre-negate it': drop both Before/After example pairs; keep the rule + the banned-frame pattern in one sentence.",
+              "reason": "Two before/after example pairs is example overkill — the rule 'Ban You're not X. You're Y. — land the metaphor cold' is self-explanatory.",
+              "estimated_chars_saved": 350
+            },
+            {
+              "what": "Universal 'Punctuation is breath': trim the three example sentences (em-dash, stacked commas, mid-sentence question-mark) to one example total.",
+              "reason": "Each example takes ~30-40 words; one good example shows the principle.",
+              "estimated_chars_saved": 300
+            },
+            {
+              "what": "Universal 'Earn every sentence' / 'Voice rules govern how you speak' / 'Ground every claim in research' — keep as one-liners (already short). No cut.",
+              "reason": "Already minimal.",
+              "estimated_chars_saved": 0
+            },
+            {
+              "what": "Universal 'Folksy quantifiers' — collapse to one sentence with one example list.",
+              "reason": "Currently has 3 example phrases and a 'Do not present as measured statistics' caveat that restates the no-citation rule.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Universal 'Insider-status flip' — compress to one line with one example.",
+              "reason": "Currently lists 4 example crowds; one suffices.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Universal 'The mechanism IS the proof' + 'Do not write in citation register' + 'Origin-as-authority': merge into ONE rule labeled 'Mechanism over citation' with three sub-bullets, drop the duplicated 'how it actually works in the wild' example.",
+              "reason": "Three adjacent rules say the same thing from three angles; merging preserves all three angles in one bullet.",
+              "estimated_chars_saved": 600
+            },
+            {
+              "what": "Universal 'Saturate with second person' — trim from 5 illustrative phrasings ('so what you do is,' 'stick your finger in,' 'walk your garden') to 1; drop the 'If a paragraph has no you, rewrite it' restatement at the end.",
+              "reason": "The rule + one example shows the pattern.",
+              "estimated_chars_saved": 250
+            },
+            {
+              "what": "Universal 'Permission to do less' — compress to one sentence with one example; drop 'For an exhausted viewer' rationale.",
+              "reason": "Channel-specific exhausted-viewer rationale is gardening-flavored and belongs (briefly) in the channel file if anywhere.",
+              "estimated_chars_saved": 250
+            },
+            {
+              "what": "Universal 'Turn to the viewer mid-script' — drop 3 of the 4 example phrasings; keep the rule + 'do not overuse' caveat.",
+              "reason": "Examples pile up.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Universal 'Paint the stuck-state' + 'Pictures beat diagnoses': merge into one rule called 'Pictures, not labels' with two sub-points; drop the duplicated tableau examples.",
+              "reason": "Both rules say 'show the physical image, label is optional/after.' Merge preserves the nuance in less space.",
+              "estimated_chars_saved": 400
+            },
+            {
+              "what": "Universal 'Talk with the viewer, not at them' — compress to: 'One direct command + one rhetorical question per segment. Address one person — never \"you guys.\"' Drop the example sentence.",
+              "reason": "Rule is short; example inflates it 3x.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Universal 'One reframing metaphor per segment' — compress to one sentence; drop the 3 example metaphors.",
+              "reason": "Examples appear elsewhere (gardening file, listicle file).",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Universal 'Speak in declaratives' — drop two of the three example fragments; keep one.",
+              "reason": "Three examples of the same shape is overkill.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Universal 'Concentrate specifics' — compress; cut redundant 'never invent one' (already covered by Ground every claim) and the four example specifics down to two.",
+              "reason": "Overlaps with 'Ground every claim.'",
+              "estimated_chars_saved": 250
+            },
+            {
+              "what": "Hook section (Universal structure) — keep all 8 elements (a-h), but tighten each from a sentence+example to a noun phrase + one inline example. Drop the 'order and length dictated by rhythm' qualifier (already implied by 'may run as one flowing paragraph').",
+              "reason": "Hook checklist substance must survive; the framing prose around each element can be cut by ~40%.",
+              "estimated_chars_saved": 600
+            },
+            {
+              "what": "Hook 'Blend, don't pick one' paragraph — compress to 2 sentences: 'The archetype is your primary frame. Layer at least one secondary archetype move; single-archetype hooks read thin.'",
+              "reason": "Current paragraph has 4 examples of layered archetypes; one line of guidance suffices.",
+              "estimated_chars_saved": 300
+            },
+            {
+              "what": "Conclusion 3-beat spec — keep all 3 beats. Compress beat (1) drumroll example from the full 'Treat it like a weed, not a pet. Build it a hillside, not a flowerbed...' to '(3-7 words per beat, one per section, parallel imperatives).' Compress beat (2) and beat (3) similarly — drop the example after each.",
+              "reason": "The 3-beat shape must survive; the example phrasings repeat in listicle/gardening.",
+              "estimated_chars_saved": 500
+            },
+            {
+              "what": "Peak markers paragraph — compress; drop two of the four example marker phrases.",
+              "reason": "Rule survives with 1-2 examples.",
+              "estimated_chars_saved": 150
+            },
+            {
+              "what": "Orientation bullet 4 'Identity-conferring close' — trim duplicate clarification about 'short rhythmic compressed-recap drumroll is allowed and specified in the Conclusion structure below' (forward reference is enough without parenthetical restatement).",
+              "reason": "Redundant cross-reference inside one bullet.",
+              "estimated_chars_saved": 150
+            },
+            {
+              "what": "Orientation bullet 3 'Subject as protagonist' — drop one of the two example agency-verbs lists ('wants, refuses, hides...') and the parenthetical 'Channel voice rules govern tone — adult motives, not cute mascots' (move to channel file if needed; redundant with the gardening Mr. Tomato note).",
+              "reason": "The cute-mascot ban belongs in the channel file, not universal.",
+              "estimated_chars_saved": 200
+            }
+          ],
+          "must_preserve": [
+            "Topic / target_minutes / total_word_target template variables and 150 wpm note",
+            "Three inputs list (channel, outline, research)",
+            "All slot tokens: {{CHANNEL}}, {{HOOK_ARCHETYPE_BLOCK}}, {{STRUCTURE_MODULE}}, {{SAMPLE_SCRIPT}}, {{ADDITIONAL_INSTRUCTIONS}}",
+            "Orientation 4 bullets (pain target, external villain, subject-as-protagonist, identity close) — compressed but all present",
+            "Universal 'Earn every sentence'",
+            "Universal 'Transitions are open loops — no spoken section numbers' (the round-3 ban is critical)",
+            "Universal 'Tension thread' — all three parts (antagonist callback, hook-promise payoff, echo phrase)",
+            "Universal 'Rule of three' WITH the round-3 closer caveat ('NEVER at a section closer; beat 6c bans triple-fragment closer')",
+            "Universal 'Fragments are weapons'",
+            "Universal 'Punctuation is breath'",
+            "Universal 'Ground every claim in research'",
+            "Universal 'Trust your metaphor — don't pre-negate it' (round-3 ban — the You're-not-X-You're-Y ban must survive)",
+            "Universal 'Mechanism IS the proof' / no citation register / origin-as-authority (merged)",
+            "Universal 'Speak in declaratives' / no hedging",
+            "Universal 'Translate jargon — vary the syntax' with all four shapes",
+            "Hook 8-element checklist (a-h) — all 8 elements named, even if compressed",
+            "Conclusion 3-beat structure (drumroll → single-action close → identity beat + villain callback)",
+            "Peak marker rule (1-2 per video)",
+            "Main segments word-count variation (peak 1.4-1.8x, supporting 0.7-0.9x)",
+            "Output JSON schema (title, hook.narration, segments[], conclusion.narration + cta)",
+            "Folksy quantifiers rule",
+            "Insider-status flip",
+            "Permission to do less",
+            "Diagnostic checklist rule",
+            "Concentrate specifics rule",
+            "One reframing metaphor per segment"
+          ]
+        },
+        {
+          "file": "listicle",
+          "current_chars": 11789,
+          "target_chars": 6000,
+          "cuts": [
+            {
+              "what": "Beat 1 (opener): compress the 6 opening-shape descriptions; keep the labels (mindset shift / confessional question / 'most beginners get it backwards' / counterintuitive / what-if / direct imperative) but drop the example phrasings after each.",
+              "reason": "The 6 labels carry the substance; the inline examples inflate each by 30-50 chars.",
+              "estimated_chars_saved": 400
+            },
+            {
+              "what": "Beat 1: KEEP the BANNED exact phrasings (round-3 ban) and the Shape variety rule (round-3) and the callback-if-cliffhanger rule. Drop the 'are-you-ready check-in at most twice' qualifier (already implied by shape variety).",
+              "reason": "Round-3 bans MUST survive; the at-most-twice qualifier is over-specification.",
+              "estimated_chars_saved": 150
+            },
+            {
+              "what": "Beat 2 (reveal): cut the 'two adjacent sentences, do not separate them with mechanism, analogy, or mistake' over-specification.",
+              "reason": "The rule 'reveal is a payoff; if cliffhanger, callback first' is enough.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Beat 3 (mechanism): KEEP the Mechanism floor (3-sentence minimum — round-3 critical). Drop the two opening sentences that restate 'felt mechanism replaces citation' (script_base owns this); keep only the floor rule and its applies-to-peak-and-supporting-alike clause.",
+              "reason": "Mechanism floor is the listicle-specific rule; the rest is duplicate of script_base.",
+              "estimated_chars_saved": 500
+            },
+            {
+              "what": "Beat 4 (counterintuitive + mechanism): compress heavily. The whole beat boils down to: 'Counterintuitive claim → next sentence gives the physical reason. Mechanism floor still applies; named-expert anchors optional and rare.' Drop the 'rich soil makes lavender soft' / 'shallow watering trains roots' examples.",
+              "reason": "Pure restatement of script_base mechanism rule + small listicle-specific addendum.",
+              "estimated_chars_saved": 700
+            },
+            {
+              "what": "Beat 5 (reframing metaphor): compress to 1 line — 'Reframing metaphor per item (see script_base Universal). Skip if forced rather than reach.' Drop the 3 example metaphors.",
+              "reason": "Pure restatement; examples appear in script_base and gardening.",
+              "estimated_chars_saved": 400
+            },
+            {
+              "what": "Beat 6 (mistake-as-cliffhanger): KEEP the concession-then-correction pattern (this is listicle-specific). Drop the three example mistaken-instinct phrases ('every instinct... summer,' 'the instinct is a quick splash...'); keep one. Drop the duplicated 'led into, not source' framing — script_base already owns it.",
+              "reason": "Pattern survives; examples and led-into framing are duplicated.",
+              "estimated_chars_saved": 500
+            },
+            {
+              "what": "Beat 6c (hard rule): KEEP entirely — round-3 critical (BANNED triple-fragment chains, allowed shapes a and b, under-10-words, hard absolutes). Trim only the trailing 'The rule looks backward at this section; the open loop (beat 7) looks forward' meta-explainer.",
+              "reason": "The round-3 bans on triple-fragment closers MUST survive in full.",
+              "estimated_chars_saved": 100
+            },
+            {
+              "what": "Beat 7 (open loop): compress drastically. Cut the three-shape (undo/escalate/master-key) descriptions and their examples — they're in script_base universal. Cut the entire spoken-section-number ban — also in script_base. Keep only: 'Open loop into next item; vary across sections (see script_base shapes a/b/c).'",
+              "reason": "100% duplicates script_base 'Transitions' universal.",
+              "estimated_chars_saved": 700
+            },
+            {
+              "what": "Beat 8 (aphorism button): compress. Rule + one example. Drop the other 2 examples.",
+              "reason": "Three example aphorisms is overkill.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Long bullet 'Do not write a recap or playbook segment' — compress: 'No recap segment — the last item is the last segment. Drumroll lives in conclusion.narration only (see script_base Conclusion). In conclusion, tell the viewer to pick ONE that hit hardest, not do all items.' Drop the full example string.",
+              "reason": "Drumroll spec lives in script_base.",
+              "estimated_chars_saved": 600
+            },
+            {
+              "what": "Bullet 'Escalating-stakes ranking' — keep the rule (it's listicle-specific structural). Drop two of the three example marker phrasings.",
+              "reason": "Rule survives with 1 example.",
+              "estimated_chars_saved": 200
+            },
+            {
+              "what": "Bullet 'In the back half, explicitly cross-reference earlier items' — keep; already short.",
+              "reason": "Already minimal.",
+              "estimated_chars_saved": 0
+            },
+            {
+              "what": "Final bullet 'Vary the opening move across items' — DELETE entirely. Pure duplicate of beat 1 Shape Variety rule plus a rhetorical-quantifier note already in script_base.",
+              "reason": "Beat 1 already mandates shape variety; rhetorical quantifiers are in script_base.",
+              "estimated_chars_saved": 300
+            },
+            {
+              "what": "Bullet 3 (hook may promise count, not items) — KEEP (listicle-critical), but compress: cut the 'as we covered, the five are...' delete-this-phrase example.",
+              "reason": "Rule survives without the negative example.",
+              "estimated_chars_saved": 150
+            }
+          ],
+          "must_preserve": [
+            "One segment per item, in outline order",
+            "Hook names ONE numbered item as cliffhanger (calls back script_base)",
+            "Hook MUST NOT name/list items; conclusion MUST NOT recap by name (listicle-critical)",
+            "Three-beat internal arc per item: reframe → mechanism → hard rule",
+            "Beat 1 six opening shapes (labels at minimum) + round-3 BANNED exact phrasings + round-3 Shape variety rule",
+            "Beat 1 cliffhanger-callback-before-reframe rule",
+            "Beat 2 reveal 1-2 sentences in; cliffhanger callback if applicable",
+            "Beat 3 Mechanism floor — 3 sentences minimum, applies to peak AND supporting alike (round-3 critical)",
+            "Beat 6 concession-then-correction pattern (wound before fix)",
+            "Beat 6c hard rule — round-3 BANNED triple-fragment chains, allowed shapes a (declarative/imperative) and b (two-clause aphorism), under 10 words, hard absolutes preferred",
+            "Beat 7 open-loop transition (cite script_base for shapes)",
+            "Beat 8 aphorism button — one per item",
+            "Compressed-recap drumroll lives in conclusion.narration only (no recap segment)",
+            "Conclusion: pick ONE item to fix this week (not all)",
+            "Escalating-stakes ranking — at least two items flagged as bigger; numbered-cliffhanger item is one of them",
+            "Back-half cross-references between items"
+          ]
+        },
+        {
+          "file": "gardening",
+          "current_chars": 8790,
+          "target_chars": 4500,
+          "cuts": [
+            {
+              "what": "Narrator paragraph: compress from ~200 words to ~80. Keep: practical/experienced/warm/calmly-certain identity, one rung above viewer, no credential phrases, hard-way framing. Drop: the duplicated 'you' saturation rule (script_base owns), the 'every paragraph keeps viewer as grammatical subject' restatement, the '2-3 sentences before snapping back' rule (duplicate), the example imperatives list.",
+              "reason": "Narrator should be tonal identity, not a re-listing of universal rules.",
+              "estimated_chars_saved": 700
+            },
+            {
+              "what": "Voice rule 'Show the picture, don't state the condition' — DELETE the bulk (duplicates script_base 'Pictures beat diagnoses' + 'Paint the stuck-state'). KEEP only the channel-specific sensory palette one-liner: 'Lean on smell, color, texture, sound: deep amber, sour tang, give of warm soil.'",
+              "reason": "Rule fully covered by script_base; keep only gardening-flavored sensory cues.",
+              "estimated_chars_saved": 600
+            },
+            {
+              "what": "Voice rule 'Curiosity is the engine' — DELETE entirely. Vacuous; script_base 'Earn every sentence' covers it.",
+              "reason": "No specific rule content.",
+              "estimated_chars_saved": 100
+            },
+            {
+              "what": "Voice rule 'Carry the villain installed in the hook' — DELETE bulk. Pure duplicate of script_base Orientation bullet 2. KEEP only the gardening-specific vague-villain examples: 'what they tell you at the garden center, the back of the seed packet, every gardening blog.'",
+              "reason": "Villain rule lives in script_base; channel file just supplies the channel-specific vocabulary.",
+              "estimated_chars_saved": 700
+            },
+            {
+              "what": "Voice rule 'The plant is a character with a survival agenda' — compress to 2 lines: 'The plant has adult motives — sulks, hoards, gets addicted, demands. Strategic-intent personification (\"a rose has one goal — reproduce\"). Never cutesy (no Mr. Tomato).'",
+              "reason": "Script_base Orientation bullet 3 owns the general rule; channel file owns the no-Mr.-Tomato boundary and gardening verb palette.",
+              "estimated_chars_saved": 350
+            },
+            {
+              "what": "Voice rule 'Authority comes from how the plant actually behaves' — DELETE. Pure duplicate of script_base 'Origin-as-authority' + 'no citation register.'",
+              "reason": "Fully covered by script_base.",
+              "estimated_chars_saved": 400
+            },
+            {
+              "what": "Voice rule 'Use domain vocabulary fluently' — compress to: 'Domain vocab is your credential — cultivar names (Munstead, Hidcote, Grosso), category terms (angustifolia, lavandin, floribunda), craft jargon (deadheading, basal break, crown rot, friable, leggy). Pull only from research; never invent.'",
+              "reason": "The translate-in-same-breath syntax rule lives in script_base. Channel file supplies the actual vocabulary.",
+              "estimated_chars_saved": 350
+            },
+            {
+              "what": "Voice rule 'Promote the viewer above the crowd' — DELETE. Pure duplicate of script_base 'Insider-status flip.'",
+              "reason": "Fully covered.",
+              "estimated_chars_saved": 300
+            },
+            {
+              "what": "Voice rule 'The rescue is often less, not more' — DELETE. Pure duplicate of script_base 'Permission to do less.'",
+              "reason": "Fully covered.",
+              "estimated_chars_saved": 300
+            },
+            {
+              "what": "Voice rule 'Hands-in-the-soil commands' — compress to 1 line with 2 gardening-specific examples: 'One tactile imperative per segment they can do today — stick your finger in the soil, walk out before sunset and check the lower leaves.'",
+              "reason": "Per-segment direct-command rule lives in script_base 'Talk with the viewer.' Channel file supplies the gardening flavor of commands.",
+              "estimated_chars_saved": 250
+            },
+            {
+              "what": "Voice rule 'Two-beat sentences' — DELETE. Pure duplicate of script_base 'Fragments are weapons.'",
+              "reason": "Same rule, same example shapes.",
+              "estimated_chars_saved": 300
+            },
+            {
+              "what": "Voice rule 'Muscular gardening verbs' — compress to 1 line: 'Channel-specific verbs: drown, smother, cook, suffocate, starve, butcher, scorch, baby, pamper, flood, hijack.' Drop the example sentence and the 'underground / in the cells' framing.",
+              "reason": "Verbs-do-the-work rule lives in script_base; channel file supplies the gardening verb palette.",
+              "estimated_chars_saved": 350
+            },
+            {
+              "what": "Voice rule 'One echo phrase per video — metaphor-family exclusive' — KEEP the metaphor-family exclusivity (it's a substantive gardening-discovered rule), but compress: 'Echo claims its semantic family for the whole script. Financial echo (pension in the ground) locks out bank/vault/interest/savings. Biological (solar-powered machine) locks out engine/battery/powerhouse. Spatial (Mediterranean hillside) locks out cliffside/terrace. Same-family doubling reads as a different video pasted in.' Drop the 'hard cap 4 placements' clause (script_base says 2 mid-body + 1 conclusion already).",
+              "reason": "Family-exclusivity is the unique substance; the rest is in script_base.",
+              "estimated_chars_saved": 350
+            },
+            {
+              "what": "Voice rule 'Promise a transformation, not a tip count' — compress to 1 line: 'Hook end-state talks about the viewer's garden and confidence, not a tip count.'",
+              "reason": "Mostly restates the script_base hook element 'front-loaded end-state promise.'",
+              "estimated_chars_saved": 250
+            },
+            {
+              "what": "Voice rule 'Coin one or two memorable nicknames' — compress to 1 line: 'Coin 1-2 nicknames for the subject (desert survivor, solar-powered machine, flower factory); reactivate across sections as private vocabulary.'",
+              "reason": "Already mostly substance; just trim the rationale sentence.",
+              "estimated_chars_saved": 100
+            },
+            {
+              "what": "Voice rule 'When advice is climate/zone/context-dependent' — KEEP as-is. Channel-specific, not duplicated, important for gardening accuracy.",
+              "reason": "Substantive and non-redundant.",
+              "estimated_chars_saved": 0
+            },
+            {
+              "what": "Audience paragraph — KEEP. Already minimal.",
+              "reason": "Already short; channel-specific.",
+              "estimated_chars_saved": 0
+            }
+          ],
+          "must_preserve": [
+            "Narrator core identity: practical / experienced / warm / calmly-certain; one rung above viewer; figured it out the hard way; no credential phrases ('master gardener,' '20 years experience' bans)",
+            "Audience description (one home gardener between chores)",
+            "Channel-specific sensory palette (smell, color, texture, sound — amber, sour tang)",
+            "Vague-villain channel vocabulary (garden center / seed packet / gardening blog)",
+            "No Mr. Tomato / adult motives boundary",
+            "Domain vocabulary list (cultivar names, category terms, craft jargon) — channel-specific",
+            "Channel verb palette (drown, smother, cook, hijack, etc.)",
+            "Metaphor-family exclusivity rule with concrete lockout families (financial, biological, spatial, mechanical)",
+            "Climate/zone/context-gating rule",
+            "Nickname-coining rule",
+            "Hands-in-the-soil tactile imperative (with 1-2 gardening examples)"
+          ]
+        }
+      ],
+      "overall_strategy": "The dominant pattern is two-pronged. First, ruthlessly de-duplicate: script_base is the canonical home for universal rules (mechanism-not-citation, second-person saturation, fragments, rule-of-three, transitions, permission-to-do-less, kinetic verbs, picture-over-label, etc.); both listicle.md and gardening.md currently restate these rules with the same examples — those restatements get deleted, leaving the channel/structure files to carry ONLY what's genuinely channel- or video-type-specific (gardening's metaphor-family lockouts, vague-villain vocabulary, cultivar names, climate-gating; listicle's 3-beat per-item arc, mechanism floor, banned-closer-shape, no-recap-segment, escalating-stakes). Second, within each file, collapse example pile-ups (rules currently have 3-5 illustrative examples each — keep 1 strong one) and drop verbose rationale ('here's why this works,' 'for an exhausted viewer,' meta-explainers about how rules interact). All round-3 frequency caps and bans (Trust your metaphor, no spoken section numbers, BANNED triple-fragment closers, Mechanism floor, Banned exact phrasings, Shape variety, Rule-of-three closer exception) are preserved verbatim — they're the most recent, hardest-won learnings."
+    },
+    "simplifications": [
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "before_chars": 20377,
+        "after_chars": 11412,
+        "reduction_pct": 44,
+        "cuts_made": [
+          "Merged 'Mechanism IS the proof' + 'No citation register' + 'Origin-as-authority' into one 3-sub-bullet rule (~600 chars saved)",
+          "Merged 'Paint the stuck-state' + 'Pictures beat diagnoses' into single 'Pictures, not labels' rule with two sub-points compressed",
+          "Compressed Transitions rule — dropped ~3 of 4 banned-pattern examples, kept all 3 transition shapes (a/b/c) named only",
+          "Compressed Tension thread — kept all 3 sub-parts (a/b/c), trimmed duplicated payoff examples",
+          "Compressed Rule of three — kept the round-3 closer ban, dropped 2 of 3 example shapes, kept 1 strong example",
+          "Compressed Translate jargon — kept all 4 shape labels, dropped inline examples and 3-adjective discouragement paragraph",
+          "Compressed Trust your metaphor — kept rule + 1 banned/landed pair (dropped second pair)",
+          "Compressed Punctuation rule — collapsed 3 examples into 1",
+          "Compressed Folksy quantifiers, Insider-status flip, Permission to do less, Turn to viewer, Speak in declaratives, Concentrate specifics, Diagnostic checklist — each to 1-2 lines with 1 example",
+          "Compressed Orientation External villain — cut the physical-villain sub-clause and grammar-of-inherited-error examples",
+          "Compressed Orientation Subject-as-protagonist — dropped the agency-verbs second list and cute-mascot parenthetical",
+          "Compressed Orientation Identity-conferring close — trimmed forward-reference parenthetical",
+          "Compressed Hook 8 elements (a-h) — kept all 8 labeled, trimmed framing prose per element",
+          "Compressed Hook 'Blend, don't pick one' from 4-example paragraph to 2 sentences",
+          "Compressed Conclusion 3-beat — kept all 3 beats named, dropped long example strings (drumroll example, single-action example, identity example)",
+          "Compressed Peak markers — trimmed from 4 example markers to 1",
+          "Reordered Universal section — moved 'Ground every claim' up near 'Earn every sentence' for logical grouping"
+        ],
+        "preserved": [
+          "Template vars: topic / target_minutes / total_word_target / 150 wpm / words_per_segment",
+          "Three inputs list (channel / outline / research)",
+          "All slot tokens: {{CHANNEL}}, {{HOOK_ARCHETYPE_BLOCK}}, {{STRUCTURE_MODULE}}, {{SAMPLE_SCRIPT}}, {{ADDITIONAL_INSTRUCTIONS}}",
+          "All 4 Orientation bullets (pain target, external villain, subject-as-protagonist, identity close)",
+          "Rule of three with explicit round-3 closer ban (beat 6c reference)",
+          "Transitions — no-spoken-section-numbers rule with hook-bookmark single exception, all 3 shapes (undo/escalate/master-key)",
+          "Tension thread all 3 parts (antagonist callback / hook-promise payoff / echo phrase)",
+          "Trust your metaphor — You're-not-X-You're-Y antithesis ban (round-3)",
+          "Mechanism IS the proof / no citation register / origin-as-authority (merged but all 3 angles present)",
+          "Translate jargon — all 4 sanctioned shapes named",
+          "Speak in declaratives — hedging ban list",
+          "Hook 8-element checklist (a-h) all named",
+          "Conclusion 3-beat structure (drumroll → single-action close → identity beat + villain callback)",
+          "Peak marker rule (1-2 per video)",
+          "Main segments peak/supporting word-count variation (1.4-1.8x / 0.7-0.9x)",
+          "Output JSON schema",
+          "Fragments are weapons",
+          "Saturate with second person",
+          "Permission to do less",
+          "Folksy quantifiers",
+          "Insider-status flip",
+          "Diagnostic checklist",
+          "Concentrate specifics",
+          "One reframing metaphor per segment"
+        ],
+        "warnings": [
+          "Final size 11412 chars is 14% over the 10000 target but well under the 13000 hard floor — opted to preserve all must_preserve items and round-3 bans verbatim rather than risk losing nuance to hit exact target",
+          "The Hook 8-element list (a-h) is still a fairly dense run-on sentence; could be further trimmed if more reduction needed, but trimming risks losing element identifiers that are likely referenced by listicle.md and other structure modules",
+          "Kept the parenthetical '(A short rhythmic drumroll specified in Conclusion below.)' in Orientation bullet 4 as a forward reference — bloat plan suggested cutting; retained because the bullet otherwise reads as banning all recap which would conflict with Conclusion beat 1"
+        ]
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+        "before_chars": 11789,
+        "after_chars": 5540,
+        "reduction_pct": 53,
+        "cuts_made": [
+          "Beat 1: compressed 6 opening-shape descriptions to labels + dropped inline example phrasings; dropped 'are-you-ready check-in at most twice' qualifier",
+          "Beat 2: cut 'two adjacent sentences, do not separate them with mechanism, analogy, or mistake' over-specification",
+          "Beat 3: dropped opening sentences restating 'felt mechanism replaces citation' (script_base owns); kept Mechanism floor 3-sentence minimum verbatim with peak/supporting note",
+          "Beat 4: compressed heavily — dropped 'rich soil makes lavender soft' / 'shallow watering trains roots' examples and restatement of mechanism-not-citation rule",
+          "Beat 5: compressed to 1 line citing script_base; dropped 3 example metaphors (Mediterranean weed in pretty dress, solar-powered machines, flower factories)",
+          "Beat 6: kept concession-then-correction pattern; trimmed to one example mistaken-instinct phrase; dropped 'led into, not source' framing duplicate of script_base",
+          "Beat 6c: kept entirely (round-3 critical); trimmed only the trailing 'rule looks backward / open loop looks forward' meta-explainer",
+          "Beat 7: compressed drastically — cut the three-shape (undo/escalate/master-key) descriptions and examples (in script_base); kept ONLY the no-spoken-section-numbers rule + cliffhanger exception",
+          "Beat 8: compressed to rule + 1 example; dropped 2 of 3 example aphorisms",
+          "'Do not write a recap segment': compressed and dropped the full example string drumroll (lives in script_base Conclusion)",
+          "'Escalating-stakes ranking': dropped 2 of 3 example marker phrasings",
+          "'Vary the opening move across items' final bullet: DELETED entirely (duplicate of beat 1 Shape Variety rule)",
+          "Bullet 3 (hook may promise count, not items): trimmed the 'as we covered, the five are...' delete-this-phrase example"
+        ],
+        "preserved": [
+          "One segment per item, in outline order",
+          "Hook names ONE numbered item as cliffhanger with payoff callback rule",
+          "Hook MUST NOT name/list items; conclusion MUST NOT recap by name",
+          "Three-beat internal arc per item: reframe → mechanism → hard rule (explicit)",
+          "All beats numbered 1, 2, 3, 4, 5, 6, 6c, 7, 8",
+          "Beat 1 six opening shapes (labels a-f all present) + BANNED exact phrasings verbatim + Shape variety rule verbatim",
+          "Beat 1 cliffhanger-callback-before-reframe rule",
+          "Beat 2 reveal 1-2 sentences in + cliffhanger callback exception",
+          "Beat 3 Mechanism floor — 3 sentences minimum, applies to peak AND supporting alike (round-3 critical)",
+          "Beat 6 concession-then-correction pattern (wound before fix)",
+          "Beat 6c hard rule — BANNED triple-fragment chains with verbatim example, allowed shapes a and b, under 10 words, hard absolutes preferred",
+          "Beat 7 open-loop transition (cites script_base for shapes) + Never speak section number aloud rule with cliffhanger exception",
+          "Beat 8 aphorism button — one per item",
+          "Compressed-recap drumroll lives in conclusion.narration only (no recap segment)",
+          "Conclusion: pick ONE item to fix this week (not all)",
+          "Escalating-stakes ranking — at least two items flagged as bigger; numbered-cliffhanger item is one of them",
+          "Back-half cross-references between items"
+        ],
+        "warnings": []
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/channels/gardening.md",
+        "before_chars": 8790,
+        "after_chars": 4056,
+        "reduction_pct": 54,
+        "cuts_made": [
+          "Narrator paragraph: compressed from ~200 words to ~80; dropped duplicate 'you' saturation rule, 'every paragraph keeps viewer as subject' restatement, '2-3 sentences before snapping back' rule, the example imperatives list, and the sentence-length-varies note (all owned by script_base)",
+          "DELETED 'Curiosity is the engine' bullet entirely — vacuous and covered by script_base 'Earn every sentence'",
+          "DELETED 'Show the picture' bullet bulk — kept only channel-specific sensory palette (smell, color, texture, sound; amber, sour tang) and the banned-abstract-words rule; cited script_base 'Pictures, not labels'",
+          "DELETED bulk of 'Carry the villain' bullet — kept only gardening-specific vague-villain vocabulary (garden center / seed packet / gardening blog / advice you've heard); cited script_base Orientation",
+          "Compressed 'Plant is a character' to 2 lines — kept adult-motives, strategic-intent, no-Mr.-Tomato boundary, dropped duplicate framing prose",
+          "DELETED 'Authority comes from how the plant behaves' bullet entirely as a standalone — folded the wild-origin / biology / evolutionary-goal anchors into a compact 'Folk-origin authority' bullet (kept the substance, dropped the duplicate citation-register ban)",
+          "Compressed 'Domain vocabulary' to one bullet keeping cultivar names, category terms, craft jargon, and humanizing-tag rule; dropped the translate-syntax theory (lives in script_base)",
+          "DELETED 'Promote the viewer above the crowd' bullet entirely — pure restatement of script_base 'Insider-status flip'",
+          "DELETED 'The rescue is often less, not more' bullet entirely — pure restatement of script_base 'Permission to do less'",
+          "Compressed 'Hands-in-the-soil commands' to one line with 2 gardening-specific examples",
+          "DELETED 'Two-beat sentences' bullet entirely — duplicate of script_base 'Fragments are weapons'",
+          "Compressed 'Muscular gardening verbs' to one line listing the channel-specific verb palette; dropped the example sentence and the underground/cells framing",
+          "Compressed echo-phrase bullet — kept the full metaphor-family exclusivity rule with all four concrete lockout families (financial, biological, spatial, mechanical) and the 4-placement cap, dropped only the rationale prose",
+          "Compressed 'Promise a transformation' bullet to one line",
+          "Compressed 'Coin nicknames' bullet by removing rationale sentence",
+          "Kept 'Climate/zone gating' bullet — substantive and non-redundant"
+        ],
+        "preserved": [
+          "Narrator core identity: practical / experienced / warm / calmly-certain; one rung above viewer; figured it out the hard way; no credential phrases ban",
+          "Audience description (one home gardener between chores)",
+          "Channel-specific sensory palette (smell, color, texture, sound — amber, sour tang)",
+          "Show-the-picture rule banning abstract health words (thriving, struggling, dead, unhealthy) without tableau",
+          "Vague-villain channel vocabulary (garden center / seed packet / gardening blog / advice you've heard a hundred times)",
+          "Plant-as-character with strategic intent; adult motives; no Mr. Tomato cuteness boundary",
+          "Folk-origin authority: wild origin, biology, evolutionary goal; no researchers/studies/universities/years",
+          "Domain vocabulary list (cultivar names: Munstead/Hidcote/Grosso; category terms: angustifolia/lavandin/floribunda; craft jargon: deadheading/basal break/crown rot/friable/leggy); never invent cultivar names; humanizing-tag rule",
+          "Channel verb palette (drown, smother, cook, suffocate, starve, butcher, scorch, baby, pamper, flood, hijack)",
+          "Echo phrase: 4-placement cap (early + 2-3 mid-body + 1 conclusion) AND metaphor-family exclusivity with all four concrete lockout families (financial, biological, spatial, mechanical)",
+          "Tactile imperative per segment (with finger-in-soil and walk-before-sunset gardening examples)",
+          "Nickname-coining rule (desert survivor, solar-powered machine, flower factory)",
+          "Transformation-not-tip-count hook framing",
+          "Climate/zone/context-gating rule"
+        ],
+        "warnings": []
+      }
+    ],
+    "review": {
+      "boot": "ok",
+      "boot_stderr": "",
+      "total_before_chars": 40956,
+      "total_after_chars": 21008,
+      "total_reduction_pct": 49,
+      "critical_rules_check": [
+        {
+          "rule": "Trust your metaphor (script_base.md)",
+          "present_after": true,
+          "notes": "Line 43: full rule with antithesis ban + banned/landed example pair intact."
+        },
+        {
+          "rule": "No spoken section numbers (script_base.md + listicle.md)",
+          "present_after": true,
+          "notes": "script_base.md L29 universal transition rule with hook-bookmark exception; listicle.md L12 beat 7 reinforces with same exception language. Consistent."
+        },
+        {
+          "rule": "BANNED triple-fragment closer (listicle.md)",
+          "present_after": true,
+          "notes": "listicle.md L11 beat 6c: explicit BANNED with verbatim example 'Water deep. Water rarely. Walk away.' script_base.md L28 also cross-references beat 6c ban."
+        },
+        {
+          "rule": "Mechanism floor (listicle.md)",
+          "present_after": true,
+          "notes": "L7 beat 3: '3 sentences minimum' applies to peak AND supporting; cites script_base for mechanism-over-citation universal."
+        },
+        {
+          "rule": "Metaphor-family exclusive / max 4 placements (gardening.md)",
+          "present_after": true,
+          "notes": "L18: 'max 4 placements total' + all four concrete lockout families (financial, biological, spatial, mechanical) intact with example phrases."
+        },
+        {
+          "rule": "Banned exact phrasings (listicle.md)",
+          "present_after": true,
+          "notes": "L5 beat 1: both banned phrasings retained verbatim ('Here's your first mindset shift...' and 'Raise your hand if you've been told to...')."
+        },
+        {
+          "rule": "Shape variety (listicle.md)",
+          "present_after": true,
+          "notes": "L5 beat 1: 'Shape variety across the script' rule kept with 'AT MOST once and never back-to-back' constraint."
+        },
+        {
+          "rule": "Trust your metaphor not stripped (script_base.md)",
+          "present_after": true,
+          "notes": "Confirmed present at L43 (duplicate of first check)."
+        },
+        {
+          "rule": "8-element hook checklist (script_base.md hook section)",
+          "present_after": true,
+          "notes": "L53: all eight elements (a)-(h) labeled and present. Single dense run-on as flagged in warnings but structurally complete."
+        },
+        {
+          "rule": "3-beat conclusion shape (script_base.md conclusion section)",
+          "present_after": true,
+          "notes": "L65-68: all three beats numbered and named (compressed-recap drumroll, single-action prescriptive close, identity-conferring beat + villain callback)."
+        },
+        {
+          "rule": "Listicle item-section beats 1-8 numbered and present",
+          "present_after": true,
+          "notes": "L5-13: beats 1, 2, 3, 4, 5, 6, 6c, 7, 8 all numbered and present in order."
+        },
+        {
+          "rule": "Slot tokens in script_base.md",
+          "present_after": true,
+          "notes": "All five tokens present: {{CHANNEL}} L13, {{HOOK_ARCHETYPE_BLOCK}} L55, {{STRUCTURE_MODULE}} L72, {{SAMPLE_SCRIPT}} L76, {{ADDITIONAL_INSTRUCTIONS}} L78."
+        },
+        {
+          "rule": "JSON output schema (script_base.md)",
+          "present_after": true,
+          "notes": "L82-89: schema valid, includes title, hook.narration, segments array (title/narration/visual_notes), conclusion (narration/cta). visual_notes referenced at L63. cta field referenced at L68. Internally consistent."
+        }
+      ],
+      "cross_file_consistency": "consistent",
+      "concerns": [
+        "script_base.md final size is 11412 chars (14% over the 10000 target, but well under the 13000 hard floor) — flagged in simplifier warnings as a deliberate trade to preserve must-keep rules.",
+        "Hook 8-element checklist (script_base.md L53) is a single dense run-on sentence; readable but if any structure module references element labels by letter, the labels are present and intact.",
+        "Cross-file citations all resolve: listicle.md cites 'script_base Conclusion' (L65-68 exists), 'script_base for mechanism-over-citation universal' (L34-37 exists), 'three transition shapes from script_base' (L29 exists); gardening.md cites 'script_base Pictures, not labels' (L41 exists), 'script_base Orientation' (L15-20 exists), 'script_base Universal' (L22-49 exists), 'Kinetic-verbs rule per script_base' (L42 exists). No dangling references."
+      ],
+      "ready_for_commit": true,
+      "summary": "Aggressive simplification cut the three-file prompt batch from 40,956 to 21,008 chars (49% reduction) while preserving every load-bearing rule, cross-file citation, and structural slot. Boot test passes, all 13 critical rules verified present, and cross-file references all resolve to real content — verdict CLEAN-WITH-NOTES, ready for commit. The only non-blocking note is script_base.md landing at 11,412 chars (14% over the 10k soft target but well below the 13k hard floor), which was a deliberate trade to keep must-preserve items intact."
+    }
+  }
+}
