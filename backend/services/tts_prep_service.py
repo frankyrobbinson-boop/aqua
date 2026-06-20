@@ -26,9 +26,14 @@ Rewrite each text field so it sounds natural when read aloud:
 def generate_tts_prep(project_name: str) -> dict:
     script = load_script_draft(project_name)
 
+    # max_tokens must comfortably exceed the FULL rewritten script — every
+    # text field comes back transformed, so output is roughly the same size as
+    # input plus a little (numbers expand: "2026" → "twenty twenty-six" grows).
+    # A 10-min script can be ~5K tokens of JSON; 16K leaves a safe margin.
+    # Old default of 4096 silently truncated on anything over ~600 words.
     with client.messages.stream(
         model="claude-opus-4-7",
-        max_tokens=4096,
+        max_tokens=16384,
         output_config={"format": {"type": "json_schema", "schema": SCRIPT_SCHEMA}},
         messages=[{
             "role": "user",
@@ -42,8 +47,22 @@ def generate_tts_prep(project_name: str) -> dict:
         raise RuntimeError(
             f"No text block in Claude response; block types present: "
             f"{[b.type for b in response.content]}"
+            f"\nstop_reason={getattr(response, 'stop_reason', '?')}"
         )
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        # Surface stop_reason + the text head/tail so truncation failures are
+        # debuggable (mirrors the ffmpeg-stderr and script_draft fixes).
+        stop_reason = getattr(response, "stop_reason", "?")
+        head = text[:400]
+        tail = text[-400:] if len(text) > 800 else ""
+        raise RuntimeError(
+            f"TTS-prep JSON did not parse (stop_reason={stop_reason}, "
+            f"text_len={len(text)}, error={e!r}).\n"
+            f"--- first 400 chars ---\n{head}\n"
+            f"--- last 400 chars ---\n{tail}"
+        ) from e
 
 
 def save_tts_prep(project_name: str, tts_script: dict):

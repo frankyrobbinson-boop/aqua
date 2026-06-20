@@ -1,0 +1,402 @@
+{
+  "summary": "Demolish + rebuild script_base / listicle / gardening to produce friend-across-the-fence voice. Extract patterns from the 3 successful scripts (the proven model), then write minimal rules that point AT that voice. Kill all clever-essayist scaffolding.",
+  "agentCount": 5,
+  "logs": [
+    "One agent reads the 3 successful scripts and produces a CONCRETE pattern doc — what these scripts actually do, plainly.",
+    "Pattern extraction done. 12 rules proposed in minimal set. 6 quotes to emulate.",
+    "3 parallel agents rewrite script_base / listicle / gardening pointing AT the extracted voice target.",
+    "Rewrite done: script_base 4097c (was 11436c), listicle 1894c (was 5500c), gardening 2329c (was 4034c)",
+    "Reviewer: boot test + friend-vs-essayist voice verdict + cross-file check + kill/keep compliance."
+  ],
+  "result": {
+    "patterns": {
+      "voice_essentials": [
+        "Talks to one person like a slightly opinionated friend — uses 'you' constantly and assumes the viewer already tried and failed.",
+        "Confident and a little blunt, but never showy — willing to call common advice wrong without sneering at the viewer for following it.",
+        "Plain, kitchen-table vocabulary — 'bone dry', 'pile of dried twigs', 'soft, leggy, floppy'. No poetic words, no fancy synonyms.",
+        "Patient teacher tone — explains the WHY behind every instruction so the rule sticks, not just the rule.",
+        "Lightly funny in a dry, observational way ('a tough Mediterranean weed wearing a pretty dress') — never goofy, never trying to perform.",
+        "Reassuring without being soft — 'roses are astonishingly forgiving', 'stop being gentle, be decisive'. Treats the viewer as capable."
+      ],
+      "sentence_rhythm": "\"Sentences vary widely. Long, flowing explanatory sentences carry the bulk of the teaching — often with two or three commas stacking specifics ('rocky, baked by sun, battered by wind, and ignored by rain for months'). Then a short, blunt sentence lands the point ('Lavender wants the leftovers.' 'It drowns.' 'Period.'). The pattern is: explain at length, then punch. Sometimes a fragment ('Almost entirely.') or a one-line paragraph for emphasis. The writer is comfortable letting a sentence breathe — not every line is a hammer.\"",
+      "hook_pattern": "\"Opens by naming the viewer's specific past failure ('You've killed lavender before. Don't lie.' / 'If your hydrangeas keep dying...'). Then reframes — it's not your fault, the standard advice is wrong. Then promises a small, specific number of secrets (5, 10, 5) that flip conventional wisdom, rooted in how the plant ACTUALLY works. Closes the hook with a tease pointing to one specific numbered secret further in ('secret number three is the one that saves more...'). The whole hook is one paragraph that moves: accusation, absolution, promise, tease.\"",
+      "segment_shape": "\"Each numbered segment follows a loose but consistent arc: (1) state the mistake or counterintuitive truth in one short paragraph, (2) explain WHY — usually a paragraph about how the plant actually works in nature or biologically, (3) give the concrete what-to-do with specifics (measurements, timing, materials), (4) often a short final paragraph with a sharper rule, warning, or memorable line that locks it in ('Let it sleep dry.' / 'Rhythm beats randomness every single time.'). The shape is: reframe, mechanism, instruction, landing line.\"",
+      "transition_style": "\"Transitions are mostly the numbered headings themselves doing the work — no flowery bridges. Inside segments, the writer uses simple connective phrases: 'Here's what you actually need to do.' 'Now let's talk about...' 'One more thing on soil.' 'But here's the rule that saves the plant.' These are conversational signposts, not literary transitions. The writing moves forward by stacking clear steps, not by weaving themes.\"",
+      "conclusion_pattern": "\"Recaps all the numbered points in a tight, rhythmic list using short imperative sentences ('Treat it like a weed, not a pet. Build it a hillside, not a flowerbed. Water it almost never.'). Then a soft call to action — subscribe, comment which secret surprised you, hit the bell — framed as a personal favor, not a corporate ask. Ends with a warm sign-off that points outward ('get out there, plant something, and let it thrive' / 'go give your roses a reason to show off'). Never preachy, never long.\"",
+      "mechanism_style": "\"Direct cause-and-effect, almost always anchored in how the plant evolved or what it's biologically trying to do. 'Lavender grows out of cracks in limestone... so luxury kills it.' 'A rose has exactly one goal in life. Reproduce... deadheading hijacks that process.' Mechanisms are explained in everyday physical terms — water pooling, roots breathing, energy going one place vs another, leaves as 'evaporation panels'. Light personification is used to make the plant's logic feel intuitive ('the plant thinks, mission accomplished'), but it's always in service of explaining the real biology, not decoration.\"",
+      "metaphor_use": "\"Sparing and grounded. Metaphors are short, concrete, and tied to the mechanism being explained — 'solar-powered machines', 'evaporation panels', 'flower factories', 'a tough Mediterranean weed wearing a pretty dress'. Maybe one memorable metaphor per segment, not stacked. Never lyrical, never compound, never abstract. Every metaphor earns its place by making a real concept easier to picture.\"",
+      "what_they_DONT_do": [
+        "Never use lyrical or poetic compound metaphors ('a symphony of petals dancing in twilight' — none of that).",
+        "Never end a section with a clipped 3-word punchy verdict stack ('Bold. Brave. Done.'). Landing lines are full sentences or short imperatives, not staccato word piles.",
+        "Never address 'fellow gardeners' or 'plant lovers' as a group — always one person, 'you'.",
+        "Never use hedging filler like 'it's worth noting' or 'interestingly' — they just say the thing.",
+        "Never quote studies, statistics, or experts by name — authority comes from explaining how the plant actually works, not from citations.",
+        "Never use rhetorical questions in a row to build drama ('What if I told you... What would happen if... Could it be that...').",
+        "Never get mystical or spiritual about plants — no 'the garden whispers', no 'in harmony with the universe'.",
+        "Never apologize, hedge, or soften the rebuke of bad advice — they say it's wrong, plainly."
+      ],
+      "direct_quotes_to_emulate": [
+        {
+          "quote": "You've killed lavender before. Don't lie.",
+          "script": "lavender",
+          "why_emulate": "Opens by accusing the viewer of the exact failure they came searching for — instant recognition, instant trust. Two short sentences, no warmup."
+        },
+        {
+          "quote": "It's basically a tough Mediterranean weed wearing a pretty dress.",
+          "script": "lavender",
+          "why_emulate": "Captures the dry-humor metaphor style: one concrete image that reframes the whole plant in a sentence."
+        },
+        {
+          "quote": "Stick your finger in. If you feel any moisture at all, walk away.",
+          "script": "lavender",
+          "why_emulate": "Pure instruction in the conversational voice — short, physical, and tells the viewer exactly what to do with their body."
+        },
+        {
+          "quote": "A rose has exactly one goal in life. Reproduce.",
+          "script": "roses",
+          "why_emulate": "How they explain mechanism — strips biology to its motive, then builds the lesson on top of that motive."
+        },
+        {
+          "quote": "Stop being gentle. Be decisive. Your roses are begging for it.",
+          "script": "roses",
+          "why_emulate": "The blunt, almost coach-like landing line that ends a segment. Permission to act, given firmly."
+        },
+        {
+          "quote": "Those huge, gorgeous leaves are beautiful, but they're essentially giant evaporation panels.",
+          "script": "hydrangeas",
+          "why_emulate": "Sensory acknowledgment followed by a sharp mechanical reframe — shows how to make biology feel obvious without dumbing it down."
+        }
+      ],
+      "minimal_rule_set_proposal": [
+        "Open by naming the exact failure the viewer has lived through, then tell them it's not their fault — it's the advice that's wrong.",
+        "Promise a specific numbered set of secrets that flip conventional wisdom, and tease one specific later number to keep them watching.",
+        "Write to one person as 'you'. Never 'we gardeners', never 'folks', never plural audience.",
+        "For every instruction, explain WHY by describing how the plant actually behaves in nature or biologically — cause and effect, plain physical terms.",
+        "Vary sentence length deliberately: long explanatory sentences carry the teaching, short blunt sentences land the point. Use occasional one-line paragraphs for weight.",
+        "Give concrete specifics — inches, weeks, materials, what to touch, where to look. No vague 'regularly' or 'as needed'.",
+        "Use metaphors sparingly, only when they make a mechanism easier to picture, and keep them to a single concrete image ('evaporation panels', 'flower factories').",
+        "Be willing to flatly contradict popular advice. Don't hedge — say it's wrong and move on.",
+        "End segments with a short, memorable rule or imperative, not a punchy 3-word stack and not a lyrical flourish.",
+        "Close by recapping the numbered points in tight rhythmic imperatives, then a warm outward-facing sign-off that points the viewer back to their garden.",
+        "Avoid mysticism, performance, jargon, hedging, and academic citations. The authority comes from clear mechanism, not credentials.",
+        "Treat the viewer as capable. Reassure them the plant is more forgiving than they think, then give them permission to act decisively."
+      ]
+    },
+    "rewrites": [
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "before_chars": 11436,
+        "after_chars": 4097,
+        "rules_count_before": 33,
+        "rules_count_after": 12,
+        "rules_kept_in_simpler_form": [
+          "External villain framing (vague antagonist, blame off the viewer)",
+          "Mechanism over citation — one plain sentence, no studies/researchers",
+          "Don't speak section numbers in transitions",
+          "Numbered cliffhanger in hook with single payoff callback",
+          "Felt-pain opener naming the viewer's stuck spot",
+          "Conversational tone with plain connectors allowed",
+          "One metaphor only when it helps the viewer see the thing",
+          "Concrete specifics where they matter",
+          "Declaratives — no hedging",
+          "Saturate with second person — one person, never 'you guys'",
+          "Jargon gets a plain-language tag in the same sentence (one simple rule)",
+          "Ground every claim in the research"
+        ],
+        "rules_killed": [
+          "Aphorism button (listicle beat 8)",
+          "Hard-rule closer / percussive closer",
+          "Echo phrase + metaphor-family exclusivity",
+          "Rule of three / triadic stacks",
+          "Trust your metaphor — don't pre-negate it",
+          "Plant/subject as protagonist with strategic intent",
+          "Promise a transformation (front-loaded end-state)",
+          "Insider-status flip — 'ahead of the crowd' framing",
+          "Four sanctioned syntactic shapes for jargon translation",
+          "3-beat per-segment arc (reframe → mechanism → hard rule)",
+          "8-element hook checklist",
+          "3-beat conclusion structure (drumroll / single-action / identity)",
+          "Mechanism floor (3-sentence minimum)",
+          "Banned exact phrasings list",
+          "Shape variety across the script mandate",
+          "Counterintuitive claim + mechanism pairing as separate beat",
+          "Two-beat sentences rule",
+          "Muscular gardening verbs rule",
+          "Coin nicknames for subject",
+          "Geographic/contextual gating as its own rule",
+          "Hands-in-the-soil commands as its own rule",
+          "Long before/after example pairs",
+          "Fragments are weapons (mandatory per-segment fragments)",
+          "Tension thread + echo phrase + signature image",
+          "Punctuation is breath (elaborate em-dash/comma rules with examples)",
+          "Folksy quantifiers rule",
+          "Peak/valley segment sizing math (1.4x–1.8x, 0.7x–0.9x)",
+          "Peak markers verbal escalation rule",
+          "Permission to do less rule",
+          "Turn to the viewer mid-script rule",
+          "Pictures, not labels rule",
+          "Verbs do the work rule",
+          "Diagnostic checklist rule",
+          "One reframing metaphor per segment (replaced with softer 'one metaphor is fine when…')",
+          "Blend hook archetypes mandate",
+          "Earn every sentence rule"
+        ],
+        "new_minimal_rule_set": [
+          "Talk to one person who already tried and failed; speak to felt pain",
+          "Lift blame onto vague external advice; treat viewer as capable",
+          "Ground every claim in the research — no invented facts",
+          "Write the way you'd talk across a fence; plain words, restating in plainer words is good",
+          "Vary sentence length — long teaching sentences, short blunt landings, flat connectors allowed",
+          "Explain WHY in plain physical/biological terms; no citations or researcher names",
+          "Use 'you' — one person, never 'we' or 'you guys'",
+          "Give concrete specifics where they matter; no vague 'regularly'",
+          "Contradict popular advice flatly; no hedging",
+          "One metaphor is fine if it helps the viewer see the thing; skip if nothing fits",
+          "Translate jargon plainly in the same sentence — one simple rule, no syntactic menu",
+          "Hook: name the failure, lift blame, promise a count, drop a numbered cliffhanger, roll into segment 1",
+          "Segments: no template; each needs point, why, specifics; pay off hook bookmark once out loud",
+          "Conclusion: rhythmic recap without numbering, one this-week action, who-they-are close"
+        ],
+        "structural_preserved": [
+          "Header preamble with topic/length/inputs",
+          "{{CHANNEL}} slot",
+          "Orientation block (now 4 short rules)",
+          "Universal rules block (now 8 short rules)",
+          "Universal structure block (hook / main segments / conclusion in plain prose)",
+          "{{HOOK_ARCHETYPE_BLOCK}} slot",
+          "{{STRUCTURE_MODULE}} slot",
+          "{{SAMPLE_SCRIPT}} slot",
+          "{{ADDITIONAL_INSTRUCTIONS}} slot",
+          "Output JSON schema (unchanged)",
+          "visual_notes requirement per segment",
+          "cta in separate field"
+        ],
+        "verification": "pass"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+        "before_chars": 5500,
+        "after_chars": 1894,
+        "rules_count_before": 17,
+        "rules_count_after": 7,
+        "rules_kept_in_simpler_form": [
+          "One item per section in the outline's order",
+          "Numbered cliffhanger in hook with brief callback when that section opens",
+          "Don't speak section numbers aloud in transitions",
+          "Mechanism explained simply (one sentence if that's all it needs) — no citation framing implied",
+          "Felt-pain / surprising-claim opener instead of definition",
+          "No recap segment / no preamble"
+        ],
+        "rules_killed": [
+          "Aphorism button (beat 8)",
+          "Hard-rule closer beat 6c with sanctioned shapes",
+          "3-beat per-section arc (reframe → mechanism → hard rule)",
+          "6–8 numbered beats per item-section",
+          "Mechanism floor of 3 sentences minimum",
+          "Six sanctioned opener shapes with shape-variety mandate",
+          "Banned exact phrasings list",
+          "Reveal-the-item-1-2-sentences-in rule as a hard beat",
+          "Pair counterintuitive claim with mechanism as separate beat",
+          "Reframing metaphor per item as mandated beat",
+          "Mistake-as-cliffhanger concession-then-correction beat",
+          "Open-loop transition with three sanctioned shapes (undo/escalate/master-key)",
+          "Escalating-stakes ranking with explicit 'this is the big one' labels",
+          "Back-half cross-reference of earlier items",
+          "Drumroll-lives-in-conclusion.narration mandate",
+          "Pick-the-one-item CTA mandate in conclusion",
+          "Triple-fragment ban as explicit rule (moot once closer beat is gone)"
+        ],
+        "new_minimal_rule_set": [
+          "One item per section, in the outline's order.",
+          "Hook anti-enumeration: promise the count and the stakes but never name or list items; tease one numbered cliffhanger that gets a brief callback when that section opens.",
+          "Open each section with what's interesting about THIS item (surprising claim, misconception, lived failure) — never with a definition or the item's name.",
+          "Explain the fix in plain terms; one sentence of mechanism is fine if that's all it needs.",
+          "Sections can have different shapes; supporting sections can just end without a teaser bridge; never speak section numbers in transitions.",
+          "No preamble, no recap, no playbook section.",
+          "Order for retention: open strong, best item second, weakest buried mid, close strong; the hook's cliffhanger lands later in the script."
+        ],
+        "structural_preserved": [
+          "Bullet-list markdown format consistent with other script_modules",
+          "No JSON schema content in this file to preserve (schemas live elsewhere)",
+          "Slot tokens not used in this module (they live in script_base) — none altered",
+          "References the outline-driven item order"
+        ],
+        "verification": "pass"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/channels/gardening.md",
+        "before_chars": 4034,
+        "after_chars": 2329,
+        "rules_count_before": 11,
+        "rules_count_after": 6,
+        "rules_kept_in_simpler_form": [
+          "External villain framing (was 'Vague-villain vocabulary' with banned-list mechanics — now a one-line statement that the viewer was led into bad advice)",
+          "Mechanism over citation (was 'Folk-origin authority' + biology mandate — now a single bullet: explain WHY in cause-and-effect)",
+          "Sensory detail (was 'Sensory palette' with banned abstract words and tableau pairings — now folded into the specifics bullet, only when it helps the viewer recognize or act)",
+          "Domain vocabulary handling (was 'Domain vocabulary is your credential' — flipped to: fine when the viewer needs to shop/act, never as expertise-flexing)",
+          "Conversational connectors (kept as an explicit bullet listing 'here's the thing,' 'look,' 'now')",
+          "Talk-to-one-person 'you' (consolidated with sentence-length variation and 'don't perform' into a single voice bullet)"
+        ],
+        "rules_killed": [
+          "Plant as character with strategic intent / adult motives",
+          "Echo phrase + metaphor-family exclusivity (signature image installed early, 2-3 mid-body restatements, family lockouts)",
+          "Coin nicknames for the subject (desert survivor, solar-powered machine)",
+          "Channel verb palette / muscular verbs (drown, smother, cook, butcher)",
+          "Tactile imperative per segment (hands-in-the-soil as its own rule)",
+          "Transformation, not tip count (promise a transformation framing)",
+          "Climate/zone/context gating as its own rule",
+          "Calmly certain register (replaced with 'knows their stuff, doesn't need to prove it')",
+          "Domain vocabulary as credential / humanizing-tag-in-same-breath mechanic",
+          "Abstract health word bans + concrete tableau pairing requirement",
+          "Specific listed villain phrasings ('back of the seed packet,' etc. as required phrasings)"
+        ],
+        "new_minimal_rule_set": [
+          "Talk to one person as 'you.' Plain, kitchen-table words. Vary sentence length — long explanatory sentences carry the teaching, short blunt ones land the point. Boring connective sentences are fine. Let the script breathe. Don't perform.",
+          "Explain WHY in simple cause-and-effect, anchored in how the plant actually behaves in nature or biologically: 'the soil insulates the buds, so they don't bloom.' Plain physical terms. Never lyrical, never decorative.",
+          "Give concrete specifics when you tell the viewer what to do — inches, weeks, what to touch, where to look. No vague 'regularly' or 'as needed.' Sensory detail is welcome when it helps them recognize or act, not as ornament.",
+          "At most one metaphor in the whole video, and only if it makes a mechanism easier to picture. One concrete image, then move on. No recurring echo, no metaphor family, no stacking.",
+          "Conversational connectors are good: 'here's the thing,' 'look,' 'the way it works is,' 'now.'",
+          "External villain framing: the viewer was led into the mistake by bad advice — the garden center, the seed packet, the blog they read. Don't blame them. Say the advice is wrong, plainly, and move on. No hedging, no 'it's worth noting.'"
+        ],
+        "structural_preserved": [
+          "## Narrator section header (one paragraph)",
+          "## Audience section header (one paragraph)",
+          "## Voice rules section header (bullet list)",
+          "Markdown heading style (## level)",
+          "Bullet style (- prefix)"
+        ],
+        "verification": "pass"
+      }
+    ],
+    "review": {
+      "boot": "ok",
+      "boot_stderr": "",
+      "total_before_chars": 20970,
+      "total_after_chars": 8320,
+      "total_reduction_pct": 60,
+      "voice_verdict": "friend-across-fence",
+      "voice_verdict_evidence": "The rewrites point at the target voice with no remaining essayist scaffolding. Evidence from the actual files: script_base.md L24 \"Write the way you'd talk across a fence to a friend. Plain words. Restating an idea in plainer words is good, not weak.\" L25 \"Long explanatory sentences carry the teaching. Short blunt sentences land the point. Flat connective sentences are fine — the script should breathe.\" L26 \"Explain WHY in simple physical or biological terms. One clear sentence about how the thing actually works beats any citation. No 'studies show.'\" L30 \"One metaphor is fine when it helps the viewer SEE the thing — a single concrete image, not ornament. Skip it if nothing fits.\" L41 \"Each section can have its own shape… Don't follow a template.\" gardening.md L11 \"Plain, kitchen-table words… Boring connective sentences are fine. Let the script breathe. Don't perform.\" L14 \"At most one metaphor in the whole video… No recurring echo, no metaphor family, no stacking.\" listicle.md L7 \"Explain the fix in plain terms… language a friend would use across the fence. One sentence of mechanism is fine if that's all it needs… No mandatory length.\" L9 \"Sections don't all need the same shape. Some items want a long explanation, some just need a blunt correction.\" Nothing in the three files demands rhythm devices, triadic stacks, aphorism buttons, hard-rule closers, metaphor families, beat counts, or sanctioned syntactic shapes. The rules describe a voice; they don't choreograph a performance.",
+      "slot_tokens_preserved": true,
+      "json_schemas_preserved": true,
+      "kill_list_compliance": [
+        {
+          "killed_rule": "Aphorism button",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Hard-rule closer",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Echo phrase + metaphor-family exclusivity",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Rule of three",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Trust your metaphor (don't pre-negate)",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Plant as character with strategic intent",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Insider-status flip",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Promise a transformation",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "The 4 sanctioned shapes of jargon translation",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "3-beat per-segment arc",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "6-8 beats per item-section",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Mechanism floor (3-sentence minimum)",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Banned exact phrasings list",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Shape variety mandate",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Two-beat sentences rule",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Muscular gardening verbs rule",
+          "actually_absent": true
+        },
+        {
+          "killed_rule": "Coin nicknames",
+          "actually_absent": true
+        }
+      ],
+      "keep_list_compliance": [
+        {
+          "kept_rule": "External villain framing",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "Mechanism over citation",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "Don't speak section numbers",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "Numbered cliffhanger in hook paid off in segment",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "Felt-pain opener in hook",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "Conversational connectors allowed",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "One metaphor occasionally if it helps explain",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "Sensory detail where it earns clarity",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "Slot tokens",
+          "present_in_simpler_form": true
+        },
+        {
+          "kept_rule": "JSON schemas",
+          "present_in_simpler_form": true
+        }
+      ],
+      "cross_file_consistency": "consistent",
+      "concerns": [
+        "Minor: gardening.md has a trailing paragraph (L18) on cultivar names that sits outside the 'Voice rules' bullet list — it's a 7th rule in paragraph form. Reads fine but is structurally inconsistent with the bulleted format. Easy follow-up, not a blocker.",
+        "Minor: script_base.md hook block prescribes 200–300 words and conclusion 120–180 words while also saying sections can run long or short. These don't actively conflict (hook/conclusion are bounded, segments are flexible), but the ranges are the one remaining template-y instruction in an otherwise template-free rewrite. Acceptable tradeoff for predictable pacing math (the words_per_segment calc subtracts 150 for hook+conclusion)."
+      ],
+      "ready_for_commit": true,
+      "summary": "Boot is green, reduction is 60% (20970→8320 chars), and all five required slot tokens plus the JSON schema contract are intact. The voice verdict is friend-across-fence: the rewritten rules describe a voice (plain, blunt, mechanism-grounded, one-person) rather than choreographing a performance, and all 17 killed essayist scaffolds (aphorism buttons, hard-rule closers, beat counts, mechanism floors, sanctioned syntactic shapes, metaphor families, etc.) are genuinely absent from the files. Ready to commit."
+    }
+  }
+}

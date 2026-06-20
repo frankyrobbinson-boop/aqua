@@ -1,0 +1,575 @@
+{
+  "summary": "Side-by-side analysis: what do successful scripts do that generated scripts don't? Uses 2 generated + 3 successful scripts (with hydrangeas-vs-hydrangeas as direct comparable).",
+  "agentCount": 8,
+  "logs": [
+    "Launching 7 parallel comparison agents. Each compares the generated batch against the successful batch on its specific dimension.",
+    "Lens analysis complete. 7 comparisons produced.",
+    "Synthesizer reads all comparisons + the current prompts; identifies dominant gap + proposes interventions."
+  ],
+  "result": {
+    "lens_results": [
+      {
+        "differential_summary": "Both scripts cover the same five-mistake territory on hydrangeas, but they're written from opposite philosophies. The successful script is a calm, explanatory science-teacher voice — broad principles, clean transitions, accessible analogies, low-density. The generated script is denser, more sensory, more specific (Latin names, named cultivars, the tuna-can trick, the burlap cage), and front-loads a vivid second-person hook. Generated trades reader-friendliness and a couple of high-value angles (color/pH, fertilizer NPK) for craft, specificity, and a sharper retention loop.",
+        "successful_does": [
+          "Opens with a quick, plainspoken 'five mistakes' frame and a confident promise that hydrangeas are 'shockingly forgiving' once set up right.",
+          "Leads with watering+mulch (the single most actionable tip) as Secret #1 — high payoff up front.",
+          "Devotes a full segment to the soil-pH/aluminum color trick — the one genuinely 'magical' hook this plant has and the most-searched hydrangea question on Earth.",
+          "Devotes a full segment to fertilizer NPK (10-30-10, phosphorus-forward, midsummer cutoff) with a concrete product spec.",
+          "Closes with a real diagnostic framework ('wilting in afternoon = root/mulch; leafy but no bloom = pruning') that turns the video into a tool the viewer can re-use.",
+          "Uses a soft CTA that asks for a specific comment ('which mistake have you been making') tied to the most surprising segment.",
+          "Maintains an even, calm, teacherly register the whole way — easy listening, low cognitive load."
+        ],
+        "generated_does_instead": [
+          "Opens with a vivid sensory hook (sagging shrub, crispy tan edges, leaves like wet flags) in tight second person, names the villain ('the watering advice is wrong'), and plants an explicit retention hook for Secret #2.",
+          "Replaces the color/pH segment entirely with a 'pick the right species' segment using Latin names, named cultivars (Limelight, Annabelle), and a 'walk outside right now and identify yours' diagnostic.",
+          "Replaces the fertilizer segment with a winter bud-protection segment (wire cage + leaves + burlap) — a tactic almost no other hydrangea video covers.",
+          "Adds high-craft sensory beats: 'tuna can fills to one inch,' 'soil clumps like the edge of a brownie,' 'two knuckles deep,' 'flat as a pancake,' 'no volcanoes.'",
+          "Uses every segment-end as a retention bridge into the next ('now that it's parked correctly, the next thing that erases your blooms isn't weather — it's your own pruners').",
+          "Reframes light advice with a physical test ('stand in the spot at 2pm, close your eyes, if your face feels like a hairdryer…').",
+          "Closes with a single this-week action (lay mulch) plus an identity payoff ('you're the gardener who builds a forest floor under it')."
+        ],
+        "section_by_section": [
+          {
+            "section": "Hook",
+            "successful_approach": "Three-sentence problem statement ('dying, wilting, doing nothing'), names 'five specific mistakes,' promises science-backed counterintuitive content, and finishes with a forgiveness promise. Calm, abstract, declarative.",
+            "generated_approach": "259-word cinematic second-person hook — specific failure images, names the enemy (bad watering/pruning/light advice), absolves the viewer of blame, plants an explicit Secret #2 tease, and ends with a metaphor ('build a forest floor under it'). Sensory and propulsive.",
+            "quality_gap": "Generated is meaningfully stronger. It uses specific imagery (a YouTube hook fundamental), creates a villain (existing advice), and seeds a forward-looking tease that boosts mid-roll retention. Successful's hook is competent but generic — it could be pasted onto any 'five mistakes' plant video."
+          },
+          {
+            "section": "Segment 1",
+            "successful_approach": "Watering biology — leaves as 'evaporation panels,' deep-vs-shallow root training, slow trickle at the base, mulch as a moisture blanket reducing watering needs ~40%. High-value, high-actionability lead.",
+            "generated_approach": "Species selection — paniculata vs arborescens vs macrophylla with Latin names, named cultivars, new-wood vs old-wood reasoning, and a 'walk outside right now and identify yours' moment.",
+            "quality_gap": "Tied with a tradeoff. Successful chose the right LEAD (the most actionable single tip should go first; species ID is harder to act on if your plant is already in the ground). Generated chose the more sophisticated/educational angle but buried watering at Segment 4. Successful wins on placement, generated wins on depth — but placement matters more in YouTube structure."
+          },
+          {
+            "section": "Segment 2",
+            "successful_approach": "Pruning by old wood vs new wood, with a safe-window rule ('if you don't know your variety, prune right after flowering'). Clean and rule-based.",
+            "generated_approach": "Light — calls out the 'shade plant' myth, maps four species to four light prescriptions, gives the 2pm hairdryer/breezy-rattle test, explains the transpiration mechanism, tells you to move the plant in fall if needed.",
+            "quality_gap": "Generated is stronger here. The 2pm sensory test is a memorable mnemonic, the per-species mapping is more actionable than 'morning sun,' and explaining transpiration ties back to a single mechanism. Successful's pruning content is solid but generic gardening-blog territory."
+          },
+          {
+            "section": "Segment 3",
+            "successful_approach": "Soil pH and aluminum-mediated color change — arguably the single most famous and Googled hydrangea fact, plus a real nutrient-lockout angle.",
+            "generated_approach": "Pruning by Latin name not calendar, with a finger-trace-the-stem diagnostic and the 'cartoon-sized flower heads faceplant in rain' image for why not to cut Annabelle to the ground.",
+            "quality_gap": "Successful wins decisively on topic choice — the color/pH trick is the hydrangea hook and removing it is a real loss. Generated's pruning treatment is craft-superior (better imagery, better diagnostic) but it's the wrong topic to occupy this slot. Net: successful wins because topic > craft here."
+          },
+          {
+            "section": "Segment 4",
+            "successful_approach": "Fertilizer NPK — concrete 10-30-10 recommendation, phosphorus-for-blooms mechanism, spring + early-summer schedule, midsummer cutoff to prevent frost dieback. Highly specific and shoppable.",
+            "generated_approach": "Deep watering + mulch with extreme sensory specificity (tuna can = 1 inch, soil clumps like brownie edge, two knuckles deep, flat as a pancake, no volcanoes, noon-flop is a heat valve not thirst).",
+            "quality_gap": "Tied with a tradeoff. Generated's watering segment is craft-wise the best section in either script — the tuna can and brownie-edge tests are 'screenshot-worthy.' But by moving watering to slot 4 it loses lead-position advantage, and it cut the fertilizer angle entirely, which is one of the highest-search-intent hydrangea topics. Generated wins on writing, successful wins on coverage."
+          },
+          {
+            "section": "Segment 5",
+            "successful_approach": "Sunlight — east-facing beds, morning sun for photosynthesis and dew-drying (fungal prevention), afternoon shade for heat protection, reflective-mulch workaround for bad locations.",
+            "generated_approach": "Winter bud protection — wire cage + dry leaves + burlap, plus a callback to skip heavy fall feeding (which sneaks in the nitrogen point successful made explicit).",
+            "quality_gap": "Generated wins on novelty (almost no competitor video covers the burlap cage in detail) and on structural cleverness (calls back to Segment 3's pruning to close the 'why you have no flowers' loop). Successful's light segment is good but less differentiated. Note: generated only partially compensates for cutting fertilizer — the callback to 'skip heavy fall feeding' is buried."
+          },
+          {
+            "section": "Conclusion",
+            "successful_approach": "Recap + a real diagnostic framework (symptom → cause), plus a CTA that names the most surprising segment to drive specific comments. Genuinely useful as a takeaway.",
+            "generated_approach": "One-sentence recap, then a single this-week action (just lay mulch — don't touch anything else), then an identity-payoff line ('you're the gardener who builds a forest floor… not the one who trusts a plastic tag'), then a sensory callback to the noon-flop and 'reading the plant.'",
+            "quality_gap": "Tied with a tradeoff. Generated's close is more emotionally resonant and has stronger writing craft (identity payoff, callback to hook imagery). Successful's close is more practically useful (the symptom→cause diagnostic is genuinely re-usable) and has a smarter comment-bait CTA. For retention/satisfaction generated wins; for utility/comments successful wins."
+          }
+        ],
+        "which_is_actually_better": "depends",
+        "why_that_verdict": "Sentence-for-sentence, generated is the better-written script. It has the stronger hook, sharper sensory specificity (tuna can, brownie-edge, no volcanoes, hairdryer-at-2pm), per-segment retention bridges, named cultivars and Latin names that signal authority, and a novel winter-cage segment competitors don't cover. That's real craft and it's the harder thing to teach a pipeline. But as a video-strategy package, the successful script makes two decisions generated got wrong: (1) it leads with watering+mulch — the single most actionable tip — instead of burying it in slot 4, and (2) it covers soil pH/color and NPK fertilizer, two of the highest-intent hydrangea topics on YouTube, both of which generated cut entirely to make room for species ID and winter caging. Generated also runs ~1,957 words vs successful's ~1,500 — denser, more demanding, harder to listen to passively. So: if the goal is craft quality of prose, generated wins clearly. If the goal is search-intent coverage and accessible pacing for a broad gardening audience, successful wins. For this channel's likely audience (beginners looking for forgiving plants), the truth is the ideal script is generated's voice and craft applied to successful's topic selection and lead-ordering — the pipeline is writing well but choosing the wrong things to write about and putting them in the wrong order.</why_that_verdict>\n</invoke>"
+      },
+      {
+        "dimension": "narrator voice / personality",
+        "successful_pattern": "Successful scripts sound like a confident, plain-spoken expert who talks AT the reader like a slightly impatient friend across a fence — colloquial, sensory, willing to be blunt and even teasing (\"You've killed lavender before. Don't lie.\"). Tone is folksy-confident with earthy metaphors drawn from real life (a \"tough Mediterranean weed wearing a pretty dress\"; \"deep, lazy, low\"; \"rich, living soil\"). Sentences vary widely in length, frequently using short declarative jabs (\"It dies because almost everything you've been told about caring for it is wrong.\") followed by longer explanatory beats. Idioms feel lived-in and slightly idiosyncratic (\"keep it lean, keep it mean,\" \"addicted to it,\" \"dance with that rhythm\"). The narrator hedges almost never — verdicts are absolute (\"Period.\", \"Non-negotiable.\", \"Stop it.\") and second-person address dominates (\"you,\" \"your\"). Word choice is grounded, conversational, and lightly metaphorical — analogies come from kitchens, weather, and bodies, not from finance or engineering. The narrator positions themselves as a peer who happens to know more, not as an oracle, and addresses the viewer's likely emotional state (\"you panic,\" \"you feel cruel cutting it back\").",
+        "generated_pattern": "Generated scripts sound like a clever essayist performing for an audience rather than talking to one. Voice is heavily aphoristic and motif-driven, leaning on a single extended metaphor per piece — \"a pension in the ground,\" \"the savings plan,\" \"a hoarder with a twenty-year plan\" — and recycling it into rhythmic three-beat refrains (\"Quietly cooking the crown. Quietly hijacking the savings plan. Quietly stealing the next forty years.\"). Sentence rhythm is metronomic: short staccato fragments stacked in triplets, repeatedly. Idioms are writerly and self-conscious (\"Depth is destiny. An inch or two decides fifty years.\", \"Born on open prairie\", \"Pick well. Bury the shovel.\"), aiming for epigram rather than conversation. Confidence reads as performative — koan-like sign-offs (\"Feet moist. Collar dry.\"; \"Restraint now. Spears forever.\") replace the friend-across-a-fence directness. Word choice tilts literary and slightly affected (\"a wisp / a promise / chest-high chalky-blue foliage\"). The narrator positions themselves as a knowing sage delivering parables, not a peer; the reader is being addressed in the third-person-of-the-mind (\"you didn't enjoy a few. You robbed a hoarder.\") more than spoken with. Metaphors cluster around finance and contracts (pension, savings, deal, insurance policy) rather than the body/kitchen/weather.",
+        "the_gap": "The generated voice is over-stylized: it has swapped a friendly expert for a poet-aphorist. Three structural tics drive the gap. (1) Triplet refrain addiction — nearly every paragraph contains a three-beat anaphora (\"Quietly… Quietly… Quietly…\", \"Not three. Not four. One to two.\", \"Shallow eyes… Fat crowns… Breathing collars…\"). The successful scripts use occasional triplets but mostly vary cadence. (2) Aphoristic sign-offs — every segment ends with a tagline (\"Bury the shovel.\", \"Winter steals flowers. A burlap cage steals them back.\", \"The right plant forgives. The wrong plant punishes.\"). The successful scripts close segments with a natural transition or blunt rule, not a fortune cookie. (3) Monolithic metaphor — the generated perennials script forces a \"pension/savings\" frame onto five unrelated plants, which reads as a writing exercise rather than knowledge. The successful scripts use metaphors locally and disposably (\"like the edge of a brownie\", \"wet flags\", \"leaf factory\"). The result: generated copy sounds smart but distant; successful copy sounds smart and present. The generated narrator performs wisdom; the successful narrator transmits it.",
+        "severity": "high",
+        "evidence": [
+          {
+            "aspect": "Sentence rhythm — triplet refrain addiction",
+            "successful_quote": "Deep, lazy, low. That's the rhythm.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:49",
+            "generated_quote": "Quietly cooking the crown. Quietly hijacking the savings plan. Quietly stealing the next forty years from a plant that wanted to give them to you.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:4",
+            "observation": "Successful scripts use a triplet as a rare punchline; generated scripts deploy three-beat anaphora as the default rhythm of nearly every paragraph, which makes the voice feel metronomic and writerly rather than conversational."
+          },
+          {
+            "aspect": "Segment endings — aphoristic sign-off vs natural transition",
+            "successful_quote": "Match the variety to your climate honestly. Don't buy a French lavender because it's pretty if you live somewhere it can't survive winter.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:55",
+            "generated_quote": "Baptisia commits like poured concrete. Pick well. Bury the shovel.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:34",
+            "observation": "Successful segments end with a blunt practical rule in a normal voice. Generated segments end with a three-beat epigram designed to be quoted. This is the single loudest tell that the generated narrator is performing rather than teaching."
+          },
+          {
+            "aspect": "Metaphor source — lived-in vs writerly/financial",
+            "successful_quote": "It should clump softly, like the edge of a brownie. Not dust. Not slop.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/hydrangeas.txt:73",
+            "generated_quote": "Five decade-proof perennials you set once and they pay you back for years — a pension in the ground.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:4",
+            "observation": "The successful voice reaches for sensory, bodily, kitchen-y comparisons (brownie edge, wet flags, hairdryer face). The generated voice reaches for financial/contractual abstractions (pension, savings plan, insurance policy, the deal) and forces one extended metaphor across an entire script."
+          },
+          {
+            "aspect": "Relationship to viewer — peer vs sage",
+            "successful_quote": "You've killed lavender before. Don't lie.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:1",
+            "generated_quote": "Confess something. You sank that peony in a nice deep hole, tamped it down, mulched it like a baby in a blanket — and three springs later, all leaves, no fireworks.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:10",
+            "observation": "Both tease the viewer, but the successful version reads as a friend calling you out at a barbecue, while the generated 'Confess something' frames the narrator as a confessor-priest. The generated framing is one degree more theatrical and pulls the narrator above the viewer instead of beside them."
+          },
+          {
+            "aspect": "Word choice — grounded vs literary",
+            "successful_quote": "Lavender is not a delicate, pampered ornamental. It's basically a tough Mediterranean weed wearing a pretty dress.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:7",
+            "generated_quote": "Year one it's a wisp. Year two it's a promise. Year four it's chest-high chalky-blue foliage with pea-like flower spikes and a presence you can see from the kitchen window.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:34",
+            "observation": "The successful line uses one vivid colloquial image. The generated line is consciously poetic ('a wisp / a promise / chest-high chalky-blue foliage… a presence you can see from the kitchen window') and lands as creative writing rather than gardening talk."
+          },
+          {
+            "aspect": "Confidence — declarative vs koan",
+            "successful_quote": "Wet roots plus cold soil is the number one killer of established lavender plants, and people lose more lavender to a kind, well-intentioned winter watering than to any pest or disease combined. Your lavender is sleeping. Let it sleep dry.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:29",
+            "generated_quote": "Feet moist. Collar dry. That's the whole hosta in four words. Smother the neck and it melts into mush — period.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:22",
+            "observation": "Both are confident, but the successful version earns the verdict with a mechanism sentence first and a plainspoken close. The generated version compresses the rule into a quotable koan ('Feet moist. Collar dry.') that reads as a slogan, not advice between friends."
+          },
+          {
+            "aspect": "Idiom naturalness across scripts — recurring tics",
+            "successful_quote": "If I could fix one habit for every beginner, it would be this one, because how you water decides almost everything.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:43",
+            "generated_quote": "Here's the one I promised you. If I could fix one habit for every beginner planting an edible bed, it would be this one — and almost nobody has the stomach for it.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:16",
+            "observation": "The generated script borrows successful turns of phrase but layers a theatrical kicker ('almost nobody has the stomach for it') that the successful voice would not bother with. The generated narrator can't resist the dramatic flourish."
+          }
+        ],
+        "fixable_at_prompt_level": true,
+        "fix_hint": "Add explicit anti-tics and a voice ceiling to the script prompt. Concretely: (1) Cap triplet anaphora at one per segment maximum, and forbid ending segments with a 2-3 beat epigram — segments should close with either a plainspoken rule OR a natural pivot sentence into the next segment, never a \"tagline.\" (2) Ban single-metaphor overlays across a whole script (no \"pension in the ground,\" \"savings plan,\" \"insurance policy\" framing repeated across segments); require metaphors to be local, disposable, and drawn from the body, the kitchen, weather, or housework, not from finance/contracts/architecture. (3) Require sentence-length variance: at least one paragraph per segment must contain a sentence of 25+ words doing real explanatory work, to break the staccato fragment habit. (4) Replace \"Confess something\" / \"Here's the quiet truth\" register with a friend-across-the-fence register — give a positive example (\"You've killed lavender before. Don't lie.\") and a negative one (\"Confess something.\") in the prompt. (5) Forbid koan-style four-word verdicts (\"Feet moist. Collar dry.\", \"Bury the shovel.\", \"Restraint now. Spears forever.\"). Add a self-check pass at the end of generation: \"Does any segment end with a sloganized tagline? If yes, rewrite as a normal sentence.\" These are concrete enough that a prompt-level fix should substantially close the gap without retraining or new examples."
+      },
+      {
+        "dimension": "Structure and Pacing",
+        "successful_pattern": "Successful scripts use a LOOSE, BREATHING structure: a single-paragraph hook (no labeled \"hook\" section, no word counts visible), 5-10 segments where each segment opens with a fresh rhetorical move (mindset reframe, confession, harsh truth, sales pitch, hypothetical \"what if\"), then UNFOLDS by giving the reader room to absorb — mechanism first, then practical instructions, then a permission-to-fail aside or color detail. Segments range 200-450 words and vary in length deliberately (the \"big one\" segments are noticeably longer). Transitions are sparse and conversational — sometimes there's no transition at all, sometimes a single thematic bridge sentence. The conclusion is leisurely: it restates the principles in a list, gives ONE concrete this-week assignment, then drifts into an emotional/identity reframe (\"you're the gardener who...\") before a soft sign-off. Pacing breathes — paragraphs are uneven, sentences vary from punchy fragments to long flowing ones, and the script slows DOWN at the most important moments (Secret 3 in lavender, Secret 7 in roses) with extra paragraphs and asides.",
+        "generated_pattern": "Generated scripts use a TIGHT, TEMPLATED structure: every segment follows the same internal arc (sting/confession opener → mechanism → numeric prescription → tactical instruction → aphoristic closer → transition bridge to next segment). Hook is dense and front-loaded with three-part parallel imagery, three \"Quietly X\" sentences, an explicit \"secret number two\" tease, an explicit \"by the end of X minutes you'll know exactly which / exactly how / exactly what\" tricolon, and a one-line thesis. Every segment ends with a punchy aphorism (\"Feet moist. Collar dry.\" / \"Bury the shovel.\" / \"Right plant. Right seat. Non-negotiable.\") followed by an explicit transition sentence that names the next segment's theme. Word counts are uniform (254-292 in perennials; 271-383 in hydrangeas) — no segment is allowed to breathe longer than the others. The conclusion is a compressed list-recap + single assignment + identity reframe + closer — same beats as successful but executed at sprint speed in ~130-150 words versus the successful ones unfolding more loosely.",
+        "the_gap": "The generated scripts have learned the SHAPE of the successful pattern (hook tease, mechanism-then-tactic, identity reframe close) but execute it as a rigid template instead of a breathing rhythm. Every segment is structurally identical: same opener type, same arc, same aphoristic close, same transition. Successful scripts vary the opener (Secret 1 declarative, Secret 3 \"This is the big one,\" Secret 6 \"This is the secret that turns...,\" Secret 7 \"Here's the secret I promised you\" — only ONE per script gets the \"promised\" tease, not every segment). Successful scripts also let segments be UNEVEN in length and pace — the important secrets get extra paragraphs, asides, repeated emphasis (\"Are you ready? Stop watering your lavender. Almost entirely. I know that sounds insane.\"), while quick wins stay short. The generated scripts sprint through every segment at the same metronome tempo, hitting the same beats in the same order, and the transitions between segments are explicit and ever-present where successful scripts let some segments end cleanly without a bridge. The aphoristic closer (\"Feet moist. Collar dry.\") on EVERY segment is a tic — successful scripts use that move sparingly, maybe once or twice per video, for maximum impact.",
+        "severity": "high",
+        "evidence": [
+          {
+            "aspect": "Segment opener variety vs. templated openers",
+            "successful_quote": "SECRET 3: Feed the Soil, Not the Plant. This is where most beginners get it backwards. ... SECRET 4: Water Deep and Lazy, Not Shallow and Often. If I could fix one habit for every beginner, it would be this one ... SECRET 6: Deadheading Is You Giving the Plant a Direct Order. This is the secret that turns a so-so bloomer into a flowering machine ... SECRET 7: Prune With Purpose, Not Fear. Here's the secret I promised you",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt",
+            "generated_quote": "Segment 1: Confess something. ... Segment 2: Here's the one I promised you. ... Segment 3: Most beginners get hostas exactly backwards. ... Segment 4: What if I told you the toughest plant in your yard quietly strangles itself? ... Segment 5: This is the big one.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "Generated uses a different opener stencil per segment but each is still a stencil — confession, 'I promised you,' 'most beginners get X backwards,' 'what if I told you,' 'this is the big one' — and notably the 'I promised you' tease is repeated in BOTH generated scripts on Segment 2. Successful roses uses 10 segments with much more variation and only ONE 'secret I promised' callback (Secret 7). The generated 'I promised you' is a fixed slot, not earned."
+          },
+          {
+            "aspect": "Aphoristic closer on every segment vs. occasional",
+            "successful_quote": "Match the variety to your climate honestly. Don't buy a French lavender because it's pretty if you live somewhere it can't survive winter. Don't plant English lavender in steamy, humid heat and wonder why it rotted. Walk into the nursery knowing exactly which group works for where you live, and you've already done more for your success than ninety percent of buyers.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "Feet moist. Collar dry. That's the whole hosta in four words. Smother the neck and it melts into mush — period. ... Crowd it and it quits. Divide, or do without. ... Baptisia commits like poured concrete. Pick well. Bury the shovel. ... Right plant. Right seat. Non-negotiable. ... Macrophylla after bloom. Paniculata in February. Period. ... Winter steals flowers. A burlap cage steals them back.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "Generated ends EVERY segment with a punchy 3-7 word aphorism. Lavender Secret 5 ends with a flowing sentence about doing more than ninety percent of buyers — no aphorism. The aphoristic closer is a tool successful writers use selectively for impact; generated uses it as a structural mandate, which flattens its power."
+          },
+          {
+            "aspect": "Explicit transition bridges between segments",
+            "successful_quote": "[Lavender Secret 1 ends:] Save your good soil for your tomatoes. Lavender wants the leftovers. [Direct cut to:] NUMBER 2: THE SOIL TRICK THAT MIMICS A MEDITERRANEAN HILLSIDE. Now let's talk about soil",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "[Perennials Segment 1 ends:] Patience feels like punishment right now. The next one pays you back on the dinner plate — for twenty years. [Segment 2 ends:] If a food bed can run itself on patience, your shade corner can too — with one boundary the garden center forgets to mention. [Segment 3 ends:] Shade can be lazy. Sun, on the other hand, can be a flower factory — if you respect one boundary the next plant lays down.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "Generated has an explicit thematic bridge sentence ending EVERY segment that previews the next. Successful lavender simply ends a segment and starts the next with a new framing line; there's no engineered handoff. The bridges in generated are clever but their relentless presence makes the script feel like a tour bus announcing the next stop."
+          },
+          {
+            "aspect": "Segment internal arc — mechanism then tactic then aphorism",
+            "successful_quote": "[Roses Secret 6 deadheading] A rose has exactly one goal in life. Reproduce. It makes flowers not to impress you, but to eventually produce seed-filled hips and pass on its genes. So the moment a bloom is pollinated and starts to fade, the plant thinks, mission accomplished, and begins pouring its energy into making seeds instead of new flowers. Deadheading hijacks that process. ... The technique matters too. Don't just pinch off the petals. Cut the stem back to a point just above a leaf with five leaflets, angling the cut. ... Walk your garden once a week with snips in hand, remove anything spent, and you'll be amazed how relentlessly a rose will bloom when it thinks it's failing at its only job.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt",
+            "generated_quote": "[Perennials Peony] Herbaceous peonies bank energy in long-lived storage roots, but the flower buds themselves need real cold sitting close to the surface to set bloom. ... The eyes sit one to two inches below the surface. Not three. Not four. One to two. That's the whole game. Get on your knees this week. Scrape soil back with your fingers until you see those pink nubs. ... Plant peonies shallow, or don't plant them at all.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "Both follow mechanism → tactic. But the successful version ENDS in a story-image (the gardener walking with snips) while generated ends with a punchy command. Successful unfolds; generated terminates."
+          },
+          {
+            "aspect": "Pacing — where the script breathes",
+            "successful_quote": "[Lavender Secret 3] This is the big one. This is the secret that, if you take nothing else from this video, will single-handedly transform your success rate. Are you ready? Stop watering your lavender. Almost entirely. I know that sounds insane. Every instinct as a gardener tells you that a plant needs water, especially in summer, especially when it looks a little tired. But lavender's tired look is not thirst. It's almost always the opposite.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "[Hydrangeas Segment 4] This is the big one. This is the secret that makes a hydrangea survive your vacation, your forgetful August, and the week your kid got sick and the garden got ignored. Stop watering every day. I mean it. The daily splash is the single fastest way to raise a shallow-rooted plant that panics the moment you skip a turn. Here's the mechanism. Roots chase water.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/hydrangeas.txt",
+            "observation": "Generated copies the 'This is the big one' opener almost verbatim but immediately accelerates into mechanism. Successful lavender BREATHES at this moment — 'Are you ready?' is a beat of silence; 'Almost entirely' is a deliberate aside; 'I know that sounds insane' acknowledges the listener. Generated has no breath; it states the principle and immediately moves on. The 'big one' segments in successful scripts are also noticeably longer relative to the others; in generated, segment 4 of hydrangeas IS longer (383 words) so length is right, but the per-sentence rhythm is still sprint-tempo."
+          },
+          {
+            "aspect": "Hook shape — what gets included/withheld",
+            "successful_quote": "You've killed lavender before. Don't lie. You bought that gorgeous little plant from the nursery, brought it home picturing a Provence-style hedge spilling purple across your garden, and within six weeks it looked like a pile of dried twigs someone forgot to throw away. Here's the thing nobody tells you at the garden center: lavender doesn't die because you're a bad gardener. ... In the next few minutes, I'm going to hand you five secrets that flip the conventional wisdom on its head. ... Stick with me, because secret number three is the one that saves more lavender plants than anything else, and almost no one talks about it.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "You planted what the tag called a forever plant, and it ghosted you. A ring of mulch with nothing in the middle. A spring no-show where a fat bloom should have been. A shade clump chewed down to lace, shrinking each summer like it's trying to leave the yard. ... Quietly cooking the crown. Quietly hijacking the savings plan. Quietly stealing the next forty years from a plant that wanted to give them to you. ... Stick with me, because secret number two saves more beds than anything else on this list ... By the end of ten slow, sure minutes, you'll know exactly which lifers belong in your yard, exactly how deep to set them and what to keep off their crowns, and exactly what to do this week before the soil cools.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "Successful hook is conversational and accusatory ('Don't lie'), then ONE evocative image, then the reframe, then a single 'stick with me' tease. Generated hook stacks parallel tricolons (three failure images, three 'Quietly X' phrases) AND a 'stick with me' tease AND a 'by the end you'll know exactly which / exactly how / exactly what' tricolon AND a thesis aphorism ('Depth is destiny'). It is structurally more sophisticated but feels engineered — too many parallel constructions back-to-back. Successful hooks WITHHOLD; generated hooks pile on."
+          },
+          {
+            "aspect": "Conclusion shape and length",
+            "successful_quote": "So there you have it. Ten secrets that turn rose growing from a frustrating guessing game into something you can actually control. Pick the right repeat-blooming variety, flood it with morning sun, build living soil, water deep and lazy, mulch heavily, deadhead like you mean it, prune with confidence, feed in rhythm, prevent disease before it starts, and work with the seasons instead of against them. ... Here's what I want you to do right now. Don't try to do all ten at once. Pick the one secret that hit you hardest, the one where you went oh, that's what I've been doing wrong, and go fix just that this week. Small change, big result. If this helped clear up the confusion even a little, do me a favor and hit that subscribe button ... Now stop watching and go give your roses a reason to show off. I'll see you in the next one.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt",
+            "generated_quote": "Peony eyes shallow. Asparagus ferns standing. Hosta collar breathing. Daylily fans divided. Baptisia, never moved. You don't need more chores. You need a pension in the ground. Pick the one item that stung the most just now — the one where you recognized your own beds — and fix just that this week. Not all five. One. Kneel down, pull mulch back until you can see where stem meets soil ... You're not the gardener who replants every spring anymore. You're the one who plants for decades ... Set it once. Let it work. Collect the pension.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "Same beats (recap → one assignment → identity reframe → closer) but successful uses full sentences in the recap ('flood it with morning sun, build living soil, water deep and lazy') while generated compresses recap to telegraphic fragments ('Peony eyes shallow. Asparagus ferns standing.') Generated conclusion is denser and shorter (129 words) than the successful equivalents (rose conclusion runs ~210 words across multiple paragraphs). Successful breathes; generated compresses."
+          }
+        ],
+        "fixable_at_prompt_level": true,
+        "fix_hint": "Add explicit anti-template guidance to the script prompt: (1) Forbid using the same opener stencil ('Confess something' / 'Here's the one I promised you' / 'Most beginners get X backwards' / 'This is the big one') more than ONCE per script — make the model vary segment openers. (2) Forbid ending every segment with a 3-7 word aphorism — limit to MAX 2 aphoristic closers per script, used only for the most important segments. (3) Forbid the explicit thematic-bridge sentence between every segment — let at least 30% of segments end cleanly without previewing the next. (4) Mandate uneven segment length: one segment must be 1.5-2x longer than the shortest, with extra room for asides, repetition ('Are you ready?'), and listener-acknowledging beats ('I know that sounds insane'). (5) For the hook, cap parallel-construction tricolons at ONE per hook (not three stacked). (6) For conclusions, allow full-sentence recap rather than telegraphic fragments — target 180-250 words for the conclusion, not ~130. (7) Most importantly: change the segment-arc instruction from 'mechanism → tactic → aphorism → transition' to 'open with a fresh rhetorical move (vary it), unfold mechanism with room to breathe (including asides and listener-acknowledgments), give the tactic, and end either with an aphorism OR a story-image OR a flowing closing sentence — vary across segments.' Consider removing the word-count annotation per segment in the planning prompt — uniform target word counts may be what's producing uniform pacing."
+      },
+      {
+        "dimension": "Engagement Mechanics",
+        "successful_pattern": "Successful scripts treat engagement as a chain of deferred payoffs. They open with a confrontational dare or accusation that creates an immediate \"is that me?\" loop (\"You've killed lavender before. Don't lie.\"), then explicitly flag a specific secret as the highest-value payoff in the hook (\"secret number three is the one that saves more lavender plants than anything else\"), then withhold that promised item until its slot lands and re-announce it on arrival (\"This is the big one. This is the secret that, if you take nothing else...\"). Withholding is granular: they tease a counterintuitive instruction, name the symptom, and then make you wait one more beat for the rule. Anticipation is scaffolded with rhetorical questions, dares, and \"are you ready?\" pauses that force a micro-anticipation gap before each big reveal. Segment transitions are loose and conversational; the engine isn't tight handoffs but rather the running open loops (the promised secret, the \"why your plant keeps dying\" master question) plus mid-segment cliffhangers built from contradiction (\"Stop watering your lavender. Almost entirely. I know that sounds insane.\") The hydrangea/rose scripts also use a single overarching frame question (\"why is your plant dying?\") that the whole script answers cumulatively, so curiosity stays alive even when a segment ends flatly.",
+        "generated_pattern": "Generated scripts engineer engagement at the structural level — every segment has a hook-out, a callback, and a setup-for-next — but the devices are mechanical and front-loaded rather than dramatic. The hook promises \"secret number two saves more beds than anything else\" (perennials) or \"secret number two is the one that saves more plants\" (hydrangeas) but when segment 2 arrives, the payoff is announced as a label (\"Here's the one I promised you in the hook\") and then immediately delivered, collapsing the curiosity gap instead of widening it. Cliffhangers between segments are tightly written but uniform in shape (\"the next one X\" / \"and even the right plant won't bloom if Y\"), so the pattern becomes predictable after segment 2. Mid-script callbacks are explicit and frequent (\"This loops right back into secret three\", \"Now connect the dots. Shallow eyes on the peony. Fat crowns on the asparagus...\") — they read like a teacher recapping rather than a storyteller paying off setups. Withholding is weak: most segments lead with the conclusion (the punchy rule), then explain mechanism, so there's no \"wait for it\" beat. Anticipation scaffolding exists (\"What if I told you...\") but is sprinkled rather than building tension across multiple lines before a reveal.",
+        "the_gap": "The successful scripts make the viewer wait, then make arrival feel earned; the generated scripts announce the wait, then immediately discharge it. Three concrete differences:\n\n1. PAYOFF DEFERRAL. In the successful lavender script, \"secret number three\" is teased in the hook, then when segment 3 lands the script slows down with three escalating beats (\"This is the big one. This is the secret that... Are you ready?\") before the reveal (\"Stop watering. Almost entirely.\"). In generated perennials, the same setup is paid off in one line: \"Here's the one I promised you. If I could fix one habit... it would be this one — and almost nobody has the stomach for it. You walked out the first spring...\" — the suspense is acknowledged and then immediately spent, with no \"are you ready?\" beat of silence.\n\n2. CURIOSITY-GAP DISCIPLINE. Successful scripts withhold the rule and lead with the wrong instinct or a contradiction (\"The wilting... those are signs of overwatering nine times out of ten\" only comes AFTER a paragraph of misdirection). Generated scripts front-load the rule as a headline (\"The eyes sit one to two inches below the surface. Not three. Not four. One to two.\") and then back-fill mechanism — efficient teaching, weak retention.\n\n3. CALLBACK NATURE. Successful scripts use callbacks as reinforcement of one running thesis (the master \"why your plant dies\" question stays open the whole video). Generated scripts use callbacks as explicit cross-references between segments (\"This loops right back into the asparagus rule\", \"Same agenda — air at the neck...\") which feels like a syllabus, not a story. The perennials conclusion literally lists the segments — \"Peony eyes shallow. Asparagus ferns standing. Hosta collar breathing...\" — which is a recap, not a payoff.\n\n4. CLIFFHANGER VARIETY. Successful hydrangea (the long-form one) barely uses inter-segment cliffhangers; the engine is the running mystery. Successful lavender uses cliffhangers sparingly and dramatically. Generated scripts use a cliffhanger at the end of EVERY segment with identical syntax (\"X. The next one Y.\"), which trains the viewer to predict the seam and tune out.\n\nNet effect: generated scripts feel architected; successful scripts feel hunted-through. The generated ones engineer engagement at the segment boundary; the successful ones engineer it at the sentence level, inside the segment, with a longer \"withhold-then-reveal\" runway.",
+        "severity": "high",
+        "evidence": [
+          {
+            "aspect": "Payoff of the teased 'secret number 2/3'",
+            "successful_quote": "This is the big one. This is the secret that, if you take nothing else from this video, will single-handedly transform your success rate. Are you ready? Stop watering your lavender. Almost entirely.\\n\\nI know that sounds insane.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:23",
+            "generated_quote": "Here's the one I promised you in the hook — the single biggest reason your hydrangea looks like a leaf factory with no flowers. If I could fix one habit for every beginner, it would be this one. You were told hydrangeas are shade plants. So you tucked it under the deep north side of the house...",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/hydrangeas.txt:29",
+            "observation": "Successful script stacks three retention beats (claim + 'are you ready?' + contrarian instruction + 'I know that sounds insane') before mechanism. Generated jumps straight from acknowledgement to mechanism in the same paragraph — payoff is announced but never built."
+          },
+          {
+            "aspect": "Inter-segment cliffhangers",
+            "successful_quote": "If you've ever pruned your lavender and watched it slowly turn into a woody, hollow, dead-looking donut with green only at the tips, raise your hand. This happens to almost everyone, and it's because pruning lavender is genuinely counterintuitive.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:35",
+            "generated_quote": "Shade can be lazy. Sun, on the other hand, can be a flower factory — if you respect one boundary the next plant lays down.\\n...\\nDivide, or do without. The last one asks nothing of you — except that you choose its spot like you mean it.\\n...\\nYou've built the moisture buffer. But there's a season that erases all of this work in one cold week",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:22",
+            "observation": "Successful script opens segments with a fresh dare/visual ('raise your hand'); the curiosity is intrinsic to the segment. Generated script uses uniformly-shaped 'X. The next Y' transitions at every seam — pattern is detectable after two segments, so the cliffhanger device wears out."
+          },
+          {
+            "aspect": "Withholding the actionable rule",
+            "successful_quote": "I know that sounds insane. Every instinct as a gardener tells you that a plant needs water... But lavender's tired look is not thirst. It's almost always the opposite. The wilting, the yellowing lower leaves, the sad gray cast that makes you reach for the hose, those are signs of overwatering nine times out of ten.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:25",
+            "generated_quote": "The eyes sit one to two inches below the surface. Not three. Not four. One to two. That's the whole game.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:10",
+            "observation": "Successful script delays the rule and uses misdirection through gardener instinct first. Generated script delivers the rule as a punchy headline immediately, killing the curiosity gap — viewer has no reason to wait."
+          },
+          {
+            "aspect": "Mid-script callbacks",
+            "successful_quote": "It locks moisture into the soil so you water less. It keeps the root zone cool during heat waves, which directly protects your bloom cycle... And as organic mulch breaks down, it slowly feeds the soil, looping right back into secret number three.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:55",
+            "generated_quote": "Now connect the dots. Shallow eyes on the peony. Fat crowns on the asparagus. Breathing collars on the hosta and the daylily. Same agenda — air at the neck, depth that fits the biology, hands off the crown.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:34",
+            "observation": "Successful callback ties one new mechanism back to one prior secret in a single passing clause. Generated callback is a four-item recap mid-segment — reads as a study-guide summary, breaks immersion."
+          },
+          {
+            "aspect": "Hook-level anticipation scaffolding",
+            "successful_quote": "Stick with me, because secret number three is the one that saves more lavender plants than anything else, and almost no one talks about it.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:3",
+            "generated_quote": "Stick with me, because secret number two is the one that saves more plants than anything else on this list — most people park their hydrangea in the exact spot that guarantees a flowerless summer.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/hydrangeas.txt:5",
+            "observation": "Generated has literally copied the device, but then weakens it by previewing the answer in the same sentence ('park their hydrangea in the exact spot') — the curiosity gap is half-spent before the segment even begins. Successful version names the symptom space but withholds direction."
+          },
+          {
+            "aspect": "Conclusion as recap vs reframe",
+            "successful_quote": "Pick the right repeat-blooming variety, flood it with morning sun, build living soil... Do those things, and year-round blooms stop being a fantasy and start being your normal. Here's what I want you to do right now. Don't try to do all ten at once. Pick the one secret that hit you hardest...",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:111",
+            "generated_quote": "Peony eyes shallow. Asparagus ferns standing. Hosta collar breathing. Daylily fans divided. Baptisia, never moved. You don't need more chores. You need a pension in the ground.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:40",
+            "observation": "Both recap, but successful conclusion immediately pivots to a single-action assignment with motivational reframe; generated conclusion stacks two recaps (the bullet list AND a 'connect the dots' moment already done in segment 5), making the ending feel like a quiz key."
+          }
+        ],
+        "fixable_at_prompt_level": true,
+        "fix_hint": "Add explicit retention-mechanic rules to the script prompt, not just structural rules. Concretely:\n\n1. PAYOFF RUNWAY. When the script promises a 'biggest secret' in the hook, the segment that pays it off must include at least three retention beats BEFORE the rule lands: (a) re-announce the stakes ('This is the one I promised you'), (b) name the wrong instinct, (c) explicit pause/dare ('Are you ready?' / 'I know this sounds insane'). The rule itself must arrive AFTER misdirection, not as the topic sentence.\n\n2. WITHHOLD THE RULE. Forbid leading a segment with the punchy headline rule. Each segment must open with symptom, wrong instinct, or a question — the rule appears in the back half of the segment after mechanism is sketched.\n\n3. VARY CLIFFHANGER SHAPE. Ban repeating the 'X. The next Y.' transition. Require at least three distinct seam types across a 5-segment script: (a) running-mystery handoff (no transition at all — segment opens with a fresh dare), (b) contradiction setup ('You'd think X. You'd be wrong.'), (c) explicit cliffhanger. Use the explicit one no more than twice.\n\n4. CALLBACKS AS WHISPERS, NOT RECAPS. Allow at most one mid-script callback per segment, and it must be a single passing clause ('looping back to secret three'), not an enumerated list. Forbid a 'connect the dots' recap before the conclusion.\n\n5. CONCLUSION = ONE ACTION + REFRAME, NOT A LIST. The conclusion may include a brief one-line recap but must spend most of its words on a single concrete assignment plus identity reframe ('you're not the gardener who X, you're the gardener who Y'). Don't recap twice.\n\n6. KEEP ONE MASTER QUESTION ALIVE. The script's framing question ('why does this plant keep dying for you?') should be referenced — without being answered in full — at least twice mid-script, so the running loop carries viewers across weak segments."
+      },
+      {
+        "dimension": "Explanation Quality (Mechanism, Specifics, Authority, Substantiation, Trust)",
+        "successful_pattern": "Successful scripts earn authority through a layered explanation stack: (1) a one-sentence biological/physical MECHANISM that names the part and the process (\"the essential oils that give lavender its smell are concentrated when the plant is stressed\"; \"blooming is the most expensive thing they do all year. Producing a flower takes a massive amount of energy\"); (2) a concrete, actionable SPECIFIC tied to that mechanism (pH ranges 4.5-5.5 vs 6.5-7, NPK like 10-30-10, \"twice as wide as the root ball but only as deep,\" \"two inches down is bone dry\"); (3) a COUNTERINTUITIVE claim immediately followed by the reason it works (\"Stop watering your lavender. Almost entirely... it doesn't die of thirst, it drowns\"); (4) a folksy quantifier or named cultivar that signals lived experience (\"Munstead and Hidcote,\" \"Grosso and Provence,\" \"nine times out of ten,\" \"stick your finger in\"); and (5) a consequence-of-failure clause that proves the writer has seen what goes wrong (\"cut into bare wood, that branch is dead forever,\" \"leggy, floppy, disease-prone\"). The narrator earns trust because the WHY is biological and irreducible, not just procedural.",
+        "generated_pattern": "The generated scripts also reach for mechanism, specifics, and counterintuitive framing — and on the surface they often LOOK denser than the successful ones (more numbers, more Latin names, more \"here's the mechanism\" tags). But the explanations function differently: mechanism is frequently ASSERTED as a metaphor rather than as biology (\"a pension in the ground,\" \"a periscope sent up from a storage crown,\" \"the throttle for flower buds\"), and the specifics arrive in rapid-fire bullets without the \"and here's why that number\" follow-through (\"one to two inches below the surface. Not three. Not four. One to two.\"). Authority signals are present but stylized — folksy quantifiers (\"nine times out of ten\" is absent; instead we get \"twenty-year plan,\" \"fifty years,\" \"a pension\") read as rhetorical flourish, not lived measurement. Counterintuitive claims get a single mechanism sentence, then the script moves on, rather than circling back with a second proof or a failure-mode story. The voice is confident and well-crafted but performs expertise more than it teaches it.",
+        "the_gap": "The generated scripts explain at the level of POETIC ANALOGY where the successful scripts explain at the level of BIOLOGICAL CAUSALITY. Three concrete gaps: (1) Mechanism is metaphor-first, biology-second. Successful: \"aluminum more available to the plant... drives the flowers blue.\" Generated: \"the soil insulates them from winter chill, and the plant decides this year isn't worth the show\" — the verb \"decides\" hides the actual hormonal/dormancy mechanism. (2) Specifics are present but UNDEFENDED. Generated says \"six to eight inches deep\" for asparagus and moves on; successful says \"twice as wide as the root ball but only as deep\" AND explains why (drainage, root spread). The numbers are not linked back to the mechanism, so they feel asserted rather than derived. (3) Authority is performed through DICTION (folksy compressions like \"Eat for twenty years,\" \"Bury the shovel\") rather than through LIVED DETAIL (terracotta vs glazed ceramic, drilling extra drainage holes, tipping the pot). Successful narrators show the work — \"Stick your finger in. If you feel any moisture at all, walk away.\" Generated narrators announce the work — \"Get on your knees this week.\" Result: the generated voice is more entertaining sentence-by-sentence but less TRUSTWORTHY, because it never lets a mechanism breathe long enough to substantiate the counterintuitive claim it just made.",
+        "severity": "high",
+        "evidence": [
+          {
+            "aspect": "Mechanism explanation — biology vs. metaphor",
+            "successful_quote": "Acidic soil (around pH 4.5 to 5.5) makes aluminum more available to the plant, which drives the flowers blue. Alkaline soil (pH 6.5 to 7 and above) locks aluminum out, and the flowers turn pink.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/hydrangeas.txt",
+            "generated_quote": "Bury those eyes more than a couple inches down and the soil insulates them from winter chill, and the plant decides this year isn't worth the show.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "Successful names the chemical agent (aluminum), the gating variable (pH), and the directional cause-effect. Generated personifies the plant ('the plant decides') and skips the actual cold-requirement-for-bud-set biology, leaving the rule asserted but unexplained."
+          },
+          {
+            "aspect": "Specifics tied to a defended reason",
+            "successful_quote": "When you dig your planting hole, make it twice as wide as the root ball but only as deep. Then take the soil you removed and throw at least half of it away. Replace that half with coarse sand, fine gravel, or even crushed limestone... We're not talking about play sand from the hardware store, we're talking about builder's sand or horticultural grit, the gritty, chunky stuff that water flies through.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "Trench your crowns six to eight inches deep, twelve to eighteen inches apart, in friable soil that drains. Pick an all-male cultivar like Jersey Knight — males don't waste energy on seed, which means fatter spears and no weedy red berries reseeding in your paths.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "The asparagus passage is actually one of the generated scripts' strongest — it does link cultivar choice to a biological reason (no seed waste = fatter spears). But the trench number ('six to eight inches deep') gets no defense at all, where the lavender passage justifies every choice (why double-wide, why discard half the native soil, why builder's sand specifically, what kind of sand NOT to use). The successful pattern shows the rejected alternative; the generated pattern only shows the recommendation."
+          },
+          {
+            "aspect": "Counterintuitive claim, substantiated",
+            "successful_quote": "Stop watering your lavender. Almost entirely... lavender's tired look is not thirst. It's almost always the opposite. The wilting, the yellowing lower leaves, the sad gray cast that makes you reach for the hose, those are signs of overwatering nine times out of ten... Wet roots plus cold soil is the number one killer of established lavender plants, and people lose more lavender to a kind, well-intentioned winter watering than to any pest or disease combined.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "Stop watering every day. I mean it. The daily splash is the single fastest way to raise a shallow-rooted plant that panics the moment you skip a turn. Here's the mechanism. Roots chase water. Sip the surface every morning and the roots stay in the top inch of soil, where heat and dryness live. Soak deep and infrequently — wetting the soil six to eight inches down once or twice a week in dry spells — and the roots dive.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/hydrangeas.txt",
+            "observation": "Both make a counterintuitive claim with a mechanism. But the successful version stacks FIVE pieces of substantiation around the same claim (symptom list, frequency quantifier, winter-specific failure mode, named killer, comparison to pests/disease). The generated version states the mechanism cleanly in one beat and moves on — which reads fast but leaves the listener less convinced because the failure mode is abstract ('panics') rather than concrete ('rotted in its first winter')."
+          },
+          {
+            "aspect": "Authority through lived-in detail vs. performed diction",
+            "successful_quote": "If your plant is in a pot, the rules tighten further. Pots dry faster but also retain moisture in ways the ground doesn't, especially around the bottom. Use a terracotta pot, never plastic, never glazed ceramic, because terracotta breathes and pulls excess moisture out of the soil. Drill extra drainage holes if your pot only has one. And tip the pot slightly so water can't sit in the saucer. Better yet, throw the saucer away entirely.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "Feet moist. Collar dry. That's the whole hosta in four words. Smother the neck and it melts into mush — period. Shade can be lazy. Sun, on the other hand, can be a flower factory — if you respect one boundary the next plant lays down.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "The successful passage trusts the reader to do the work and hands over field-tested specifics (terracotta vs glazed, drill extra holes, throw the saucer away) — these read as something the narrator has actually done and gotten wrong. The generated passage compresses the same energy into aphorism ('Feet moist. Collar dry.') and segues immediately. Compression looks like confidence on the page but reads as STYLE, not EXPERIENCE — there's no equivalent to 'throw the saucer away entirely' anywhere in the generated scripts."
+          },
+          {
+            "aspect": "Failure-mode storytelling (proof of having seen it go wrong)",
+            "successful_quote": "If you've ever pruned your lavender and watched it slowly turn into a woody, hollow, dead-looking donut with green only at the tips, raise your hand. This happens to almost everyone... Never, ever cut into the woody, leafless brown stems at the base. Lavender wood does not regenerate. Unlike roses or many shrubs, if you cut into bare wood, that branch is dead forever, and a plant that's been chopped into the wood will never recover.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt",
+            "generated_quote": "By August the clump shrank to six shredded leaves with slime trails on them, and you assumed you killed it. You didn't kill it. You smothered its collar and let a tree drink its water.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt",
+            "observation": "The generated script DOES do failure-mode imagery well here ('six shredded leaves with slime trails') — this is the closest the generated pattern gets to the successful pattern. But notice the difference in PROOF: the successful version names a comparison group ('Unlike roses or many shrubs') and a botanical fact ('Lavender wood does not regenerate') that anchors the warning in plant biology. The generated version stops at the vivid image without explaining WHY the collar must breathe at the cellular level (anaerobic tissue is named once, then dropped). Imagery without irreducible-biology backup reads as good writing, not earned expertise."
+          },
+          {
+            "aspect": "Counterintuitive claim with named, granular biological cause",
+            "successful_quote": "Roses are solar-powered machines, and blooming is the most expensive thing they do all year. Producing a flower takes a massive amount of energy, and that energy comes from light. A rose sitting in four hours of dappled shade isn't being polite and modest. It's quietly starving, and starving plants don't waste resources on flowers. They just try to stay alive.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt",
+            "generated_quote": "Light is the throttle for flower buds. Too little, and the plant spends all its energy on leaves. Too much of the wrong kind, and the buds scorch off before they open... Macrophylla's broad thin leaves can't keep up with afternoon transpiration, so the buds — already weak from heat — abort. Paniculata's thicker tissue handles it. Same family. Completely different jobs.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/hydrangeas.txt",
+            "observation": "This is the one place where the generated script MATCHES the successful pattern — it names transpiration, leaf thickness, and the differential between species. This passage is more biologically substantiated than the rose passage. The gap is consistency: the generated scripts do this WELL maybe once or twice per video, while the successful scripts do it in nearly every section. The mechanism-density is uneven."
+          }
+        ],
+        "fixable_at_prompt_level": true,
+        "fix_hint": "Add a \"mechanism budget\" rule to the script prompt that forces every counterintuitive claim or numeric specific to be followed within 1-2 sentences by a biological/physical reason naming an agent (a chemical, a tissue, a process — not a metaphor and not a personification verb like \"decides\" or \"wants\"). Concrete prompt additions: (1) BAN personification as the load-bearing explanation — \"the plant decides,\" \"the plant wants,\" \"the roots panic\" must be paired with the actual mechanism (dormancy hormones, anaerobic tissue, etc.). (2) REQUIRE a \"rejected alternative\" beat for each specific — when you say \"six to eight inches deep,\" also say what shallower or deeper does and why (\"shallower and the crown freezes; deeper and the spears spend their reserves before they reach light\"). (3) REQUIRE one \"lived-in\" granular detail per segment that goes beyond the headline rule — the equivalent of \"use terracotta not glazed ceramic, drill extra holes, throw the saucer away.\" These are the trust-builders. (4) ADD a failure-mode-with-biology requirement: every vivid failure image (\"slime trails,\" \"papery buds\") must be paired with the cellular/structural reason it happens. (5) CAP aphoristic compression — limit one \"Feet moist. Collar dry.\"-style summary per segment, so the script can't lean on diction to fake authority. (6) Consider a few-shot example pair in the prompt showing a metaphor-only mechanism rewritten with a named biological agent, so the model has a clear contrast to imitate."
+      },
+      {
+        "dimension": "LLM tells vs human voice in script writing",
+        "successful_pattern": "Successful scripts use loose, conversational sentence rhythms with varied length and natural digression. Sentences breathe — the writer interrupts themselves (\"I know that sounds insane\"), addresses the reader as a person (\"Don't lie\"), drops in lived-in throwaway lines (\"That dead corner where nothing grows because the soil is thin and the sun is brutal? That's lavender heaven\"), and lets metaphors land once without rephrasing them three different ways. Concrete imagery is used sparingly and tied to a single concrete instinct (\"a sad, leggy stick with three brown leaves\"). Repetition shows up as deliberate refrain (\"The watering advice is wrong. The soil advice is wrong. The pruning advice? Catastrophically wrong.\") with a single sharp punch at the end — not as a structural template applied to every segment. Voice is consistent: one person talking. Asides like \"Save your good soil for your tomatoes\" and \"raise your hand\" feel unprompted. Vocabulary register is mid-casual — Latin names appear only when needed, not as proof of expertise.",
+        "generated_pattern": "Generated scripts reach for the same handful of rhetorical devices over and over: anaphoric triplets (\"Quietly cooking… Quietly hijacking… Quietly stealing\"), two-word verdict sentences (\"Feet moist. Collar dry.\"), forced \"metaphor + reframe\" beats (\"a pension in the ground,\" \"a hoarder with a twenty-year plan,\" \"born on open prairie\"), and command-fragment cadences (\"Not three. Not four. One to two.\"). Every segment ends with a punchy bumper to the next segment, then the next segment opens with a callback — a template visible from orbit. Density is unrelenting: every sentence wants to be quotable, which paradoxically reads mechanical because real speech has filler and slack. Metaphors get stacked on top of each other within a single paragraph (\"a baby in a blanket,\" \"kissed by winter,\" \"tucked them in under a quilt,\" \"pink nubs\") instead of being earned. Sensory details appear staged (\"you heard that faint sandpaper sound on your thin-leaf varieties\") rather than recalled. The writer keeps proving they did their homework with Latin names, cultivar drops, and chromosome notes wedged into otherwise conversational beats.",
+        "the_gap": "The successful scripts trust the reader and let one good line do one job. The generated scripts don't trust anything to land, so they hit the same beat three ways and chain rhetorical devices until every paragraph has the same shape: vivid image → \"here's the mechanism\" → numeric prescription → epigrammatic two-word kicker → bridge to next segment. This template is the tell. Humans vary; the model converges. The successful scripts also accept \"boring\" connective tissue (\"Here's the thing,\" \"Now let's talk about soil,\" \"One more thing on soil\") which lets the vivid lines stand out by contrast. The generated scripts have no flat ground — everything is peak, which flattens into a single elevated register the ear identifies as performance.",
+        "severity": "high",
+        "evidence": [
+          {
+            "aspect": "Anaphora overused as structural crutch",
+            "successful_quote": "The watering advice is wrong. The soil advice is wrong. The pruning advice? Catastrophically wrong.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:3",
+            "generated_quote": "Every one of those nudges is quietly cooking the crown. Quietly hijacking the savings plan. Quietly stealing the next forty years from a plant that wanted to give them to you.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:4",
+            "observation": "The successful version uses anaphora once, varies the third beat with a fragment ('Catastrophically wrong'), and moves on. The generated version triple-stacks the same construction with abstract objects ('savings plan', 'forty years') that aren't tactile. It happens again in 'Year one it's a wisp. Year two it's a promise. Year four it's chest-high…' and 'Not three. Not four. One to two.' — the same trick repeated across segments, which is the giveaway."
+          },
+          {
+            "aspect": "Two-word epigrams as segment closers",
+            "successful_quote": "Deep, lazy, low. That's the rhythm.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:49",
+            "generated_quote": "Feet moist. Collar dry. That's the whole hosta in four words.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:22",
+            "observation": "The rose script uses one short epigram per segment, maybe. The perennials script ends EVERY segment with this beat: 'Plant peonies shallow, or don't plant them at all.' / 'Restraint now. Spears forever.' / 'Feet moist. Collar dry.' / 'Divide, or do without.' / 'Pick well. Bury the shovel.' That uniformity is the template showing through the writing."
+          },
+          {
+            "aspect": "Forced central metaphor",
+            "successful_quote": "Lavender is not a delicate, pampered ornamental. It's basically a tough Mediterranean weed wearing a pretty dress.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:7",
+            "generated_quote": "You don't need more chores. You need a pension in the ground.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:40",
+            "observation": "The lavender metaphor lands once, is funny, and the script moves on. The 'pension in the ground' metaphor in perennials is hammered: 'a pension in the ground', 'pay you back for years', 'savings plan', 'a savings account that hasn't been funded yet', 'Eat for two decades', 'Collect the pension'. The model treats a metaphor as a structural commitment instead of a single moment of color."
+          },
+          {
+            "aspect": "Sensory detail — recalled vs staged",
+            "successful_quote": "they're staring at a sad, leggy stick with three brown leaves wondering where it all went wrong.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:3",
+            "generated_quote": "if you walked out at dusk and heard that faint sandpaper sound on your thin-leaf varieties, switch families.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:22",
+            "observation": "The rose detail is the kind of dumb specific thing only someone who has stood in their garden would write — three brown leaves, wondering. The 'sandpaper sound at dusk' detail in the generated piece is too perfect, too cinematic, and too cleverly tied to the technical point ('switch families'). Real recalled details are blunter and less load-bearing."
+          },
+          {
+            "aspect": "Mechanical segment bridging",
+            "successful_quote": "Now let's talk about soil, because this is where most people go wrong before they even plant.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:13",
+            "generated_quote": "Shade can be lazy. Sun, on the other hand, can be a flower factory — if you respect one boundary the next plant lays down.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:22",
+            "observation": "Lavender uses a flat transition that just gets the reader to the next topic. The perennials script ends every segment with a poetic teaser that previews the next: 'with one boundary the garden center forgets to mention' / 'except that you choose its spot like you mean it' / 'if you respect one boundary the next plant lays down'. Identical syntactic structure across all five — clearly a template instruction being executed literally."
+          },
+          {
+            "aspect": "Latin/jargon as flex vs as needed",
+            "successful_quote": "English lavender, the angustifolia varieties like Munstead and Hidcote, is the most cold-hardy and the most fragrant for culinary use.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:49",
+            "generated_quote": "look at Stella de Oro or any tetraploid, which carry thicker, sturdier petals from a doubled chromosome set.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:28",
+            "observation": "The successful script drops Latin only when distinguishing varieties the viewer will actually shop for. The generated script keeps wedging in expert credentials — 'doubled chromosome set', 'Hemerocallis fulva', 'lignify before frost', 'remontant', 'anaerobic and rots' — which reads as the model demonstrating depth rather than a person teaching. A human gardener writing for beginners would not say 'tetraploid' in a daylily aside."
+          },
+          {
+            "aspect": "Self-interruption / aside",
+            "successful_quote": "Stop watering your lavender. Almost entirely. I know that sounds insane.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:23",
+            "generated_quote": "Move the plant in fall if you have to. I know that sounds insane when it's already in the ground. Do it anyway.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/hydrangeas.txt:37",
+            "observation": "The model has clearly learned the 'I know that sounds insane' move from the successful corpus and reuses it in the generated hydrangea script in nearly identical wording. The tell is that the original uses it once and means it; the generated version deploys it as a recognizable beat. When a stylistic move appears in the training data once and the generation once, in nearly identical phrasing, it reveals direct mimicry rather than internalized voice."
+          },
+          {
+            "aspect": "Density of imagery per paragraph",
+            "successful_quote": "Rich, living soil holds moisture without getting soggy, releases nutrients slowly and steadily, and feeds the microbes that feed the roots.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:39",
+            "generated_quote": "You sank that peony in a nice deep hole, tamped it down, mulched it like a baby in a blanket — and three springs later, all leaves, no fireworks. The peony is sulking. On purpose. Because the pink buds on its crown — the eyes — wanted to be kissed by winter, and you tucked them in under a quilt.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:10",
+            "observation": "The rose sentence has zero metaphors — just plain mechanical description that lets the reader picture it. The peony paragraph stacks 'baby in a blanket', 'no fireworks', 'sulking', 'on purpose', 'kissed by winter', 'tucked them in under a quilt' in five sentences. Humans don't sustain that figure-of-speech density; it reads as a model maximizing vividness on every clause."
+          },
+          {
+            "aspect": "Connective tissue — flat vs always-peak",
+            "successful_quote": "One more thing on soil. If you've been adding compost or manure to your lavender bed because someone told you plants love it, stop.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:19",
+            "generated_quote": "Now connect the dots. Shallow eyes on the peony. Fat crowns on the asparagus. Breathing collars on the hosta and the daylily. Same agenda — air at the neck, depth that fits the biology, hands off the crown.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:34",
+            "observation": "Successful scripts include 'boring' linkage — 'One more thing on soil', 'Now let's talk about soil', 'Let me tell you the harsh reality'. The generated script never relaxes; every transition is a callback summary or a teaser. The lack of any flat ground in the prose is itself the tell. Real writing has dynamic range."
+          },
+          {
+            "aspect": "Reader address — natural vs scripted intimacy",
+            "successful_quote": "You've killed lavender before. Don't lie.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:1",
+            "generated_quote": "Confess something. You sank that peony in a nice deep hole, tamped it down, mulched it like a baby in a blanket — and three springs later, all leaves, no fireworks.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:10",
+            "observation": "'Don't lie' is the kind of throwaway a person types and doesn't reread. 'Confess something.' followed by a perfectly constructed three-clause sentence with two metaphors is the model trying to be that voice but unable to resist sculpting the rest of the paragraph. The intimacy beat works only when the surrounding prose is also relaxed."
+          }
+        ],
+        "fixable_at_prompt_level": true,
+        "fix_hint": "Add explicit anti-pattern rules to the script prompt rather than trying to add positive style guidance (which the model has already over-internalized). Concretely:\n\n1. CAP rhetorical devices: at most ONE anaphoric triplet per script (not per segment), at most TWO sentence-fragment epigrams per script total, at most ONE central metaphor sustained across the piece. Forbid the 'X. Y. That's the whole [noun] in N words.' construction.\n\n2. FORBID template segment shapes. Right now every generated segment ends 'Two-word epigram. Bridge sentence that previews next segment with one poetic image.' Tell the model: end at least two segments flatly, with no kicker line and no preview. Variety in segment-end shape is more important than any single good kicker.\n\n3. REQUIRE flat connective tissue. Mandate at least 3 instances of plain transitions like 'One more thing.', 'Now let's talk about X.', 'Here's the thing.' The model is too eager to make every sentence quotable; require it to leave breathing room.\n\n4. CAP metaphor density: no paragraph may contain more than one figurative comparison. The peony paragraph with 'baby in a blanket'/'kissed by winter'/'tucked them in under a quilt' is the failure mode to name explicitly.\n\n5. STRIP credential-flexing jargon. Forbid Latin binomials, cultivar names, and biology terms (tetraploid, lignify, anaerobic, remontant) unless the viewer needs them to shop or to act. The successful scripts use Latin only when distinguishing what to BUY.\n\n6. Force at least one genuinely flat, observational aside per script — something like 'Save your good soil for your tomatoes' or 'raise your hand' — that does not advance the argument and is not stylized.\n\n7. Add a negative example block to the prompt showing the perennials_v1 segment-end pattern (the five kickers in sequence) and label it 'DO NOT DO THIS — uniformity reveals the template'.\n\n8. Consider a 'density budget' instruction: across the whole script, the model gets N 'flourish tokens' (vivid metaphor, fragment epigram, anaphora). Once spent, the rest of the script must be plain. This forces the model to choose where the punches land instead of punching every sentence."
+      },
+      {
+        "dimension": "Script craft patterns — what successful scripts do that the prompt doesn't teach",
+        "successful_pattern": "Successful scripts (especially lavender, roses, the human-written hydrangea) operate at a much lower information density per sentence than the generated scripts. They explain ONE mechanism slowly across many sentences, repeating the same idea in different framings (\"luxury kills lavender faster than drought ever could\" — then re-stated 3 different ways across the segment). They use generous, conversational throat-clearing (\"Here's the thing.\" / \"Let me sell you on...\" / \"Are you ready?\"). They unpack jargon at conversational pace with extended asides. They use a SINGLE arresting metaphor per segment and let it breathe — repeating and developing it — rather than stacking 4–5 metaphors. Sentences are often LONG and flowing, not compressed.",
+        "generated_pattern": "Density maximization — every sentence is a load-bearing sentence with metaphor + mechanism + verb-flex + fragment all stacked.",
+        "the_gap": "The prompt teaches density and earned sentences but never teaches PACING, BREATHING, or PERMISSION TO RESTATE. Successful scripts dwell on an idea; generated scripts sprint through them. There's no rule that says \"develop one mechanism across multiple sentences before moving on\" or \"conversational filler is allowed and necessary.\" The \"earn every sentence\" rule has no counterweight, so the model maximizes density.",
+        "severity": "high",
+        "evidence": [
+          {
+            "aspect": "Pacing / breathing — slow vs sprinted explanation of one idea",
+            "successful_quote": "Now let's talk about soil, because this is where most people go wrong before they even plant. You've probably heard 'well-drained soil' a thousand times, and you've probably nodded along thinking your garden bed counts. It doesn't. Well-drained for lavender means something far more extreme than what you're imagining.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:13-14",
+            "generated_quote": "Confess something. You sank that peony in a nice deep hole, tamped it down, mulched it like a baby in a blanket — and three springs later, all leaves, no fireworks. The peony is sulking. On purpose. Because the pink buds on its crown — the eyes — wanted to be kissed by winter, and you tucked them in under a quilt.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:10",
+            "observation": "Lavender takes 4 sentences (with conversational throat-clearing) to set up ONE point about soil. Perennials packs 5 distinct moves — confession, tableau, fragment, mechanism, metaphor — into the same word count. The generated script never lets the viewer sit with anything."
+          },
+          {
+            "aspect": "Conversational filler / throat-clearing as a deliberate device",
+            "successful_quote": "Let me sell you on the single highest-return, lowest-effort thing you can do for your roses. Mulch. And I mean it.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/roses.txt:53",
+            "generated_quote": "Most beginners get hostas exactly backwards. You were sold deep shade plant, so you tucked it under the thirstiest maple in the yard and piled mulch up around the stems like a scarf.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:22",
+            "observation": "Roses uses 'Let me sell you on...' and 'And I mean it' as deliberate slowdown beats — friendly conversational filler that signals 'pay attention to what comes next.' Generated scripts skip all this and lunge straight into the reframe. The prompt's ban on hedging and its 'earn every sentence' rule have eliminated conversational scaffolding entirely."
+          },
+          {
+            "aspect": "Single developed metaphor vs metaphor stacking",
+            "successful_quote": "Lavender is not a delicate, pampered ornamental. It's basically a tough Mediterranean weed wearing a pretty dress. In its natural habitat, it grows out of cracks in limestone, baked by sun, battered by wind, and ignored by rain for months at a time. The plants you see in those dreamy French fields aren't being coddled. They're being neglected on an industrial scale.",
+            "successful_source": "/Users/aidanmcomie/Documents/Aqua/references/successful_scripts/lavender.txt:7",
+            "generated_quote": "Asparagus is a hoarder with a twenty-year plan. Every spear is a shoot — a periscope sent up from a storage crown buried below. ... Cut spears now and you're draining a savings account that hasn't been funded yet.",
+            "generated_source": "/Users/aidanmcomie/Documents/Aqua/references/generated_scripts/perennials_v1.txt:16",
+            "observation": "Lavender stays inside ONE metaphor (weed/Mediterranean hillside/neglect-as-luxury) and develops it across 5 sentences. Perennials stacks THREE incompatible metaphors in 3 sentences: hoarder, periscope, savings account. The prompt's 'one reframing metaphor per segment' rule is being violated by metaphor pile-up, but there's no rule penalizing METAPHOR DENSITY within a paragraph."
+          }
+        ],
+        "fixable_at_prompt_level": true,
+        "fix_hint": "Add a 'breathing room' rule: \"After a high-density beat (fragment chain, metaphor reveal, mechanism punch), the next 1–2 sentences must be deliberately low-density — conversational connective tissue, a restatement in plainer words, or a friendly aside. Density without contrast reads as a wall of noise. Conversational filler like 'Here's the thing,' 'Let me sell you on,' 'And I mean it,' 'Are you ready?' is not weakness — it's pacing.\" Also add: \"Develop ONE mechanism across at least 3 consecutive sentences before introducing a new metaphor or pivot. Restating the same idea in plainer words is craft, not padding.\" Consider a hard ceiling: \"No more than ONE metaphor per paragraph — let it breathe across multiple sentences instead of stacking a new image every sentence.\""
+      }
+    ],
+    "synthesis": {
+      "headline": "The generated scripts have learned the SHAPE of successful writing but execute it as a uniform template — every segment hits the same beats in the same order at the same compressed cadence, producing prose that's sentence-for-sentence more polished than the originals but ear-flattening because nothing breathes.",
+      "is_the_gap_real": {
+        "verdict": "preference_dependent",
+        "rationale": "The same-topic hydrangeas comparison is explicit that generated is the better-WRITTEN script sentence-for-sentence (stronger hook, sharper sensory specifics, novel segments, per-segment retention bridges), and successful wins on topic selection and lead-ordering — outline-level decisions, not prose-craft decisions. Across the other six analyses there IS a substantial and consistent gap in one specific dimension: voice naturalness and pacing. Generated reads as a clever essayist performing for an audience; successful reads as a knowledgeable friend talking across a fence. The verdict splits: on prose craft, structure mechanics, and information substance the gap is mostly closed (possibly inverted in generated's favor); on voice register and breathing-room the gap is substantial and audible. The user's perception of a gap is real but narrowly located, not pervasive."
+      },
+      "top_root_causes": [
+        {
+          "cause": "Density maximization with no breathing-room counterweight",
+          "dimension": "Pacing / Voice / Explanation",
+          "severity": "high",
+          "evidence": "Successful lavender takes 4 sentences with throat-clearing ('Now let's talk about soil, because this is where most people go wrong before they even plant. You've probably heard well-drained soil a thousand times...') to set up ONE point. Generated perennials packs 5 distinct moves — confession, tableau, fragment, mechanism, metaphor — into the same word count. Successful scripts include 'boring' linkage ('Here's the thing,' 'One more thing on soil') that generated scripts never produce.",
+          "diagnosis": "rule_being_overdone",
+          "why": "The 'Earn every sentence' rule (script_base line 25) plus 'Fragments are weapons,' 'Verbs do the work,' 'Pictures, not labels,' 'Mechanism IS the proof,' and 'Concentrate specifics' all push toward MAXIMUM density on every sentence. No rule sanctions conversational filler, restatement, or low-density connective tissue. The model is correctly executing what it's told; what it's told has no slack."
+        },
+        {
+          "cause": "Uniform segment template — same internal arc every time",
+          "dimension": "Structure / Engagement",
+          "severity": "high",
+          "evidence": "listicle.md beat 4 prescribes 'reframe -> mechanism -> hard rule' for EVERY item-section. The model executes mechanically: every segment in perennials_v1 opens with a stencil ('Confess something' / 'Here's the one I promised you' / 'Most beginners get hostas exactly backwards' / 'What if I told you' / 'This is the big one'), ends with a hard rule under 10 words, and bridges with a teaser. Successful roses uses 10 segments with much more variation — the 'I promised you' callback appears ONCE.",
+          "diagnosis": "wrong_rule",
+          "why": "The listicle module's beat-by-beat arc applied to every item produces visible uniformity. The opener-variety rule prevents repeating the same opener but still forces an opener-as-rhetorical-move on every section — successful scripts often just start flatly. Successful writers vary segment SHAPE as well as content."
+        },
+        {
+          "cause": "Aphoristic closer enforced as mandatory, not optional",
+          "dimension": "Voice / Structure / LLM tells",
+          "severity": "high",
+          "evidence": "listicle.md beat 6c ('Hard rule before you leave') and beat 8 ('Aphorism button') BOTH require quotable lines at every segment end. Every perennials_v1 segment ends with one: 'Feet moist. Collar dry.' / 'Restraint now. Spears forever.' / 'Bury the shovel.' / 'Pick well. Bury the shovel.' / 'Right plant. Right seat. Non-negotiable.' Successful lavender Secret 5 ends with a flowing sentence — no aphorism. The repeated 4-word-verdict pattern is the single loudest LLM tell.",
+          "diagnosis": "rule_being_overdone",
+          "why": "Two rules push the same direction (hard rule + aphorism button) and both are mandatory per segment. The result is metronomic — every segment lands on the same percussive shape, and the device loses power through repetition. Successful writers use aphoristic closers sparingly, maybe twice per script."
+        },
+        {
+          "cause": "Mechanism explained as personification rather than biology",
+          "dimension": "Explanation Quality / Authority",
+          "severity": "medium",
+          "evidence": "Successful hydrangeas: 'Acidic soil (around pH 4.5 to 5.5) makes aluminum more available to the plant, which drives the flowers blue.' Names chemical agent, gating variable, directional cause-effect. Generated perennials: 'the soil insulates them from winter chill, and the plant decides this year isn't worth the show.' Personifies ('decides') and skips actual cold-requirement-for-bud-set biology.",
+          "diagnosis": "weak_rule",
+          "why": "The 'Mechanism over citation' rule says explain WHY in physical/biological/causal terms but doesn't ban load-bearing personification ('the plant decides') as the mechanism itself. The gardening channel's 'Plant as character with a survival agenda' rule actively encourages this. The two rules collide: character-personification fills the mechanism slot."
+        },
+        {
+          "cause": "Central metaphor over-extended across whole script",
+          "dimension": "Voice / LLM tells",
+          "severity": "medium",
+          "evidence": "Perennials hammers 'pension in the ground' across hook, segment 1, segment 2, conclusion ('pay you back for years,' 'savings plan,' 'a savings account that hasn't been funded yet,' 'Eat for two decades,' 'Collect the pension'). Successful lavender uses 'tough Mediterranean weed wearing a pretty dress' ONCE. The Echo phrase rule in gardening.md actively MANDATES 2-3 mid-body restatements plus a conclusion landing.",
+          "diagnosis": "rule_being_overdone",
+          "why": "The gardening channel's 'Echo phrase — metaphor-family exclusive' rule REQUIRES 2-3 restatements plus conclusion landing. The model correctly executes a mandatory rule, but the rule itself produces 'monolithic metaphor' — a writing exercise rather than knowledge."
+        },
+        {
+          "cause": "Credential-flexing jargon as expertise signal",
+          "dimension": "LLM tells / Voice",
+          "severity": "medium",
+          "evidence": "Generated drops 'tetraploid,' 'Hemerocallis fulva,' 'lignify before frost,' 'remontant,' 'doubled chromosome set' into beginner copy. The 'sandpaper sound at dusk' detail is too cinematic and too cleverly tied to the technical point. Successful lavender drops Latin only when distinguishing varieties the viewer will shop for ('Munstead and Hidcote').",
+          "diagnosis": "rule_being_overdone",
+          "why": "'Domain vocabulary is your credential' (gardening.md) plus 'Translate jargon in the same breath' (script_base) together encourage MORE jargon-drops because the model is rewarded for using them properly. Missing: a rule limiting jargon to terms the viewer needs to shop or act on."
+        }
+      ],
+      "proposed_interventions": [
+        {
+          "intervention": "Add a 'breathing-room' rule mandating low-density beats after high-density ones: 'After a fragment chain, metaphor reveal, or mechanism punch, the next 1-2 sentences must be deliberately low-density — conversational connective tissue, a restatement in plainer words, or a friendly aside. Conversational filler like Here's the thing, Now let's talk about, Let me sell you on, Are you ready, I know that sounds insane, One more thing on X is REQUIRED at least 3x per script and is not weakness — it is pacing.'",
+          "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+          "rationale": "Single missing counterweight to the density rules. Every other rule pushes toward maximum information-per-sentence; none sanction slack. Adding an explicit slack quota lets the model produce dynamic range rather than flat-peak prose. Addresses density maximization and bleeds into voice naturalness, pacing, and LLM-tells simultaneously.",
+          "leverage": "high",
+          "risk": "May cause mechanical insertion of filler phrases, creating new tells ('Here's the thing' becomes a new stencil). Mitigate by giving 4-5 example shapes and requiring variety. Slightly increases word count."
+        },
+        {
+          "intervention": "Soften listicle.md beat 6c+8 from mandatory to budgeted. Replace 'Hard rule before you leave' + 'Aphorism button' (both required per segment) with: 'Across the whole script, deploy 2-3 aphoristic closers MAXIMUM, reserved for the highest-stakes segments. Every other segment must close with either a flowing sentence, a story-image, or a clean handoff — NOT a 3-7 word verdict. The repeated 4-word-verdict pattern is the single loudest LLM tell.'",
+          "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+          "rationale": "The uniformity of segment closers is the most identifiable LLM tell, caused by a mandatory rule. Converting from per-segment requirement to per-script budget directly removes the metronomic feel.",
+          "leverage": "high",
+          "risk": "Model may under-deliver on memorable lines entirely. Mitigate by keeping the rule that the 2-3 used aphorisms must be earned. User may value aphoristic closers as brand signature."
+        },
+        {
+          "intervention": "Add an 'uneven segment shape' rule: 'At least 30% of segments must end CLEANLY — no aphorism, no thematic-bridge teaser, just stop and start the next segment with a fresh dare or framing. Forbid the X. The next Y. transition shape from appearing in more than 50% of seams.'",
+          "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+          "rationale": "Addresses the 'tour bus announcing the next stop' problem. The current 'Transitions are open loops' rule doesn't cap how OFTEN the open-loop transition appears, so the model uses it on every seam.",
+          "leverage": "medium",
+          "risk": "May produce abrupt seams. Mitigate by tying it to importance: 'leave flat the supporting/low-stakes segments; engineer bridges only for peak segments.'"
+        },
+        {
+          "intervention": "Ban load-bearing personification as mechanism. Add to script_base 'Mechanism over citation' section: 'Personification as COLOR is welcome (the plant sulks, the roots chase water) but personification as MECHANISM is banned. If the explanation hinges on a verb like decides, wants, panics, knows — the next sentence must give the actual physical/biological/chemical agent. Example BAD: the plant decides this year isn't worth the show. Example GOOD: the plant decides this year isn't worth the show — the dormancy hormones that trigger bud-set need real surface chill, and buried eyes never feel it.'",
+          "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+          "rationale": "The gardening channel's 'Plant as character' rule fights the 'Mechanism IS the proof' rule. This intervention resolves the collision: personification stays as flavor but never substitutes for biology. Addresses uneven explanation quality (great once or twice, weak elsewhere).",
+          "leverage": "medium",
+          "risk": "May push the model toward over-explaining mechanism in segments where the rule isn't needed. Real biology may not always be in research input — the rule needs to fail gracefully ('if mechanism isn't in research, cut the claim entirely')."
+        },
+        {
+          "intervention": "Demote the echo-phrase rule from MANDATORY restatement to OPTIONAL. Change gardening.md from 'One signature image, installed early, 2-3 mid-body restatements, 1 landing in conclusion — max 4 placements total' to 'AT MOST one signature image, used AT MOST twice in the script. Local, disposable metaphors per segment are the default. The pension-in-the-ground / savings-plan / insurance-policy pattern across an entire script reads as a writing exercise.'",
+          "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/channels/gardening.md",
+          "rationale": "The mandatory 2-3 restatements directly produces the 'monolithic metaphor' tell. Successful lavender uses its central metaphor ONCE. Cohesion is achieved via the running antagonist and master question, not via metaphor repetition.",
+          "leverage": "medium",
+          "risk": "May make scripts feel less unified or less brand-distinct. User may value the echo phrase as a craft signal. Test on a single script first; reversible if it reads as scattered."
+        },
+        {
+          "intervention": "Cap jargon to action-relevant terms only. Add to gardening.md 'Domain vocabulary': 'Latin binomials, cultivar names, and technical terms (tetraploid, lignify, anaerobic, remontant) appear ONLY when the viewer needs them to shop, identify, or act. Decorative jargon — biology terms dropped to signal expertise without changing what the viewer does — is banned. Test: if the term were removed, would the viewer's behavior change? If no, cut it.'",
+          "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/channels/gardening.md",
+          "rationale": "Directly addresses the credential-flexing LLM tell. Successful scripts pass this test naturally ('Munstead and Hidcote' tells you what to buy); generated fails it ('doubled chromosome set' in a daylily aside does nothing for the viewer).",
+          "leverage": "medium",
+          "risk": "Low. The model may slightly under-use vocabulary that does pass the test, but 'Domain vocabulary is your credential' still operates."
+        }
+      ],
+      "structural_observation": "The gap is real but narrowly located: it's a VOICE NATURALNESS and PACING issue, not a structure, substance, or craft issue. The same-topic hydrangeas comparison is the most honest data point in the bundle — sentence-for-sentence, generated is the better-written script. What still feels off is not the writing quality but the writing UNIFORMITY: every segment hits the same beats with the same density at the same tempo, because the prompt aggressively mandates density on every sentence and provides zero rules sanctioning slack, restatement, or flat connective tissue. This is not a model-ceiling issue and not unfixable — it's a rule-balance issue. The current prompt teaches everything a great script should HAVE (earned sentences, mechanism, fragments, vivid verbs, aphorisms, metaphors, callbacks) but nothing about what a great script ALLOWS ITSELF TO LACK in places (boring transitions, restating the same idea twice, a segment that ends flatly). The single highest-leverage move is adding a breathing-room counterweight; the second is demoting the per-segment aphorism mandate to a per-script budget. After those two changes, the remaining gap is largely aesthetic preference about register (sage vs friend), which is fixable but lower-leverage.",
+      "what_generated_does_BETTER_than_successful": [
+        "Stronger, more cinematic hooks with specific second-person sensory failure imagery (sagging shrub, crispy tan edges, leaves like wet flags)",
+        "Sharper sensory specifics inside instructions (tuna can = 1 inch, soil clumps like the edge of a brownie, two knuckles deep, no volcanoes, 2pm hairdryer test) — repeatedly flagged as 'screenshot-worthy'",
+        "Novel segment topics competitors don't cover (winter burlap cage for hydrangea bud protection, species-ID walk-outside diagnostic)",
+        "Tighter per-segment retention bridges that explicitly forward-reference the next segment's stake",
+        "More biologically substantiated explanation in the few places where it lands (macrophylla transpiration / leaf thickness differential)",
+        "Identity-payoff conclusions with stronger emotional resonance ('you're the gardener who builds a forest floor under it, not the one who trusts a plastic tag')",
+        "Higher density of named cultivars and per-species prescriptions when those serve the viewer's shopping decision"
+      ],
+      "next_question_for_user": [
+        "Strategic ordering: do you want the prompt to also drive OUTLINE-level decisions (which topics to cover, what to lead with)? The hydrangeas comparison shows generated had the wrong topic selection and lead-order — an outline problem, not a script problem, that the script prompt cannot fix.",
+        "Voice register target: do you want the channel to sound like a 'friend across the fence' (successful lavender/roses register — folksy, peer-level, kitchen metaphors) or are you fine with the current 'clever essayist with parables' register that the generated scripts produce? Both can work for gardening on YouTube; the fix path is very different depending on which you want.",
+        "Aphorism appetite: the 4-word verdict closers ('Feet moist. Collar dry.') are the loudest LLM tell, but they're also memorable and brandable. Are they an asset you want to keep (dialed down to 2-3 per script for impact), or a tell you want to mostly eliminate?",
+        "Audience accessibility vs. prose craft: generated runs ~1,950-2,150 words against successful ~1,850-2,600 with much higher per-sentence cognitive load. For beginners watching while folding laundry, accessibility matters more; for a sophisticated gardening audience, craft wins. Who is this channel actually for?"
+      ]
+    }
+  }
+}

@@ -101,18 +101,23 @@ def generate_script_draft(
         sample_script=sample_script,
     )
 
-    # max_tokens covers thinking + structured output combined. With ~70 rules
-    # spread across script_base + listicle + gardening, adaptive thinking can
-    # silently consume 10K+ tokens "reasoning about all the rules" and leave
-    # no room for the actual JSON — producing the truncated-JSON max_tokens
-    # crash. Cap thinking at 4K so the model can plan but not over-spiral; the
-    # remaining ~20K leaves comfortable headroom for the script JSON (which is
-    # ~3-5K tokens for a 10-min video).
+    # max_tokens covers thinking + structured output combined. Opus 4.7 uses
+    # `thinking.type=adaptive` with `output_config.effort` to cap thinking
+    # (not `thinking.budget_tokens` — that errors on this model). With the
+    # round-4 prompt simplification (~50% smaller), the model wastes less
+    # thinking on rule reconciliation, so the freed budget can go into actual
+    # script craft. effort=medium is the right default — low would just bank
+    # the simplification savings as cost reduction instead of letting them
+    # become quality. Bump to high if scripts feel under-cooked; drop to low
+    # only if cost becomes a problem and quality is still strong.
     with client.messages.stream(
         model="claude-opus-4-7",
         max_tokens=24576,
-        thinking={"type": "enabled", "budget_tokens": 4096},
-        output_config={"format": {"type": "json_schema", "schema": SCRIPT_SCHEMA}},
+        thinking={"type": "adaptive"},
+        output_config={
+            "format": {"type": "json_schema", "schema": SCRIPT_SCHEMA},
+            "effort": "medium",
+        },
         messages=[
             {
                 "role": "user",
