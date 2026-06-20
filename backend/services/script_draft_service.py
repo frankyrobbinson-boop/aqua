@@ -101,9 +101,14 @@ def generate_script_draft(
         sample_script=sample_script,
     )
 
+    # max_tokens covers thinking + structured output combined. The post-audit
+    # prompts ask for richer hooks (~250 words), longer conclusions (~150),
+    # and 6-8 beats per segment — a 10-min listicle can easily output 6-8 K
+    # tokens of JSON, plus adaptive thinking. 16K leaves ample headroom; bump
+    # higher if a very long video starts truncating again.
     with client.messages.stream(
         model="claude-opus-4-7",
-        max_tokens=8192,
+        max_tokens=16384,
         thinking={"type": "adaptive"},
         output_config={"format": {"type": "json_schema", "schema": SCRIPT_SCHEMA}},
         messages=[
@@ -128,8 +133,23 @@ RESEARCH:
         raise RuntimeError(
             f"No text block in Claude response; block types present: "
             f"{[b.type for b in response.content]}"
+            f"\nstop_reason={getattr(response, 'stop_reason', '?')}"
         )
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        # Surface the partial output so truncated-JSON failures are debuggable
+        # (mirrors the ffmpeg-stderr fix). If stop_reason is "max_tokens" the
+        # model ran out mid-response — bump max_tokens above.
+        stop_reason = getattr(response, "stop_reason", "?")
+        head = text[:400]
+        tail = text[-400:] if len(text) > 800 else ""
+        raise RuntimeError(
+            f"Script JSON did not parse (stop_reason={stop_reason}, "
+            f"text_len={len(text)}, error={e!r}).\n"
+            f"--- first 400 chars ---\n{head}\n"
+            f"--- last 400 chars ---\n{tail}"
+        ) from e
 
 
 def save_script_draft(project_name, script_draft):

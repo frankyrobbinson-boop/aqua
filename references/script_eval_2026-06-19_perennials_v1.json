@@ -1,0 +1,185 @@
+{
+  "summary": "Evaluate a newly generated script for engagement + explanation quality + structural integrity; diagnose which prompt rules worked, which didn't, and what to fix next round.",
+  "agentCount": 8,
+  "logs": [
+    "Reading script + relevant prompts. Each lens scores the script on its dimension and lists strengths + weaknesses with verbatim quotes.",
+    "Lens evaluation complete. Scores: retention=9, viewer-centered=9, language-craft=9, structural-rhythm=9, authority-clarity=9",
+    "Parallel: compare to successful samples + flag any moments that read as LLM-generated.",
+    "Comparison done. 9 gaps vs samples, 6 places script beats samples. Tells: naturalness=7/10, 22 specific tells, 11 repeated patterns flagged.",
+    "Synthesizer: map weaknesses to prompt rules (working / weak / missing / overdone). Propose next-round prompt edits."
+  ],
+  "result": {
+    "headline": "A strong B+ script that lands the engagement template at roughly 85% of sample quality — mechanism, sensory tableau, and structural rhythm are excellent, but the prompt has begun overproducing its own signature moves (staccato triple-fragment closers, \"Here's the X\" markers, \"not X / Y\" antithesis, banking metaphors) to the point where the cadence is visibly templated.",
+    "overall_grade": "B",
+    "grade_rationale": "All five lenses scored 9/10 and the comparison-vs-samples verdict is \"80–85% of sample quality.\" The script is shippable for personal-use stage and would genuinely retain. It is held back from an A by a tight cluster of related issues that all trace to the same root: rules that worked well in isolation are now firing simultaneously and stacking. The \"Here's the X\" anticipation marker appears 14 times, the triple-fragment closer pattern 6 times, the \"not X / Y\" antithesis 5 times, banking metaphors 7 times, and the \"pension in the ground\" echo phrase 4 times. The naturalness critique scored only 7/10 — the lowest score in the entire bundle — and its findings are corroborated by every other lens flagging \"phrasing repeats\" as a weakness. Segment 3 (hostas) is also genuinely undercooked on mechanism, which is the one substantive content gap. None of these are catastrophic; all are tunable at the prompt level.",
+    "lens_scores_table": [
+      {
+        "lens": "retention",
+        "score": 9,
+        "one_line": "Numbered cliffhanger planted and paid off, two escalation peaks landed, echo phrase recurs at spec'd cadence — but anticipation-marker phrasing repeats verbatim."
+      },
+      {
+        "lens": "viewer-centered",
+        "score": 9,
+        "one_line": "Felt-pain tableau and external-villain absolution land textbook clean; one 'raise your hand' opener and one 'you killed' phrase flirt with the banned register."
+      },
+      {
+        "lens": "language-craft",
+        "score": 9,
+        "one_line": "Sensory tableaux, kinetic verbs, and per-segment reframing metaphors are above-bar; one label-stack ('sours / rots / sulks') and one echo-too-close miss."
+      },
+      {
+        "lens": "structural-rhythm",
+        "score": 9,
+        "one_line": "Hook lands all 8 elements organically, conclusion executes the three-beat shape exactly, peak segments correctly weighted 1.35–1.5x — Seg 3->4 transition is the weakest seam."
+      },
+      {
+        "lens": "authority-clarity",
+        "score": 9,
+        "one_line": "Mechanism-as-proof carries every counterintuitive claim (rhizome photosynthesis, asparagus carbohydrate banking, peony chill-requirement); hosta mechanism is the thinnest of the five."
+      },
+      {
+        "lens": "llm-naturalness",
+        "score": 7,
+        "one_line": "Signature LLM tells visible: 'Here's the X' x14, triple-fragment closer x6, 'not X / Y' antithesis x5, em-dash + 3-adjective appositive stack — the prompt's own moves are now templating the output."
+      }
+    ],
+    "top_strengths": [
+      {
+        "strength": "Mechanism-as-proof carries every counterintuitive claim — rhizome photosynthesis explains iris rot, ferns-as-solar-panels explains the two-year wait, chill-requirement explains shallow peony depth. Viewer feels WHY, not just WHAT.",
+        "which_prompt_rule_drove_it": "script_base.md 'The mechanism IS the proof' rule (universal rules block, line 35) + listicle.md beat 3 'Mechanism — this is your authority'"
+      },
+      {
+        "strength": "Numbered cliffhanger from the hook ('section two is the one almost nobody gets right') is cashed verbatim at the top of Segment 2 with an explicit callback line — clean open-loop-then-payoff execution.",
+        "which_prompt_rule_drove_it": "script_base.md 'Tension thread' rule clause (b) — hook promises must be paid off out loud + listicle.md beat 1 callback requirement"
+      },
+      {
+        "strength": "Hook lands all 8 required elements (tableau, absolution, withheld promise, numbered bookmark, triadic end-state, transition thread) in one fluid block governed by rhythm, not a checklist — feels organic.",
+        "which_prompt_rule_drove_it": "script_base.md 'Universal structure / Hook' block (line 53) with explicit 'order and length are dictated by rhythm, not by a fixed beat count'"
+      },
+      {
+        "strength": "Conclusion executes the three-beat shape (compressed-recap drumroll -> single-action close -> identity beat with villain callback) and loops back to the hook's specific tableau ('the hollow donut, the lace-chewed leaves') — closes the script as one piece.",
+        "which_prompt_rule_drove_it": "script_base.md 'Universal structure / Conclusion' (line 64) prescribing exactly this three-beat order + 'Identity-conferring close' orientation rule"
+      },
+      {
+        "strength": "Tactile, body-based diagnostics ('press your fingertip on its back at midday it feels warm — sunbaked, like a little loaf of bread,' 'squeeze a handful of soil... like a slice of chocolate cake') give the viewer recognition tasks they can run today — beats the samples on participatory specificity.",
+        "which_prompt_rule_drove_it": "gardening.md 'Hands-in-the-soil commands' voice rule + script_base.md 'Diagnostic checklist' universal rule (line 49)"
+      }
+    ],
+    "top_weaknesses": [
+      {
+        "weakness": "'Here's the X' anticipation marker fires 14 times across a 7-segment script — averaging twice per segment. The pattern crosses from useful flag into visible verbal tic. Variants ('Here's the part nobody mentions / emphasizes / skips') sit within 3-4 segments of each other.",
+        "severity": "high",
+        "diagnosis": "rule_being_overdone",
+        "which_prompt_rule": "script_base.md 'Label the payoff before you deliver it' rule (line 26) + listicle.md beat 3 anticipation-marker requirement + gardening.md 'Flag your best lines before you say them'",
+        "proposed_fix": "Cap the 'Here's the X' construction at one per segment maximum and require the others to use varied shapes — a direct rhetorical question, a 'most people' aside, or just leaning straight into the rule without a flag. Add an explicit list of banned exact-phrase repetitions ('Here's the part nobody ___')."
+      },
+      {
+        "weakness": "Triple-fragment closer pattern ('Restraint now. Spears forever.' / 'Stop dividing. Start defending.' / 'Shallow crown. No flowers. Patient harvest.' / 'One plant. One depth. One afternoon.') fires 6 times — the script is reaching for it as a default beat shape. The hard-rule rule + fragments rule + rule-of-three rule are stacking into one repeated cadence.",
+        "severity": "high",
+        "diagnosis": "rule_being_overdone",
+        "which_prompt_rule": "listicle.md beat 6c 'Hard rule before you leave' + script_base.md 'Fragments are weapons' + 'Rule of three' — three rules pushing toward the same output shape",
+        "proposed_fix": "Add an explicit constraint in listicle.md beat 6c: 'The hard rule may be a single sentence, a two-clause aphorism, or a triple-fragment chain — vary the shape across sections. No more than ONE triple-fragment closer in any script.' Also note in script_base.md that 'Rule of three' and 'Fragments' should rarely fuse into the same beat twice in a row."
+      },
+      {
+        "weakness": "'Not X. Y.' antithesis frame ('You're not planting a to-do list. You're planting a pension in the ground.' / 'you're not harvesting vegetables. You're withdrawing from a savings account...' / 'That's not a vegetable bed. That's a pension in the ground...') fires 5 times and is one of the most recognizable LLM rhetorical tells. The metaphor often survives without the negation scaffold.",
+        "severity": "medium",
+        "diagnosis": "missing_rule",
+        "which_prompt_rule": "N/A — no current rule discourages this construction",
+        "proposed_fix": "Add a 'don't pre-negate the metaphor' rule in script_base.md voice section: 'Trust the metaphor without scaffolding. Avoid the \"you're not X, you're Y\" antithesis frame — it telegraphs construction. Lead with the image: \"You\\'re planting a pension in the ground\" lands cleaner than \"You\\'re not planting a to-do list. You\\'re planting a pension.\"'"
+      },
+      {
+        "weakness": "Echo phrase 'pension in the ground' lands 4 times, plus 'bank account' (asparagus) and 'bank vault' (peony) — the banking/finance metaphor cluster appears 7 times total. The echo-phrase rule was meant to install ONE recurring image; the model is now recycling its variant across every segment.",
+        "severity": "medium",
+        "diagnosis": "rule_fired_but_misexecuted",
+        "which_prompt_rule": "gardening.md 'One echo phrase per video' voice rule + script_base.md 'Tension thread' clause (c)",
+        "proposed_fix": "Tighten the rule: 'ONE echo phrase total. The phrase may recur 2-3 times mid-body and ONCE in the conclusion (max 4 total). Metaphor families count as one — if your echo is financial (pension), do not also introduce \"bank account,\" \"bank vault,\" or \"interest\" as fresh metaphors elsewhere. Use a non-overlapping metaphor family for any other section that needs an image.'"
+      },
+      {
+        "weakness": "Segment 3 (hostas) is genuinely undercooked on mechanism — 'Hostas spread on short rhizomes with dozens of dormant buds. Leave them in steady moisture... and they thicken into broad, heavy mounds for decades' is one sentence of mechanism vs. asparagus's full paragraph on carbohydrate banking. The format-mismatch problem the comparison flagged: 5 plants in 5 sections gives each less room than samples (1 topic across 5 dimensions).",
+        "severity": "medium",
+        "diagnosis": "weak_rule",
+        "which_prompt_rule": "listicle.md beats 3-4 (mechanism + counterintuitive-claim pairing) + script_base.md 'Main segments' word-balance rule (line 59)",
+        "proposed_fix": "In listicle.md, add: 'Every item-section must spend at least 3 sentences on mechanism (the why), not just on prescription (the what). If you cannot explain the mechanism in physical/biological terms for an item, replace the item — the section is not yet earned.' Also tighten supporting-segment guidance to require explicit mechanism even at 0.7x word count."
+      },
+      {
+        "weakness": "Em-dash + 3-adjective appositive stack ('The rhizome — that thick, knobby, horizontal stem sitting at the soil surface — is solar-powered' / 'Asparagus is a crown — a fat, octopus-looking bundle of buds and storage roots') fires 6 times. This is the prompt's 'translate jargon in the same breath' rule producing a single repeated syntactic shape.",
+        "severity": "low",
+        "diagnosis": "rule_fired_but_misexecuted",
+        "which_prompt_rule": "gardening.md 'Use domain vocabulary fluently' + script_base.md 'Translate jargon in the same breath' (line 45)",
+        "proposed_fix": "Add example variations to the rule: 'Vary the translation syntax — em-dash appositive, separate sentence, embedded relative clause, or parenthetical aside. Avoid stacking 3 adjectives inside the em-dash; one vivid adjective + a noun phrase is usually enough.' Show 2-3 different syntactic shapes in the rule itself."
+      },
+      {
+        "weakness": "Self-announcing transitions leak the section labels ('Now — section two. This is the big one.' / 'Now for the queen. Section five.') — labeling chapter numbers out loud breaks the conversational frame and reads as structural scaffolding rather than narration.",
+        "severity": "low",
+        "diagnosis": "weak_rule",
+        "which_prompt_rule": "script_base.md 'Transitions are open loops' (line 29) + listicle.md beat 7 + peak-marker guidance (line 61)",
+        "proposed_fix": "Add to script_base.md transitions rule: 'Never speak the section number aloud (\"now for section two,\" \"section five,\" \"item three\"). The cliffhanger and the peak marker do the work — labeling the chapter is for the editor, not the script.' The numbered cliffhanger in the HOOK is the one exception; everywhere else, refer to sections by their content."
+      }
+    ],
+    "next_round_prompt_edits": [
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "location": "Universal rules block — add after 'Label the payoff before you deliver it' (line 26)",
+        "edit_summary": "Cap 'Here's the X' construction at 1 per segment, and explicitly ban verbatim or near-verbatim repeats across segments ('Here's the part nobody ___'). Require varied flag shapes: rhetorical question, 'most people' aside, direct imperative, or simply landing the rule without a flag.",
+        "rationale": "The anticipation-marker rule is the single most overdone pattern in the script (14 instances). Adding a frequency cap and forcing variation is the highest-leverage single edit.",
+        "leverage": "high"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+        "location": "Beat 6c 'Hard rule before you leave'",
+        "edit_summary": "Specify that the hard rule may take any of three shapes (single sentence, two-clause aphorism, triple-fragment chain) and that no more than ONE triple-fragment chain is allowed in the entire script. Show 2-3 example shapes for variety.",
+        "rationale": "The triple-fragment closer fires 6 times because beat 6c, the fragments rule, and the rule-of-three rule are stacking. Capping and varying breaks the templated cadence the LLM-naturalness critique flagged.",
+        "leverage": "high"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "location": "Voice rules / language section — add new rule near 'Verbs do the work'",
+        "edit_summary": "Add 'Trust your metaphor — don't pre-negate it' rule. Ban the 'You're not X. You're Y.' antithesis frame. Show the image directly; the contrast is implied. Provide before/after examples.",
+        "rationale": "5 instances in one script of a known LLM rhetorical tell that survives without the scaffolding. Cheap to add, eliminates a recognizable AI signature.",
+        "leverage": "high"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/gardening.md",
+        "location": "'One echo phrase per video' voice rule (line 22)",
+        "edit_summary": "Tighten cadence: ONE echo phrase, max 4 total placements (2-3 mid-body + 1 in conclusion). Add metaphor-family exclusivity: if echo is financial ('pension'), banned from also using 'bank account / vault / interest' as fresh metaphors elsewhere. Same constraint applies to other channels' echo families.",
+        "rationale": "The echo phrase appeared 4 times AND the broader banking metaphor cluster appeared 7 times — the model treated 'echo' as license to recycle a metaphor family. Tightening prevents the central image from going from striking to tic.",
+        "leverage": "high"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+        "location": "Beats 3-4 (mechanism + counterintuitive-claim pairing)",
+        "edit_summary": "Add minimum-mechanism requirement: every item-section must spend at least 3 sentences on the physical/biological WHY, not just prescription. If mechanism can't be explained, replace the item. Applies even to supporting (0.7x word count) segments.",
+        "rationale": "Segment 3 (hostas) is the one substantive content weakness — single-sentence mechanism vs. asparagus's full paragraph. A floor forces depth even in lean segments.",
+        "leverage": "medium"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "location": "'Transitions are open loops' rule (line 29) + listicle.md beat 7",
+        "edit_summary": "Add explicit ban: never speak section numbers aloud in transitions or peak markers ('section two,' 'section five,' 'item three'). Refer to upcoming sections by their content, not their number. Only exception is the hook's numbered cliffhanger.",
+        "rationale": "'Now — section two,' 'Section five' breaks the conversational voice and exposes scaffolding. Easy one-line fix that closes a visible LLM tell.",
+        "leverage": "medium"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_base.md",
+        "location": "'Translate jargon in the same breath' rule (line 45)",
+        "edit_summary": "Add syntactic-variety requirement and discourage 3-adjective stacks inside em-dash appositives. Show at least 3 different translation patterns (em-dash appositive, separate sentence, embedded relative clause, parenthetical).",
+        "rationale": "The em-dash + adjective-stack pattern fired 6 times because the rule's example is itself that shape. Showing variation in the rule produces variation in output.",
+        "leverage": "medium"
+      },
+      {
+        "file": "/Users/aidanmcomie/Documents/Aqua/backend/prompts/script_modules/listicle.md",
+        "location": "Beat 1 (opening reframe) — vary opening moves rule near the end",
+        "edit_summary": "Explicitly ban 'Here's your first mindset shift' and 'Raise your hand if' as opening moves — both flagged as templated. List 5-6 alternative concrete opening shapes with examples. Require each section in a script to use a DIFFERENT opening shape.",
+        "rationale": "Two of the segment openers were called out as the most generic moves in the script. Banning the specific worn phrasings and requiring section-to-section variety forces fresher cold-opens.",
+        "leverage": "medium"
+      }
+    ],
+    "open_questions_for_user": [
+      "Is 'pension in the ground' the intended permanent echo phrase for the gardening channel, or was it just this video's? If permanent, we may need to architect echo phrases at the channel-preset level rather than per-script — and explicitly stop the model from inventing banking-family variants.",
+      "On segment depth: are you OK with the 'breadth' shape (5 different items at 244-369 words each) or do you want to push the listicle toward sample-style 'depth' (1 topic across 5 dimensions, with each section 300-400 words)? This is a strategic call that affects every listicle script going forward.",
+      "The triple-fragment closer ('Stop dividing. Start defending.') is genuinely punchy when used once — is the right move to cap it at 1 per script, or to remove it entirely as a sanctioned shape because the LLM will always over-reach for it?",
+      "Should we treat the 'Here's the X' anticipation marker as a useful frequency-limited device (cap at 1/segment) or strip it out of the rules entirely and rely on rhetorical variety to flag the payoff? The current 14 instances suggest the rule may be doing more harm than good."
+    ]
+  }
+}
