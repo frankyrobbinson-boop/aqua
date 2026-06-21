@@ -77,18 +77,27 @@ def compose_outline_prompt(
     topic: str,
     target_minutes: int,
     additional_instructions: str | None = None,
+    item_count: int | None = None,
 ) -> str:
     """Splice channel + structure module + variable substitutions in priority order:
 
     1) CHANNEL (narrator/audience/voice — trusted system content, first)
     2) STRUCTURE_MODULE (per-video-type structure — trusted)
-    3) {topic}, {target_minutes} (our vars)
+    3) {topic}, {target_minutes}, {item_count} (our vars)
     4) ADDITIONAL_INSTRUCTIONS (user content last, so braces in it can't be
        captured by the var step)
+
+    ``item_count`` is only meaningful for the listicle module (whose template
+    uses ``{item_count}``); other modules ignore the token. Defaults to 5 so
+    callers that don't know about listicles still produce a valid prompt.
     """
     text = base.replace(CHANNEL_SLOT, channel_content)
     text = text.replace(STRUCTURE_SLOT, structure_module)
-    text = text.replace("{topic}", topic).replace("{target_minutes}", str(target_minutes))
+    text = (
+        text.replace("{topic}", topic)
+        .replace("{target_minutes}", str(target_minutes))
+        .replace("{item_count}", str(item_count if item_count is not None else 5))
+    )
     text = text.replace(
         ADDITIONAL_INSTRUCTIONS_SLOT,
         _additional_block(additional_instructions),

@@ -29,6 +29,7 @@ def generate_outline(
     channel: str | None = None,
     video_type: str | None = None,
     additional_instructions: str | None = None,
+    item_count: int | None = None,
 ):
     research = load_research(project_name)
     base = _load_outline_base()
@@ -42,6 +43,7 @@ def generate_outline(
         topic=topic,
         target_minutes=target_minutes,
         additional_instructions=additional_instructions,
+        item_count=item_count,
     )
 
     response = client.responses.create(

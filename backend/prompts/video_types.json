@@ -10,7 +10,7 @@
     },
     {
       "id": "listicle",
-      "label": "Listicle (5 items)",
+      "label": "Listicle",
       "description": "A countable set of things. One item per segment, each a character with a secret. Best for \"5 ancient gardening secrets\"-style videos.",
       "outline_module": "outline_modules/listicle.md",
       "script_module": "script_modules/listicle.md"

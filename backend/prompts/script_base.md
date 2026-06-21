@@ -38,7 +38,7 @@ Inputs:
 
 Each section can have its own shape. Some lead with the rule, some lead with the mechanism, some lead with the mistake. Don't follow a template. What every section needs: a clear point, a plain explanation of why, and enough specifics for the viewer to act.
 
-When transitioning into a section the hook bookmarked, pay it off out loud once ("here's the one I promised you"). Otherwise, no spoken section numbers and no "next, we'll talk about…" logistics — just move.
+When transitioning into a section the hook bookmarked, no "next, we'll talk about…" — just move.
 
 Each segment needs a `visual_notes`: one short line on mood and subject.
 

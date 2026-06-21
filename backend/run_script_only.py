@@ -84,6 +84,7 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
     hook_archetype = config.get("hook_archetype")
     additional_instructions = config.get("additional_instructions")
     sample_script = config.get("sample_script")
+    item_count = config.get("item_count")
     if channel:
         print(f"      channel: {channel}", flush=True)
     if video_type:
@@ -117,6 +118,7 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
         channel=channel,
         video_type=video_type,
         additional_instructions=additional_instructions,
+        item_count=item_count,
     )
     save_outline(project_name, outline)
     print(f"      outline saved  ({len(outline.get('sections', []))} sections)")

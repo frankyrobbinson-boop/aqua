@@ -48,6 +48,9 @@ class ScriptRequest(BaseModel):
     # Selects the outline/script structure module from video_types.json.
     # None falls back to the registry's default_type at run time.
     video_type: Optional[str] = None
+    # Number of items for the listicle video_type. Ignored by other types.
+    # None falls back to 5 in compose_outline_prompt.
+    item_count: Optional[int] = Field(default=None, ge=3, le=12)
     hook_archetype: Optional[str] = None
     # ElevenLabs `speed` voice setting (0.8–1.2). 1.0 = native rate.
     voice_speed: Optional[float] = Field(default=None, ge=0.8, le=1.2)
@@ -84,6 +87,7 @@ def _write_script_config(backend_dir: Path, project_slug: str, req: "ScriptReque
     config = {
         "channel": req.channel or default_channel_id(),
         "video_type": req.video_type or default_type_id(),
+        "item_count": req.item_count,
         "additional_instructions": req.additional_instructions,
         "sample_script": req.sample_script,
         "voice_speed": req.voice_speed if req.voice_speed is not None else 1.0,

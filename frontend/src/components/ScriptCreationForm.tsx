@@ -37,6 +37,7 @@ export function ScriptCreationForm({
   const [topic, setTopic] = useState("");
   const [targetMinutes, setTargetMinutes] = useState(10);
   const [videoType, setVideoType] = useState<string | undefined>(undefined);
+  const [itemCount, setItemCount] = useState(5);
   const [preResearch, setPreResearch] = useState("");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [sampleScript, setSampleScript] = useState("");
@@ -71,6 +72,8 @@ export function ScriptCreationForm({
       target_minutes: targetMinutes,
       project_slug: projectSlug,
       video_type: videoType,
+      // Only send when the listicle module is selected; other types ignore it.
+      item_count: videoType === "listicle" ? itemCount : undefined,
       hook_archetype: hookArchetype,
       channel: channel,
       pre_research: preResearch.trim() || undefined,
@@ -148,6 +151,27 @@ export function ScriptCreationForm({
           <ChannelSelect value={channel} onChange={setChannel} disabled={submitting} />
         </Row>
       </div>
+
+      {videoType === "listicle" && (
+        <Row
+          label="Number of items"
+          hint={`~${itemCount * 250 + 450} words total`}
+        >
+          <input
+            type="number"
+            min={3}
+            max={12}
+            value={itemCount}
+            onChange={(e) =>
+              setItemCount(
+                Math.max(3, Math.min(12, Number(e.target.value) || 5)),
+              )
+            }
+            disabled={submitting}
+            className="form-input"
+          />
+        </Row>
+      )}
 
       <Row label="Hook opening" optional hint="Beat 1 archetype">
         <HookArchetypeSelect

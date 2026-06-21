@@ -32,7 +32,10 @@ def generate_tts_prep(project_name: str) -> dict:
     # A 10-min script can be ~5K tokens of JSON; 16K leaves a safe margin.
     # Old default of 4096 silently truncated on anything over ~600 words.
     with client.messages.stream(
-        model="claude-opus-4-7",
+        # Mechanical rewrite (expand numerals, replace symbols, split long
+        # sentences, insert breaks) — no Opus-level reasoning needed. Haiku 4.5
+        # handles JSON-schema enforcement identically and is ~15x cheaper here.
+        model="claude-haiku-4-5-20251001",
         max_tokens=16384,
         output_config={"format": {"type": "json_schema", "schema": SCRIPT_SCHEMA}},
         messages=[{

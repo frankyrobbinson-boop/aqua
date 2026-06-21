@@ -44,6 +44,8 @@ export type ScriptRequest = {
   project_slug?: string;
   /** Selects the outline/script structure module from video_types.json. */
   video_type?: string;
+  /** Number of items for the listicle video_type (3–12). Ignored by other types. */
+  item_count?: number;
   hook_archetype?: string;
   /** ElevenLabs voice speed (0.8–1.2). 1.0 = native rate. */
   voice_speed?: number;
