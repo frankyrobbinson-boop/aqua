@@ -48,6 +48,7 @@ Field notes:
     - the curiosity gap this section opens on — a question, myth, or what-if;
     - the *mechanism anchor* — the physical, biological, or causal reason the section's claim is true, in one short phrase the script can paraphrase ("deadheading hijacks the plant's seed-setting program," "wet cold roots rot the crown"). Default to mechanism; a named-expert anchor is optional and only when the research has one;
     - the mistake corrected, framed as something the viewer was *led into*, not something they did wrong.
+    For videos with target_minutes ≥5 AND ≥6 sections, ONE mid-stack section (~40-60% position) must include in its `purpose` text an explicit forward-reference pulling something not-yet-revealed from the back half.
 - "key_material" lists which facts or statistics from the research that section should use.
 - Each section title must be a micro-thesis, not a label. Test: would this title alone make someone curious? "Pruning" fails; "Prune With Purpose, Not Fear" passes. Use contrast, metaphor, or a verb-driven imperative — never a category noun. Examples from the gardening channel: "STOP TREATING IT LIKE A PLANT, START TREATING IT LIKE A WEED," "Roses Don't Want Sun. They're Addicted to It." The title itself is a hook for the section.
 

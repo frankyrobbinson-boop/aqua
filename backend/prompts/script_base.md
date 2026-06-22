@@ -36,7 +36,7 @@ Inputs:
 
 **Main segments.** One per outline section. Average ~{words_per_segment} words, but they don't all have to be the same size — let the important ones run longer and the lighter ones run shorter. Cumulative total should land near ~{total_word_target} words.
 
-Sections don't share a shape — lead with rule, mechanism, or mistake. Each needs a clear point, a plain explanation of why, and enough specifics for the viewer to act.
+Sections don't share a shape — lead with rule, mechanism, or mistake. Each needs a clear point, a plain explanation of why, and enough specifics for the viewer to act. If a section is flagged as the mid-point re-hook, plant one forward-reference line that opens a fresh loop pointing to a later reveal ("the next one is the one most people get wrong"). Skip for videos under 5 minutes.
 
 When transitioning into a section the hook bookmarked, no "next, we'll talk about…" — just move.
 
@@ -53,6 +53,19 @@ Each segment needs a `visual_notes`: one short line on mood and subject.
 {{SAMPLE_SCRIPT}}
 
 {{ADDITIONAL_INSTRUCTIONS}}
+
+# Self-check before output
+
+Silently audit your draft against these before serializing. Fix in this same draft; don't explain. Return only the JSON below.
+
+1. Hook names a felt pain, not abstract problem
+2. Echo phrase planted in hook + ≥2 sections + conclusion
+3. No item names leaked in hook (if listicle)
+4. Every section ends on an open loop
+5. Mid-point re-hook present (for ≥5-min videos)
+6. Conclusion names the original stuck-state as dissolved
+7. No "next, we'll talk about…" bridges
+8. Specifics present at action moments — no "regularly"/"as needed"
 
 # Output
 
