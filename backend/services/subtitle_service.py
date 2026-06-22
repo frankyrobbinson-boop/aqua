@@ -120,10 +120,14 @@ def _is_dash_token(token: str) -> bool:
 
 
 def _clean_display(token: str) -> str:
-    """Strip em-dashes (—) and en-dashes (–) for subtitle display. Keep
-    regular hyphens (-) so compound words like 'year-old' stay intact."""
+    """Replace em-dashes (—) and en-dashes (–) with a space for subtitle
+    display. ElevenLabs returns dash-joined phrases like 'tag—Wave,' or
+    'days—perfect.' as a single audio token; stripping the dash to empty
+    glues the halves into 'tagWave' / 'daysperfect'. Replacing with a space
+    keeps the words visually separated. Regular hyphens (-) are kept so
+    compound words like 'year-old' stay intact."""
     for d in _EM_DASHES:
-        token = token.replace(d, "")
+        token = token.replace(d, " ")
     return token
 
 
