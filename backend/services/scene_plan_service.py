@@ -59,7 +59,11 @@ def generate_scene_plan(project_name):
     prompt = load_scene_plan_prompt().replace("{topic}", topic)
 
     with client.messages.stream(
-        model="claude-opus-4-7",
+        # Structured creative judgment (visual concept per beat) — Sonnet 4.6
+        # handles this class of task well at ~5x lower cost than Opus 4.7.
+        # If scene cuts get sloppy on real videos, the next step is "keep Opus
+        # but drop adaptive thinking," not a return to Opus + thinking.
+        model="claude-sonnet-4-6",
         max_tokens=32000,
         thinking={"type": "adaptive"},
         output_config={"format": {"type": "json_schema", "schema": SCENE_PLAN_SCHEMA}},
