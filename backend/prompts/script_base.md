@@ -35,7 +35,7 @@ Inputs:
 
 **Main segments.** One per outline section. Average ~{words_per_segment} words, but they don't all have to be the same size — let the important ones run longer and the lighter ones run shorter. Cumulative total should land near ~{total_word_target} words.
 
-Each section can have its own shape. Some lead with the rule, some lead with the mechanism, some lead with the mistake. Don't follow a template. What every section needs: a clear point, a plain explanation of why, and enough specifics for the viewer to act.
+Sections don't share a shape — lead with rule, mechanism, or mistake. Each needs a clear point, a plain explanation of why, and enough specifics for the viewer to act.
 
 When transitioning into a section the hook bookmarked, no "next, we'll talk about…" — just move.
 
