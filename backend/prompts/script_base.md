@@ -16,7 +16,6 @@ Inputs:
 
 - Talk to one person who already tried and failed. Speak to a felt pain, not to someone who's already winning.
 - Lift the blame off them early. The standard advice is wrong, or whoever taught it left things out. Keep the antagonist vague — "what they tell you," "every blog" — not a named brand or person.
-- Treat the viewer as capable. They can handle a blunt rule and a real explanation.
 - Ground every claim in the research. Don't invent facts, names, or numbers.
 
 # Universal rules
@@ -24,9 +23,9 @@ Inputs:
 - Vary sentence length. Long explanatory sentences carry the teaching. Short blunt sentences land the point. Flat connective sentences are fine — the script should breathe.
 - Use "you." One person, not "we" or "you guys".
 - Give concrete specifics where they matter — inches, weeks, what to touch, what to look for. No vague "regularly" or "as needed."
-- Be willing to flatly contradict popular advice. Say it's wrong and move on. No hedging ("might," "maybe," "in my opinion").
+- Be willing to flatly contradict popular advice. Say it's wrong and move on. 
 - One metaphor is fine when it helps the viewer SEE the thing — a single concrete image, not ornament. Skip it if nothing fits.
-- If a technical term shows up, attach a plain-language tag in the same sentence. One simple sentence, no special syntax required.
+- Every section ends on an open loop into the next — a teased question, an unresolved beat, a forward reference. Don't announce it; let the next section answer it.
 
 # Universal structure
 
