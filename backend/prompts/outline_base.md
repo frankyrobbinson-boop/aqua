@@ -36,7 +36,6 @@ Field notes:
 - "hook" must be a single string. The hook string must contain ALL of these elements; order is dictated by rhythm, not by a fixed list. The scriptwriter will arrange them.
     Stakes: the pain or stuck-state the hook opens on — named as a private failure the viewer has lived ("you've killed X before," "your X keeps Ying"), not an abstract problem.
     Felt-pain tableau: the specific physical image of the viewer's failed [subject] right now ("a pile of dried twigs," "a sad leggy stick with three brown leaves") — not a generic problem statement.
-    Click confirmation: one beat that lands the title's exact phrase or claim back to the viewer so they feel "yes, I'm in the right place." Woven into the felt-pain tableau, not a separate intro line.
     Villain: external antagonist — industry, conventional wisdom, the assumption that was sold to the viewer. 
     Withheld promise: what the hook promises without revealing — e.g. "N free fertilizers your kitchen makes nightly" WITHOUT naming any of them.
     Plan signal: one compressed line previewing the shape of what's coming — count, escalation pattern, "the second one nobody warns you about." Must NOT name items; coordinates with Withheld promise.

@@ -236,7 +236,7 @@ export function ScriptCreationForm({
           value={sampleScript}
           onChange={(e) => setSampleScript(e.target.value)}
           rows={3}
-          placeholder="Paste a successful script (saved, prompt-wiring TBD)..."
+          placeholder="Paste a successful script — the writer will match its rhythm and pacing without copying its structure or topic."
           className="form-input font-mono text-xs"
           disabled={submitting}
         />

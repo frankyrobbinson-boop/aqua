@@ -25,8 +25,15 @@ Inputs:
 - Use "you." One person, not "we" or "you guys".
 - Give concrete specifics where they matter — inches, weeks, what to touch, what to look for. No vague "regularly" or "as needed."
 - Be willing to flatly contradict popular advice. Say it's wrong and move on. 
-- One metaphor is fine when it helps the viewer SEE the thing — a single concrete image, not ornament. Skip it if nothing fits.
+- One metaphor is fine when it helps the viewer SEE the thing — a single concrete image, not ornament. Skip it if nothing fits. Every metaphor must pass a comprehension test: would a viewer who knows nothing about this topic understand it on first listen? If it only makes sense AFTER the answer has been explained, rewrite literally. Failures: "stop fighting the cloud in the air" — meaningless before the viewer understands the answer. "the mosquito is already a finished product" — clever-sounding, conveys no information.
 - Every section ends on an open loop into the next — a teased question, an unresolved beat, a forward reference. Don't announce it; let the next section answer it.
+- First time a tool, product, or domain term appears, the same sentence must say what it is in a short clause AND say where to get it or what it costs when relevant. Use the research's plain-language gloss if one exists. Example: "A Mosquito Dunk — the little beige donut at the hardware store, about a dollar apiece."
+- Avoid these patterns — they sound clever but read as performance:
+    - "X is not Y. X is Y." aphorism construction → "The stink isn't a side effect. The stink is the whole trap."
+    - "You weren't X, you were Y" reframe → "You weren't losing because you were lazy. You were losing because you were swinging at adults."
+    - Tagline / catchphrase outros (4-word slogans at the end) → "Rotten tea, quiet yard."
+    - Em-dash withholding as a structural device → "one detail — one line — that decides…"
+    - Performative parallel tricolons → "Dose the surface, not the depth. Shade, not sun. Stink, not clean."
 
 # Universal structure
 
@@ -66,6 +73,7 @@ Silently audit your draft against these before serializing. Fix in this same dra
 6. Conclusion names the original stuck-state as dissolved
 7. No "next, we'll talk about…" bridges
 8. Specifics present at action moments — no "regularly"/"as needed"
+9. Read each metaphor and abstract phrase: would a friend hearing it for the first time know what it means? If not, rewrite literally.
 
 # Output
 
