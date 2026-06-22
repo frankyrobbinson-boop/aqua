@@ -14,6 +14,7 @@ Inputs:
 
 # Orientation
 
+- Every paragraph should be more useful, more vivid, or more surprising than the title led the viewer to expect.
 - Talk to one person who already tried and failed. Speak to a felt pain, not to someone who's already winning.
 - Lift the blame off them early. The standard advice is wrong, or whoever taught it left things out. Keep the antagonist vague — "what they tell you," "every blog" — not a named brand or person.
 - Ground every claim in the research. Don't invent facts, names, or numbers.
@@ -41,7 +42,7 @@ When transitioning into a section the hook bookmarked, no "next, we'll talk abou
 
 Each segment needs a `visual_notes`: one short line on mood and subject.
 
-**Conclusion (~120–180 words).** Recap the points in tight, rhythmic short sentences — don't name them as a numbered list, just run them past the viewer. Hand them one thing to actually do this week. Close on who they get to be now that they know this — a warm sentence pointed back out at their life. The CTA goes in the separate `cta` field.
+**Conclusion (~120–180 words).** Recap the points in tight, rhythmic short sentences — don't name them as a numbered list, just run them past the viewer. Hand them one thing to actually do this week. Close on who they get to be now that they know this — a warm sentence pointed back out at their life. Reuse the felt-pain tableau from the hook (the dead twigs, the leggy stick) and land that it's gone — not "remember when I said," just the imagery returning, dissolved. The CTA goes in the separate `cta` field.
 
 # How to organize this video type
 
