@@ -5,4 +5,3 @@
 - Keep conventional wisdom as the running antagonist.
 - At least one corrected action must be a STOP, not a START — "stop watering," "stop feeding," "stop pruning in fall." The rescue from the myth is permission to put down a chore the viewer has been failing at, not another task to add.
 - When the corrected action is genuinely shocking, say the instruction in a short declarative sentence, then pause with a one-line acknowledgement — "I know that sounds insane," "yes, really," "trust me for one more sentence" — and only then explain why. The gap is what makes the explanation feel earned.
-- For each myth, find one reframing metaphor that flips how the viewer categorizes the subject after the turn ("it's not a houseplant, it's a desert weed wearing a dress").
