@@ -1,6 +1,6 @@
 - Voice the myth the way the viewer believes it — sympathetically, so they feel seen, not scolded.
 - Dramatize the wound: describe the painful outcome of believing the myth (the dead plant, the wasted year, the disappointing harvest) BEFORE you puncture it. The viewer should physically recognize themselves doing the wrong thing; only then does the correction land.
-- The turn: deliver the corrected action before the explanation ("here's what's actually happening"), then a single short imperative or fragment-chain the viewer can repeat (under 10 words: "Deep, lazy, low." / "Treat it like a weed, not a pet.").
+- The turn: deliver the corrected action before the explanation ("here's what's actually happening"), then a single short imperative the viewer can repeat (under 10 words: "Treat it like a weed, not a pet."). A fragment-chain or triple-beat ("Deep, lazy, low.") is optional here — use it only when it lands, and respect the per-segment tricolon cap in script_base.md.
 - Mechanism: the physical or causal reason the myth is wrong — not cited studies or named experts.
 - Keep conventional wisdom as the running antagonist.
 - At least one corrected action must be a STOP, not a START — "stop watering," "stop feeding," "stop pruning in fall." The rescue from the myth is permission to put down a chore the viewer has been failing at, not another task to add.

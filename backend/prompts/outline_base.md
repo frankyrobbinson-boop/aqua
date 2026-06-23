@@ -7,6 +7,8 @@ The payoff must exceed what the title promised, not just satisfy it. Cuts, order
 
 Every section adds to the payoff the title promised. 
 
+The title is a contract. Extract its specific claim, verb, or numeric promise — the rest of the outline must be a plan to deliver that exact claim. If the research doesn't support the title's strongest verb or number, downgrade the title at planning time; don't write a stronger title than the body can defend.
+
 # Channel
 
 {{CHANNEL}}

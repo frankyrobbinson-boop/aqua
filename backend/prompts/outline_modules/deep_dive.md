@@ -3,5 +3,6 @@ Deep-dive structure. ONE subject, explored in depth. Use when the title promises
 - **Sections build on the last** — a deliberate sequence, each section built on the one before.
 - **Withhold the how-to.** Section 1 hooks with the payoff and the stakes but must NOT hand over the full method. If the viewer can act after section 1, they leave.
 - Sequence: open the loop (what's possible + what's at stake) → why it works / the mechanism → the surprising detail most people miss → the complete actionable method → the stakes resolved.
+- **Penultimate-spike.** The biggest stake, surprise, or payoff lands in slot N-1, not slot N. The final slot is resolution and identity, not climax — don't let the strongest beat default into the closing position.
 - Distribute the "common mistake" beats across sections rather than saving them for the end.
 - 4–6 sections.
