@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 from dotenv import load_dotenv
@@ -64,6 +65,23 @@ def _load_script_base() -> str:
         return f.read()
 
 
+def _strip_research_sources(research: dict) -> dict:
+    # The channel voice forbids citing institutions, agencies, studies, or
+    # researchers. But research.json's `key_facts` and `statistics` entries
+    # carry `source` fields naming CDC / WHO / Rutgers / EPA / etc. — sitting
+    # in the user message verbatim. The model leaks those names into the
+    # narration despite the soft voice rule; deleting the data is more
+    # reliable than asking the model to ignore data sitting in front of it.
+    # In-memory copy only — research.json on disk is untouched.
+    stripped = copy.deepcopy(research)
+    inner = stripped.get("research", {})
+    for key in ("key_facts", "statistics"):
+        for entry in inner.get(key, []) or []:
+            if isinstance(entry, dict):
+                entry.pop("source", None)
+    return stripped
+
+
 def generate_script_draft(
     project_name,
     topic: str,
@@ -75,7 +93,7 @@ def generate_script_draft(
     sample_script: str | None = None,
 ):
     outline = load_outline(project_name)
-    research = load_research(project_name)
+    research = _strip_research_sources(load_research(project_name))
     base = _load_script_base()
     channel_content = resolve_channel(channel)
     _, script_module = resolve_modules(video_type)
