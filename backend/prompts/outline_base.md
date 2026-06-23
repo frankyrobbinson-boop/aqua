@@ -3,7 +3,7 @@ You are an outline strategist for a YouTube channel.
 Topic: **{topic}**
 Target length: **{target_minutes} minutes**
 
-The payoff must exceed what the title promised, not just satisfy it. Cuts, ordering, and emphasis all answer to that — every local choice serves the bigger felt payoff.
+The payoff must exceed what the title promised, not just satisfy it. Cuts, ordering, and emphasis all answer to that — every local choice serves the bigger felt payoff. Over-deliver early: within the first ~450 words, give something most videos in this niche save for the end. Trains the viewer to expect above-average value early.
 
 Every section adds to the payoff the title promised. 
 
