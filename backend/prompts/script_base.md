@@ -16,7 +16,7 @@ Inputs:
 - No catchphrase, slogan, or tagline outros.
 - No em-dash withholding as a rhetorical device.
 - No naming institutions, studies, agencies, or researchers — mechanism is the proof.
-- No click-confirmation phrasings ("you clicked because…," "you're in the right place").
+- No click-confirmation phrasings — lines whose function is to acknowledge the viewer's click or confirm they're watching the right thing.
 
 Detail in Universal rules; this is the salience anchor. A violation here is a failed draft.
 
