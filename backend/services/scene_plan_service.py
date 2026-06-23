@@ -61,11 +61,13 @@ def generate_scene_plan(project_name):
     with client.messages.stream(
         # Structured creative judgment (visual concept per beat) — Sonnet 4.6
         # handles this class of task well at ~5x lower cost than Opus 4.7.
-        # If scene cuts get sloppy on real videos, the next step is "keep Opus
-        # but drop adaptive thinking," not a return to Opus + thinking.
+        # Thinking disabled: adaptive thinking was burning the full 32K token
+        # budget before any output, leaving response.content with only a
+        # thinking block and no text block. Sonnet handles this structured
+        # task fine without thinking; if quality drops, re-enable but cap
+        # budget tightly (e.g., output_config.effort="low").
         model="claude-sonnet-4-6",
         max_tokens=32000,
-        thinking={"type": "adaptive"},
         output_config={"format": {"type": "json_schema", "schema": SCENE_PLAN_SCHEMA}},
         messages=[
             {
