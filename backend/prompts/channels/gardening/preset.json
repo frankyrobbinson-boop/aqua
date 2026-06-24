@@ -5,14 +5,14 @@
   "color": "#7c7c3a",
   "preferred_hook_archetype": "scene",
   "visuals": {
-    "style_description": "",
+    "style_description": "Warm, natural daylight photography in real backyards — not studio, not magazine-perfect. Slightly desaturated, documentary feel. Plants as they actually look: dewy, dusty, sometimes imperfect. Tight depth of field on the subject; wide shots include realistic clutter (mulch, hoses, fences). Cool morning or warm late-afternoon light. Avoid commercial stock-photo polish and over-saturated greens.",
     "reference_image_paths": [],
     "character": {
       "enabled": false,
       "image_path": null,
       "strength": 0.7
     },
-    "creative_direction": "",
+    "creative_direction": "Show the problem before the solution — dying plants, stressed leaves, container puddles — when the script names a pain point. No faces or recognizable people; hands and tools are fine. Wide context shots for explanation, tight close-ups for action. When the script names a product or measurement, make it recognizable to a viewer at the hardware store.",
     "image_prompt_model": "claude-haiku-4-5-20251001"
   }
 }
