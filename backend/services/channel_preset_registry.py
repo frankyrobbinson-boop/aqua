@@ -148,6 +148,35 @@ def get_voice_module(channel_id: str | None) -> str:
     return path.read_text()
 
 
+def save_voice_module(channel_id: str, content: str) -> None:
+    """Atomically write ``channels/<id>/voice.md``. Validates the channel id
+    against the slim registry; unknown id raises ``ValueError``.
+
+    Tempfile + ``os.replace`` mirrors ``_atomic_write_json`` so a concurrent
+    reader (a pipeline subprocess loading the voice module) never sees a
+    half-written file."""
+    reg = _load_registry()
+    if channel_id not in reg["channels"]:
+        raise ValueError(
+            f"Unknown channel: {channel_id!r}. Known: {reg['channels']}"
+        )
+    target = _voice_path(channel_id)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent)
+    )
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(content)
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
 def verify_presets() -> None:
     """Boot guard: every channel in the slim registry must have a preset.json
     and a voice.md. Surfaces broken state at boot rather than mid-run."""

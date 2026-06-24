@@ -8,6 +8,8 @@
  */
 import { useQuery } from "@tanstack/react-query";
 import {
+  getChannelPreset,
+  getChannelVoice,
   getProject,
   getScenes,
   getVisualConfig,
@@ -21,6 +23,13 @@ export const projectKeys = {
   scenes: (slug: string) => [...projectKeys.all, "scenes", slug] as const,
   visualConfig: (slug: string) =>
     [...projectKeys.all, "visualConfig", slug] as const,
+};
+
+export const channelKeys = {
+  all: ["channels"] as const,
+  list: () => [...channelKeys.all, "list"] as const,
+  preset: (id: string) => [...channelKeys.all, "preset", id] as const,
+  voice: (id: string) => [...channelKeys.all, "voice", id] as const,
 };
 
 export function useProjectsListQuery() {
@@ -51,5 +60,21 @@ export function useVisualConfigQuery(slug: string) {
     queryKey: projectKeys.visualConfig(slug),
     queryFn: () => getVisualConfig(slug),
     enabled: Boolean(slug),
+  });
+}
+
+export function useChannelPresetQuery(id: string) {
+  return useQuery({
+    queryKey: channelKeys.preset(id),
+    queryFn: () => getChannelPreset(id),
+    enabled: Boolean(id),
+  });
+}
+
+export function useChannelVoiceQuery(id: string) {
+  return useQuery({
+    queryKey: channelKeys.voice(id),
+    queryFn: () => getChannelVoice(id),
+    enabled: Boolean(id),
   });
 }

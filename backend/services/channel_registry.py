@@ -70,6 +70,7 @@ def _load_registry() -> dict:
             # dict shape consumers expect.
             "name": preset.get("label", cid),
             "description": preset.get("description", ""),
+            "color": preset.get("color", "#888888"),
             "channel_module": f"channels/{cid}/voice.md",
             "preferred_hook_archetype": preset.get("preferred_hook_archetype"),
         })
@@ -80,10 +81,17 @@ def _load_registry() -> dict:
 
 
 def list_channels() -> list[dict]:
-    """Public registry contents for the UI dropdown."""
+    """Public registry contents for the UI dropdown. Includes ``color`` so
+    the channels list page can render the chip without a second per-channel
+    preset fetch."""
     reg = _load_registry()
     return [
-        {"id": c["id"], "name": c["name"], "description": c["description"]}
+        {
+            "id": c["id"],
+            "name": c["name"],
+            "description": c["description"],
+            "color": c["color"],
+        }
         for c in reg["channels"]
     ]
 

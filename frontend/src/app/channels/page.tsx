@@ -18,8 +18,8 @@ export default async function ChannelsPage() {
       <div className="mb-8">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Channels</h1>
         <p className="mt-1 text-sm text-muted">
-          Channel presets define narrator voice, audience, and tone rules.
-          Edit the underlying <span className="font-mono">.md</span> files to make changes.
+          Channel presets define narrator voice, audience, tone, and visual style.
+          Click a channel to edit it.
         </p>
       </div>
 
@@ -43,7 +43,14 @@ export default async function ChannelsPage() {
               className="block rounded-lg border border-border bg-surface p-5 hover:border-accent hover:bg-surface-2 transition-colors"
             >
               <div className="flex items-baseline justify-between gap-2">
-                <h2 className="font-medium text-foreground">{c.name}</h2>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-3 w-3 rounded-full border border-border"
+                    style={{ backgroundColor: c.color }}
+                    aria-hidden
+                  />
+                  <h2 className="font-medium text-foreground">{c.name}</h2>
+                </div>
                 {c.id === data.default_channel && (
                   <span className="text-[10px] uppercase tracking-wide text-muted">Default</span>
                 )}

@@ -10,10 +10,16 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.routes.projects import PROJECTS_ROOT
 from api.routes.tasks import start_task
+from services.channel_preset_registry import (
+    load_preset as load_channel_preset,
+    save_preset as save_channel_preset,
+    get_voice_module as get_channel_voice_module,
+    save_voice_module as save_channel_voice_module,
+)
 from services.channel_registry import (
     default_channel_id,
     list_channel_sections,
@@ -212,6 +218,130 @@ def get_channel_detail(channel_id: str) -> dict:
 def get_hook_archetypes() -> dict:
     """Public hook-archetype registry: id, label, description + default_archetype."""
     return {"default_archetype": default_archetype_id(), "archetypes": list_archetypes()}
+
+
+# ---------------------------------------------------------------------------
+# Channel preset editor — Phase 3b
+# ---------------------------------------------------------------------------
+#
+# Read/write surface for the structured preset.json + voice.md content. The
+# legacy ``GET /channels/{id}`` above (markdown sections) stays as-is for
+# dropdown consumers; this block adds the editor's read/write endpoints.
+
+
+class CharacterPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: Optional[bool] = None
+    image_path: Optional[str] = None
+    strength: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+
+
+class VisualsPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    style_description: Optional[str] = None
+    reference_image_paths: Optional[list[str]] = None
+    character: Optional[CharacterPatch] = None
+    creative_direction: Optional[str] = None
+    image_prompt_model: Optional[str] = None
+
+
+class ChannelPresetPatch(BaseModel):
+    """Partial-update payload. Every field optional so the editor can PUT a
+    single changed knob; the registry's ``save_preset`` deep-merges into the
+    existing JSON. Unknown top-level keys are rejected here (extra=forbid) —
+    forward-compat sections (script/voiceover/render) will land via explicit
+    model fields when 3c+ wires them up."""
+
+    model_config = ConfigDict(extra="forbid")
+    label: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[str] = None
+    preferred_hook_archetype: Optional[str] = None
+    visuals: Optional[VisualsPatch] = None
+
+
+class ChannelVoicePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    content: str
+
+
+def _load_visual_prompt_model_ids() -> set[str]:
+    """Read ``prompts/visual_prompt_models.json`` and return the set of valid
+    model ids. Path is resolved relative to backend/ so it works regardless
+    of where uvicorn was launched."""
+    backend_dir = Path(__file__).resolve().parent.parent.parent
+    path = backend_dir / "prompts" / "visual_prompt_models.json"
+    if not path.exists():
+        return set()
+    with path.open() as f:
+        data = json.load(f)
+    return {m["id"] for m in data.get("models", [])}
+
+
+@router.get("/channels/{channel_id}/preset")
+def get_channel_preset(channel_id: str) -> dict:
+    """Full preset.json for the editor. Single source of truth for the
+    /channels/[id] page (identity + visuals + future sections)."""
+    try:
+        return load_channel_preset(channel_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/channels/{channel_id}/preset")
+def update_channel_preset(channel_id: str, payload: ChannelPresetPatch) -> dict:
+    """Deep-merge ``payload`` into the channel's preset.json and atomically
+    write. Returns the merged preset.
+
+    Cross-field validation (registry membership):
+      - ``preferred_hook_archetype`` must resolve in hook_archetype_registry.
+      - ``visuals.image_prompt_model`` must be a known model id.
+    Scalar-range checks (strength 0-1) are handled by the Pydantic model."""
+    try:
+        load_channel_preset(channel_id)  # validates channel id exists
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if payload.preferred_hook_archetype is not None:
+        try:
+            _resolve_archetype(payload.preferred_hook_archetype)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+    if payload.visuals is not None and payload.visuals.image_prompt_model is not None:
+        known = _load_visual_prompt_model_ids()
+        if known and payload.visuals.image_prompt_model not in known:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Unknown image_prompt_model: "
+                    f"{payload.visuals.image_prompt_model!r}"
+                ),
+            )
+
+    partial = payload.model_dump(exclude_none=True)
+    save_channel_preset(channel_id, partial)
+    return load_channel_preset(channel_id)
+
+
+@router.get("/channels/{channel_id}/voice")
+def get_channel_voice(channel_id: str) -> dict:
+    """Raw markdown content of ``channels/<id>/voice.md`` for the editor."""
+    try:
+        content = get_channel_voice_module(channel_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"content": content}
+
+
+@router.put("/channels/{channel_id}/voice")
+def update_channel_voice(channel_id: str, payload: ChannelVoicePayload) -> dict:
+    """Atomic write of voice.md content."""
+    try:
+        save_channel_voice_module(channel_id, payload.content)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"ok": True}
 
 
 @router.post("/scripts", response_model=ScriptResponse)

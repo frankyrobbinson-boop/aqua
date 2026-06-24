@@ -90,6 +90,7 @@ export type Channel = {
   id: string;
   name: string;
   description: string;
+  color: string;
 };
 
 export type ChannelsResponse = {
@@ -112,6 +113,102 @@ export async function getChannels(): Promise<ChannelsResponse> {
 
 export async function getChannel(id: string): Promise<ChannelDetail> {
   return getJSON<ChannelDetail>(`/channels/${encodeURIComponent(id)}`);
+}
+
+// ---------------------------------------------------------------------------
+// Channel preset (Phase 3b editor) — distinct from the legacy ChannelDetail
+// above. The editor reads preset.json + voice.md directly so it can write
+// them back; dropdown consumers stick with getChannel().
+// ---------------------------------------------------------------------------
+
+export type ChannelPresetCharacter = {
+  enabled: boolean;
+  image_path: string | null;
+  strength: number;
+};
+
+export type ChannelPresetVisuals = {
+  style_description: string;
+  reference_image_paths: string[];
+  character: ChannelPresetCharacter;
+  creative_direction: string;
+  image_prompt_model: string;
+};
+
+export type ChannelPreset = {
+  id: string;
+  label: string;
+  description: string;
+  color: string;
+  preferred_hook_archetype: string | null;
+  visuals: ChannelPresetVisuals;
+};
+
+/** Partial update — every leaf optional. Matches ChannelPresetPatch in
+ *  backend/api/routes/scripts.py. */
+export type ChannelPresetPatch = {
+  label?: string;
+  description?: string;
+  color?: string;
+  preferred_hook_archetype?: string;
+  visuals?: {
+    style_description?: string;
+    reference_image_paths?: string[];
+    character?: Partial<ChannelPresetCharacter>;
+    creative_direction?: string;
+    image_prompt_model?: string;
+  };
+};
+
+export async function getChannelPreset(id: string): Promise<ChannelPreset> {
+  return getJSON<ChannelPreset>(`/channels/${encodeURIComponent(id)}/preset`);
+}
+
+export async function updateChannelPreset(
+  id: string,
+  patch: ChannelPresetPatch,
+): Promise<ChannelPreset> {
+  const res = await fetch(
+    `${API_URL}/channels/${encodeURIComponent(id)}/preset`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Update channel preset failed: ${res.status} ${text || res.statusText}`,
+    );
+  }
+  return res.json() as Promise<ChannelPreset>;
+}
+
+export async function getChannelVoice(id: string): Promise<{ content: string }> {
+  return getJSON<{ content: string }>(
+    `/channels/${encodeURIComponent(id)}/voice`,
+  );
+}
+
+export async function updateChannelVoice(
+  id: string,
+  content: string,
+): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/channels/${encodeURIComponent(id)}/voice`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Update channel voice failed: ${res.status} ${text || res.statusText}`,
+    );
+  }
 }
 
 export type StartScriptResponse = {

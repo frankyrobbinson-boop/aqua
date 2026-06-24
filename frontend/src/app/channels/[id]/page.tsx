@@ -1,23 +1,30 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getChannel } from "@/lib/api";
+import { getChannelPreset } from "@/lib/api";
+import { ChannelEditPanel } from "@/components/ChannelEditPanel";
 
 export const dynamic = "force-dynamic";
 
 type Props = { params: Promise<{ id: string }> };
 
+/**
+ * Phase 3b: the channel detail page is now a read-write editor. The server
+ * component only fetches the preset to render the page title + 404 guard;
+ * all editing happens inside the ChannelEditPanel client component, which
+ * owns its own queries, debounced autosave, and status indicator.
+ */
 export default async function ChannelDetailPage({ params }: Props) {
   const { id } = await params;
 
-  let channel;
+  let preset;
   try {
-    channel = await getChannel(id);
+    preset = await getChannelPreset(id);
   } catch {
     notFound();
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-6 py-10">
+    <div className="mx-auto max-w-3xl px-6 py-10">
       <Link
         href="/channels"
         className="mb-4 inline-flex items-center gap-2 text-sm text-muted hover:text-foreground"
@@ -25,36 +32,18 @@ export default async function ChannelDetailPage({ params }: Props) {
         ← All channels
       </Link>
 
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">{channel.name}</h1>
-        <p className="mt-1 font-mono text-xs text-muted">{channel.id}</p>
-        <p className="mt-3 text-sm text-muted-strong">{channel.description}</p>
-        {channel.preferred_hook_archetype_label && (
-          <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-xs">
-            <span className="text-muted">Preferred opening:</span>
-            <span className="font-medium text-foreground">{channel.preferred_hook_archetype_label}</span>
-          </div>
-        )}
+      <div className="mb-6 flex items-center gap-3">
+        <span
+          className="h-4 w-4 rounded-full border border-border"
+          style={{ backgroundColor: preset.color }}
+          aria-hidden
+        />
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          {preset.label}
+        </h1>
       </div>
 
-      {Object.keys(channel.sections).length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-8 text-center text-sm text-muted">
-          This channel module has no <span className="font-mono">## </span> sections.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {Object.entries(channel.sections).map(([heading, body]) => (
-            <section key={heading} className="rounded-lg border border-border bg-surface p-5">
-              <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-strong">{heading}</h2>
-              <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground">{body}</pre>
-            </section>
-          ))}
-        </div>
-      )}
-
-      <p className="mt-8 text-xs text-muted">
-        Read-only for now. Edit <span className="font-mono">backend/prompts/channels/{channel.id}.md</span> to change this channel.
-      </p>
+      <ChannelEditPanel id={id} />
     </div>
   );
 }

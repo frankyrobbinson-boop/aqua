@@ -13,7 +13,7 @@
  * can be dropped at the call sites.
  */
 import type { QueryClient } from "@tanstack/react-query";
-import { projectKeys } from "./queries";
+import { channelKeys, projectKeys } from "./queries";
 
 type RouterLike = { refresh: () => void };
 
@@ -26,5 +26,21 @@ export function invalidateForProject(
   qc.invalidateQueries({ queryKey: projectKeys.scenes(slug) });
   qc.invalidateQueries({ queryKey: projectKeys.visualConfig(slug) });
   qc.invalidateQueries({ queryKey: projectKeys.list() });
+  router?.refresh();
+}
+
+/** Mirror of invalidateForProject for channel edits. The channels list
+ *  page reads from a server component today (no useChannelsListQuery yet),
+ *  so we also touch the router so RSC fetches re-run on next navigation;
+ *  the channelKeys.list() invalidation is in place for when a list query
+ *  hook is added. */
+export function invalidateForChannel(
+  qc: QueryClient,
+  id: string,
+  router?: RouterLike,
+) {
+  qc.invalidateQueries({ queryKey: channelKeys.preset(id) });
+  qc.invalidateQueries({ queryKey: channelKeys.voice(id) });
+  qc.invalidateQueries({ queryKey: channelKeys.list() });
   router?.refresh();
 }
