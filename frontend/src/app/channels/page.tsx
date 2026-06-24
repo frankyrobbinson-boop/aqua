@@ -15,12 +15,20 @@ export default async function ChannelsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Channels</h1>
-        <p className="mt-1 text-sm text-muted">
-          Channel presets define narrator voice, audience, tone, and visual style.
-          Click a channel to edit it.
-        </p>
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Channels</h1>
+          <p className="mt-1 text-sm text-muted">
+            Channel presets define narrator voice, audience, tone, and visual style.
+            Click a channel to edit it.
+          </p>
+        </div>
+        <Link
+          href="/channels/new"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover"
+        >
+          + New channel
+        </Link>
       </div>
 
       {error && (

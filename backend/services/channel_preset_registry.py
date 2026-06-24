@@ -19,13 +19,24 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+# Reuse the migration's visuals schema-default builder so the default shape
+# lives in exactly one place (called with an empty dict to get bare defaults).
+from services.channel_migration import _translate_visuals as _build_default_visuals
+
 _PROMPTS_DIR = Path("prompts")
 _CHANNELS_DIR = _PROMPTS_DIR / "channels"
 _REGISTRY_PATH = _PROMPTS_DIR / "channels.json"
+
+# Slug shape for new channel ids: lowercase alphanumeric segments separated by
+# single hyphens, 3-40 chars, no leading/trailing hyphen. Matches the regex on
+# the API payload so the front- and back-end agree on what's accepted.
+_SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 
 
 @dataclass(frozen=True)
@@ -174,6 +185,103 @@ def save_voice_module(channel_id: str, content: str) -> None:
             os.unlink(tmp)
         except OSError:
             pass
+        raise
+
+
+def create_channel(id: str, preset: dict, voice_content: str) -> None:
+    """Create a new channel from scratch — Phase 3c wizard entry point.
+
+    Steps (best-effort atomic):
+      1. Validate ``id`` against the slug regex (3-40 chars, lowercase
+         alphanumeric + hyphens, no leading/trailing or doubled hyphens).
+      2. Validate ``id`` is not already in ``channels.json`` and the directory
+         does not already exist on disk.
+      3. ``mkdir`` ``channels/<id>/`` (fails if it somehow appeared between the
+         existence check and now — defensive against a race).
+      4. Write ``preset.json`` (caller-provided identity fields + a default
+         visuals block when ``preset['visuals']`` is missing).
+      5. Write ``voice.md`` with the provided content verbatim.
+      6. Atomically rewrite ``channels.json`` with ``id`` appended (preserves
+         ``default_channel``).
+
+    On failure at any step after the directory exists, attempts to roll back
+    by removing the partially-created directory; the in-memory channels.json
+    snapshot is restored if step 6 itself raises.
+
+    Raises ``ValueError`` on validation failure or id collision.
+    """
+    if not isinstance(id, str) or not _SLUG_RE.match(id) or not (3 <= len(id) <= 40):
+        raise ValueError(
+            f"Invalid channel id {id!r}: must be 3-40 chars, lowercase "
+            f"alphanumeric + hyphens, no leading/trailing/doubled hyphens"
+        )
+
+    registry_snapshot = _load_registry()
+    if id in registry_snapshot.get("channels", []):
+        raise ValueError(f"Channel id already exists in registry: {id!r}")
+
+    channel_dir = _CHANNELS_DIR / id
+    if channel_dir.exists():
+        raise ValueError(
+            f"Channel directory already exists: {channel_dir} "
+            f"(orphaned from a prior aborted create?)"
+        )
+
+    # Build the preset with defaults for any missing visuals subfields. We
+    # source the default visuals shape from channel_migration so the schema
+    # default lives in exactly one place.
+    visuals = preset.get("visuals") or {}
+    full_visuals = _build_default_visuals({})  # baseline defaults
+    # Shallow-merge top-level visuals keys; the character dict merges too so a
+    # partial {enabled: true} doesn't blow away strength/image_path defaults.
+    for k, v in visuals.items():
+        if k == "character" and isinstance(v, dict):
+            full_visuals["character"] = {**full_visuals["character"], **v}
+        else:
+            full_visuals[k] = v
+
+    full_preset = {
+        "id": id,
+        "label": preset.get("label", id),
+        "description": preset.get("description", ""),
+        "color": preset.get("color", "#888888"),
+        "preferred_hook_archetype": preset.get("preferred_hook_archetype"),
+        "visuals": full_visuals,
+    }
+
+    channel_dir.mkdir(parents=True, exist_ok=False)
+    try:
+        _atomic_write_json(_preset_path(id), full_preset)
+
+        target = _voice_path(id)
+        fd, tmp = tempfile.mkstemp(
+            prefix=f".{target.name}.", suffix=".tmp", dir=str(target.parent)
+        )
+        try:
+            with os.fdopen(fd, "w") as f:
+                f.write(voice_content)
+            os.replace(tmp, target)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
+
+        new_registry = {
+            "default_channel": registry_snapshot["default_channel"],
+            "channels": list(registry_snapshot.get("channels", [])) + [id],
+        }
+        try:
+            _atomic_write_json(_REGISTRY_PATH, new_registry)
+        except BaseException:
+            # Best-effort restore of the prior registry (it's still in memory).
+            _atomic_write_json(_REGISTRY_PATH, registry_snapshot)
+            raise
+    except BaseException:
+        # Roll back the channel directory so a retry with the same id can
+        # succeed and the verify guard doesn't trip on the orphan.
+        shutil.rmtree(channel_dir, ignore_errors=True)
         raise
 
 

@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from api.routes.projects import PROJECTS_ROOT
 from api.routes.tasks import start_task
 from services.channel_preset_registry import (
+    create_channel as create_channel_preset,
     load_preset as load_channel_preset,
     save_preset as save_channel_preset,
     get_voice_module as get_channel_voice_module,
@@ -342,6 +343,78 @@ def update_channel_voice(channel_id: str, payload: ChannelVoicePayload) -> dict:
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Channel creation wizard — Phase 3c
+# ---------------------------------------------------------------------------
+
+
+class ChannelCreatePayload(BaseModel):
+    """Body for ``POST /channels``. The id regex mirrors the slug check in
+    ``channel_preset_registry.create_channel`` so a 422 from Pydantic catches
+    bad slugs before the service layer runs; the service still validates as a
+    second line of defense."""
+
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(..., min_length=3, max_length=40, pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")
+    label: str = Field(..., min_length=1, max_length=80)
+    description: str = Field(default="", max_length=500)
+    color: str = Field(..., pattern=r"^#[0-9a-fA-F]{6}$")
+    preferred_hook_archetype: Optional[str] = None
+    voice_content: str = Field(..., min_length=1)
+    visuals: Optional[VisualsPatch] = None
+
+
+@router.post("/channels")
+def create_channel(payload: ChannelCreatePayload) -> dict:
+    """Create a new channel directory + preset.json + voice.md and register it
+    in channels.json. Returns the created preset (same shape as
+    ``GET /channels/{id}/preset``).
+
+    Validation order: Pydantic body shape → cross-registry checks
+    (hook_archetype + image_prompt_model) → service-layer id-collision check.
+    Returns 409 on id collision (typed differently from 422 so the wizard can
+    surface a targeted inline error)."""
+
+    if payload.preferred_hook_archetype is not None:
+        try:
+            _resolve_archetype(payload.preferred_hook_archetype)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+
+    if payload.visuals is not None and payload.visuals.image_prompt_model is not None:
+        known = _load_visual_prompt_model_ids()
+        if known and payload.visuals.image_prompt_model not in known:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Unknown image_prompt_model: "
+                    f"{payload.visuals.image_prompt_model!r}"
+                ),
+            )
+
+    preset_input = {
+        "label": payload.label,
+        "description": payload.description,
+        "color": payload.color,
+        "preferred_hook_archetype": payload.preferred_hook_archetype,
+    }
+    if payload.visuals is not None:
+        preset_input["visuals"] = payload.visuals.model_dump(exclude_none=True)
+
+    try:
+        create_channel_preset(payload.id, preset_input, payload.voice_content)
+    except ValueError as e:
+        msg = str(e)
+        # Service raises ValueError for both id-collision and slug-shape. The
+        # latter shouldn't happen here (Pydantic catches it first) but we map
+        # collision -> 409 and everything else -> 422.
+        if "already exists" in msg:
+            raise HTTPException(status_code=409, detail=msg)
+        raise HTTPException(status_code=422, detail=msg)
+
+    return load_channel_preset(payload.id)
 
 
 @router.post("/scripts", response_model=ScriptResponse)

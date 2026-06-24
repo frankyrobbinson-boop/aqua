@@ -185,6 +185,38 @@ export async function updateChannelPreset(
   return res.json() as Promise<ChannelPreset>;
 }
 
+/** Body for POST /channels (Phase 3c create-channel wizard). Mirrors
+ *  ChannelCreatePayload in backend/api/routes/scripts.py. */
+export type ChannelCreatePayload = {
+  id: string;
+  label: string;
+  description: string;
+  color: string;
+  preferred_hook_archetype: string | null;
+  voice_content: string;
+  visuals?: ChannelPresetPatch["visuals"];
+};
+
+export async function createChannel(
+  payload: ChannelCreatePayload,
+): Promise<ChannelPreset> {
+  const res = await fetch(`${API_URL}/channels`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    // Surface the status so callers (the wizard) can branch on 409.
+    const err = new Error(
+      `Create channel failed: ${res.status} ${text || res.statusText}`,
+    ) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return res.json() as Promise<ChannelPreset>;
+}
+
 export async function getChannelVoice(id: string): Promise<{ content: string }> {
   return getJSON<{ content: string }>(
     `/channels/${encodeURIComponent(id)}/voice`,
