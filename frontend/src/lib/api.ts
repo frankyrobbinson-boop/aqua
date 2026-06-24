@@ -236,6 +236,87 @@ export async function startVisuals(slug: string): Promise<StageResponse> {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Visual provider config (Phase 2 visual generation)
+// ---------------------------------------------------------------------------
+
+export type VisualMode = {
+  id: string;
+  label: string;
+};
+
+export type VisualProvider = {
+  id: string;
+  label: string;
+  mode: string;
+  available: boolean;
+  cost_per_unit?: number;
+  unit?: string;
+};
+
+export type VisualProvidersResponse = {
+  default_mode: string;
+  default_provider: string;
+  modes: VisualMode[];
+  providers: VisualProvider[];
+};
+
+export type VisualSegmentConfig = {
+  segment_id: number;
+  scene_count: number;
+  mode: string;
+  provider: string;
+};
+
+/** Wire shape returned by GET /projects/{slug}/visual-config. The backend
+ *  wraps the segments under `config` plus a `saved` flag indicating whether
+ *  the user has ever written to this project's config explicitly. */
+export type VisualConfigResponse = {
+  saved: boolean;
+  config: { segments: VisualSegmentConfig[] };
+};
+
+export async function getVisualProviders(): Promise<VisualProvidersResponse> {
+  return getJSON<VisualProvidersResponse>("/visual-providers");
+}
+
+export async function getVisualConfig(
+  slug: string,
+): Promise<VisualConfigResponse> {
+  return getJSON<VisualConfigResponse>(
+    `/projects/${encodeURIComponent(slug)}/visual-config`,
+  );
+}
+
+export async function updateVisualConfig(
+  slug: string,
+  segments: VisualSegmentConfig[],
+): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/projects/${encodeURIComponent(slug)}/visual-config`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ segments }),
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(
+      `Update visual config failed: ${res.status} ${text || res.statusText}`,
+    );
+  }
+}
+
+export async function startVisualsGenerate(
+  slug: string,
+): Promise<StageResponse> {
+  return getJSON<StageResponse>(
+    `/projects/${encodeURIComponent(slug)}/visuals/generate`,
+    { method: "POST" },
+  );
+}
+
 export async function startRender(slug: string): Promise<StageResponse> {
   return getJSON<StageResponse>("/render", {
     method: "POST",

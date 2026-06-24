@@ -524,6 +524,25 @@ function VisualsTab({ slug, scenes }: { slug: string; scenes: SceneInfo[] }) {
         </section>
       )}
 
+      <section className="rounded-xl border border-accent/30 bg-accent/5 p-5">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-medium text-foreground">
+              Configure visuals per segment
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">
+              Pick the mode and provider for each segment, then dispatch.
+            </p>
+          </div>
+          <a
+            href={`/projects/${slug}/visuals`}
+            className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
+          >
+            Generate Visuals →
+          </a>
+        </div>
+      </section>
+
       <VisualsConfigPanel />
 
       <section className="rounded-xl border border-border bg-surface p-5">
