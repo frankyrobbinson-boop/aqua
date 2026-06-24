@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.routes.tasks import start_task
 
@@ -35,6 +35,13 @@ class ProjectStageRequest(BaseModel):
     voice_speed: Optional[float] = None
 
 
+class RenderRequest(ProjectStageRequest):
+    # Per-render options consumed by run_render.py via env vars. Not
+    # persisted to project state — user picks at render time.
+    transition: Optional[str] = Field(default="cut", pattern=r"^(cut|fade)$")
+    ken_burns: Optional[bool] = Field(default=False)
+
+
 class StageResponse(BaseModel):
     task_id: str
     project_slug: str
@@ -49,12 +56,18 @@ def _check_project(slug: str) -> Path:
     return p
 
 
-def _start_stage(script: str, slug: str, stage: str) -> StageResponse:
+def _start_stage(
+    script: str,
+    slug: str,
+    stage: str,
+    env: dict[str, str] | None = None,
+) -> StageResponse:
     cmd = [sys.executable, script, slug]
     task = start_task(
         cmd=cmd,
         cwd=BACKEND_DIR,
         metadata={"kind": stage, "project_slug": slug},
+        env_overrides=env,
     )
     return StageResponse(task_id=task.id, project_slug=slug)
 
@@ -103,9 +116,13 @@ async def start_visuals(req: ProjectStageRequest) -> StageResponse:
 
 
 @router.post("/render", response_model=StageResponse)
-async def start_render(req: ProjectStageRequest) -> StageResponse:
+async def start_render(req: RenderRequest) -> StageResponse:
     _check_project(req.project_slug)
-    return _start_stage("run_render.py", req.project_slug, "render")
+    env = {
+        "RENDER_TRANSITION": req.transition or "cut",
+        "RENDER_KEN_BURNS": "1" if req.ken_burns else "0",
+    }
+    return _start_stage("run_render.py", req.project_slug, "render", env=env)
 
 
 class SceneInfo(BaseModel):

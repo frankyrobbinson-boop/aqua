@@ -23,7 +23,13 @@ _MAX_TASKS = 200
 
 
 class Task:
-    def __init__(self, cmd: list[str], cwd: str, metadata: dict | None = None):
+    def __init__(
+        self,
+        cmd: list[str],
+        cwd: str,
+        metadata: dict | None = None,
+        env_overrides: dict[str, str] | None = None,
+    ):
         self.id = uuid.uuid4().hex
         self.cmd = cmd
         self.cwd = cwd
@@ -33,6 +39,9 @@ class Task:
         self.started_at: float | None = None
         self.finished_at: float | None = None
         self.metadata = metadata or {}
+        # Extra env vars layered on top of os.environ when the subprocess
+        # spawns. Used by /render to pass per-render flags to run_render.py.
+        self.env_overrides = env_overrides or {}
         self._new_lines = asyncio.Event()
         # Strong reference to the asyncio.Task running this Task's run() coroutine.
         # Without this, the event loop holds only a weak reference and the task
@@ -58,7 +67,7 @@ class Task:
         self.status = "running"
         self.started_at = time.time()
         try:
-            env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+            env = {**os.environ, "PYTHONUNBUFFERED": "1", **self.env_overrides}
             process = await asyncio.create_subprocess_exec(
                 *self.cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -135,10 +144,15 @@ def _evict_if_full() -> None:
             return
 
 
-def start_task(cmd: list[str], cwd: str, metadata: dict | None = None) -> Task:
+def start_task(
+    cmd: list[str],
+    cwd: str,
+    metadata: dict | None = None,
+    env_overrides: dict[str, str] | None = None,
+) -> Task:
     """Create a task, schedule its run, register, and return it."""
     _evict_if_full()
-    task = Task(cmd, cwd, metadata)
+    task = Task(cmd, cwd, metadata, env_overrides=env_overrides)
     _REGISTRY[task.id] = task
     # Keep a strong reference on the Task instance — asyncio only weak-refs
     # background tasks via the loop, so dropping this return value can let GC

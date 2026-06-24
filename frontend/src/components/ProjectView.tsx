@@ -672,6 +672,11 @@ function RenderTab({
   const withFootage = scenes.filter((s) => s.has_footage).length;
   const canRender = sceneCount > 0 && withFootage === sceneCount;
 
+  // Per-render options. Not persisted to project state — user picks at render
+  // time. Defaults match the original behavior (hard cut, no Ken Burns).
+  const [transition, setTransition] = useState<"cut" | "fade">("cut");
+  const [kenBurns, setKenBurns] = useState(false);
+
   return (
     <div className="space-y-6">
       {videoUrl ? (
@@ -682,7 +687,12 @@ function RenderTab({
         <EmptyTab>No render yet — fetch footage, then render below.</EmptyTab>
       )}
 
-      <RenderConfigPanel />
+      <RenderConfigPanel
+        transition={transition}
+        setTransition={setTransition}
+        kenBurns={kenBurns}
+        setKenBurns={setKenBurns}
+      />
 
       {!canRender && sceneCount > 0 && (
         <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
@@ -699,15 +709,30 @@ function RenderTab({
           Normalize clips, concat with voiceover, burn in subtitles. ~15–20 min
           for a 10-minute video.
         </p>
-        <StageRunner stage="render" slug={slug} disabled={!canRender} />
+        <StageRunner
+          stage="render"
+          slug={slug}
+          disabled={!canRender}
+          renderOptions={{ transition, ken_burns: kenBurns }}
+        />
       </section>
     </div>
   );
 }
 
-function RenderConfigPanel() {
+function RenderConfigPanel({
+  transition,
+  setTransition,
+  kenBurns,
+  setKenBurns,
+}: {
+  transition: "cut" | "fade";
+  setTransition: (t: "cut" | "fade") => void;
+  kenBurns: boolean;
+  setKenBurns: (b: boolean) => void;
+}) {
   return (
-    <ConfigPanel title="Render settings" badge="placeholders">
+    <ConfigPanel title="Render settings" badge="transitions wired">
       <div className="grid gap-4 sm:grid-cols-2">
         <ConfigRow label="Resolution" hint="1080p locked">
           <div className="flex gap-1">
@@ -756,11 +781,36 @@ function RenderConfigPanel() {
         checked={false}
         hint="Upload + ducking — coming"
       />
-      <ConfigRow label="Scene transition" hint="Hard cuts">
-        <select className="config-select" disabled value="cut">
+      {/* Live (non-placeholder) controls. Remove the opacity-70 dimmer from
+          ConfigRow by wrapping in our own un-dimmed div. */}
+      <div>
+        <div className="mb-1.5 flex items-baseline justify-between gap-2">
+          <label
+            htmlFor="render-transition"
+            className="text-sm font-medium text-foreground"
+          >
+            Scene transition
+          </label>
+          <span className="text-xs text-muted">
+            Cut = hard cut · Fade = 0.15s dip through black
+          </span>
+        </div>
+        <select
+          id="render-transition"
+          className="config-select"
+          value={transition}
+          onChange={(e) => setTransition(e.target.value as "cut" | "fade")}
+        >
           <option value="cut">Hard cut</option>
+          <option value="fade">Fade</option>
         </select>
-      </ConfigRow>
+      </div>
+      <LiveToggle
+        label="Ken Burns"
+        checked={kenBurns}
+        onChange={setKenBurns}
+        hint="Slow zoom on still images (PNG scenes only)"
+      />
       <InfoBox>
         <strong className="text-foreground">Render pipeline:</strong> libx264 ·
         CRF 18 · scale+crop · libass subtitle burn-in · AAC audio mux.
@@ -849,6 +899,44 @@ function PlaceholderToggle({
         type="button"
         disabled
         className={`relative inline-flex h-6 w-11 cursor-not-allowed items-center rounded-full ${
+          checked ? "bg-accent" : "bg-surface-3"
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+            checked ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+/** Functional sibling of PlaceholderToggle — same visual, but clickable and
+ *  controlled. Used for render options that are actually wired through. */
+function LiveToggle({
+  label,
+  checked,
+  onChange,
+  hint,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  hint?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        {hint && <p className="text-xs text-muted">{hint}</p>}
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-11 cursor-pointer items-center rounded-full transition-colors ${
           checked ? "bg-accent" : "bg-surface-3"
         }`}
       >

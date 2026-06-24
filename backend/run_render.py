@@ -58,8 +58,21 @@ def run_render(project_name: str) -> str:
             )
         footage_paths[sid] = path
 
-    print(f"\nAssembling video for '{project_name}' ({len(footage_paths)} scenes)...")
-    final_video = assemble(project_name, footage_paths)
+    # Per-render options injected by the API via env vars (defaults preserve
+    # the original behavior when invoked from the CLI with no env set).
+    transition = os.environ.get("RENDER_TRANSITION", "cut")
+    if transition not in ("cut", "fade"):
+        print(f"  WARN: RENDER_TRANSITION={transition!r} invalid, falling back to 'cut'")
+        transition = "cut"
+    ken_burns = os.environ.get("RENDER_KEN_BURNS", "0") == "1"
+
+    print(
+        f"\nAssembling video for '{project_name}' ({len(footage_paths)} scenes; "
+        f"transition={transition}, ken_burns={ken_burns})..."
+    )
+    final_video = assemble(
+        project_name, footage_paths, transition=transition, ken_burns=ken_burns,
+    )
 
     print(f"\nDONE: {final_video}")
     return final_video

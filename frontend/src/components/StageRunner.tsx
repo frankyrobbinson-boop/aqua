@@ -1,7 +1,12 @@
 "use client";
 
 import { RunPanel } from "./RunPanel";
-import { startVoiceover, startVisuals, startRender } from "@/lib/api";
+import {
+  startVoiceover,
+  startVisuals,
+  startRender,
+  type RenderOptions,
+} from "@/lib/api";
 
 type Stage = "voiceover" | "visuals" | "render";
 
@@ -34,18 +39,25 @@ export function StageRunner({
   slug,
   disabled,
   voiceSpeed,
+  renderOptions,
 }: {
   stage: Stage;
   slug: string;
   disabled?: boolean;
   /** Voiceover-only: override ElevenLabs speed for this run. */
   voiceSpeed?: number;
+  /** Render-only: per-render transition + Ken Burns flags. */
+  renderOptions?: RenderOptions;
 }) {
   const cfg = CONFIG[stage];
-  const start =
-    stage === "voiceover"
-      ? () => startVoiceover(slug, { voice_speed: voiceSpeed })
-      : () => cfg.starter(slug);
+  let start: () => ReturnType<typeof cfg.starter>;
+  if (stage === "voiceover") {
+    start = () => startVoiceover(slug, { voice_speed: voiceSpeed });
+  } else if (stage === "render") {
+    start = () => startRender(slug, renderOptions);
+  } else {
+    start = () => cfg.starter(slug);
+  }
   return (
     <RunPanel
       start={start}

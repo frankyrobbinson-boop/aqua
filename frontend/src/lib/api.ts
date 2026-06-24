@@ -491,10 +491,22 @@ export async function getVisualPromptModels(): Promise<VisualPromptModelsRespons
   return getJSON<VisualPromptModelsResponse>("/visual-prompt-models");
 }
 
-export async function startRender(slug: string): Promise<StageResponse> {
+export type RenderOptions = {
+  transition?: "cut" | "fade";
+  ken_burns?: boolean;
+};
+
+export async function startRender(
+  slug: string,
+  opts?: RenderOptions,
+): Promise<StageResponse> {
   return getJSON<StageResponse>("/render", {
     method: "POST",
-    body: JSON.stringify({ project_slug: slug }),
+    body: JSON.stringify({
+      project_slug: slug,
+      transition: opts?.transition ?? "cut",
+      ken_burns: opts?.ken_burns ?? false,
+    }),
   });
 }
 

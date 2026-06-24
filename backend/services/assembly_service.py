@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import subprocess
 
@@ -8,6 +9,11 @@ from services.voice_service import CHUNK_GAP
 
 FPS = 25
 OUT_W, OUT_H = 1920, 1080
+
+# Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
+# per clip keeps total video duration unchanged (audio stays in sync) and
+# produces a soft dip-through-black between scenes.
+FADE_DUR = 0.15
 
 # Note: `speech_end` from the audio timeline is already trim-adjusted by
 # voice_service (TRAILING_TRIM applied at timeline-stamp time). Do not subtract
@@ -127,7 +133,13 @@ def _clip_cache_path(output_path: str) -> str:
     return output_path + ".cache.json"
 
 
-def _clip_cache_hit(scene: dict, footage_path: str, output_path: str) -> bool:
+def _clip_cache_hit(
+    scene: dict,
+    footage_path: str,
+    output_path: str,
+    transition: str,
+    ken_burns: bool,
+) -> bool:
     """True iff a previously-rendered clip is still valid for these inputs."""
     cache_path = _clip_cache_path(output_path)
     if not (os.path.exists(output_path) and os.path.exists(cache_path)):
@@ -145,10 +157,19 @@ def _clip_cache_hit(scene: dict, footage_path: str, output_path: str) -> bool:
         and cache.get("out_w") == OUT_W
         and cache.get("out_h") == OUT_H
         and cache.get("fps") == FPS
+        and cache.get("transition") == transition
+        and cache.get("ken_burns") == ken_burns
     )
 
 
-def render_scene_clip(scene: dict, footage_path: str, output_path: str):
+def render_scene_clip(
+    scene: dict,
+    footage_path: str,
+    output_path: str,
+    *,
+    transition: str = "cut",
+    ken_burns: bool = False,
+):
     """Render one scene by trimming + scaling a stock-footage clip to OUT_W x OUT_H.
 
     Caches the result in a sidecar `.cache.json`: re-runs skip the ffmpeg pass
@@ -157,17 +178,46 @@ def render_scene_clip(scene: dict, footage_path: str, output_path: str):
     settings or output dimensions).
 
     If the source clip is shorter than the scene duration, it is looped via
-    `-stream_loop`. Audio is dropped; the final mux supplies the narration."""
+    `-stream_loop`. Audio is dropped; the final mux supplies the narration.
+
+    transition: "cut" (default) or "fade". "fade" appends 0.15s fade-in and
+      0.15s fade-out against black to each clip; the concat demuxer then joins
+      them unchanged so total duration is preserved (audio stays in sync).
+
+    ken_burns: when True AND the source is a PNG (still image), append a
+      zoompan slow zoom from 1.0 -> 1.15 over the clip's duration. MP4
+      sources are untouched — re-encoding stock video via zoompan can
+      introduce subtle stretching, and they already have motion."""
     duration = max(0.1, scene['duration'])
 
-    if _clip_cache_hit(scene, footage_path, output_path):
+    if _clip_cache_hit(scene, footage_path, output_path, transition, ken_burns):
         return  # cache hit — output already valid
 
-    vf = (
-        f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
-        f"crop={OUT_W}:{OUT_H},"
-        f"fps={FPS},format=yuv420p"
-    )
+    is_png = footage_path.lower().endswith(".png")
+
+    filters = [
+        f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase",
+        f"crop={OUT_W}:{OUT_H}",
+        f"fps={FPS}",
+        "format=yuv420p",
+    ]
+    # Ken Burns only on stills. zoompan needs an explicit frame count and
+    # output size; without `s=`, it defaults to 1x1 which black-frames the clip.
+    if ken_burns and is_png:
+        total_frames = max(1, math.ceil(duration * FPS))
+        filters.append(
+            f"zoompan=z='min(zoom+0.0015,1.15)':d={total_frames}"
+            f":s={OUT_W}x{OUT_H}:fps={FPS}"
+        )
+    # Fade applies to every clip regardless of source type. Fade-out start =
+    # duration - FADE_DUR; clamp to 0 for very short clips so we never get a
+    # negative start time.
+    if transition == "fade":
+        fade_out_start = max(0.0, duration - FADE_DUR)
+        filters.append(f"fade=t=in:st=0:d={FADE_DUR}")
+        filters.append(f"fade=t=out:st={fade_out_start}:d={FADE_DUR}")
+
+    vf = ",".join(filters)
 
     subprocess.run([
         "ffmpeg", "-y",
@@ -188,10 +238,18 @@ def render_scene_clip(scene: dict, footage_path: str, output_path: str):
             "out_w": OUT_W,
             "out_h": OUT_H,
             "fps": FPS,
+            "transition": transition,
+            "ken_burns": ken_burns,
         }, f)
 
 
-def render_all_scene_clips(project_name: str, footage_paths: dict) -> list[str]:
+def render_all_scene_clips(
+    project_name: str,
+    footage_paths: dict,
+    *,
+    transition: str = "cut",
+    ken_burns: bool = False,
+) -> list[str]:
     """Render every scene clip. Returns ordered list of clip paths."""
     windows = load_scene_windows(project_name)
     clips_dir = f"../projects/{project_name}/clips"
@@ -206,11 +264,13 @@ def render_all_scene_clips(project_name: str, footage_paths: dict) -> list[str]:
         if not src or not os.path.exists(src):
             raise FileNotFoundError(f"No footage for scene {sid}")
         out = os.path.join(clips_dir, f"scene_{sid:03d}.mp4")
-        if _clip_cache_hit(scene, src, out):
+        if _clip_cache_hit(scene, src, out, transition, ken_burns):
             cached += 1
         else:
             print(f"  Rendering clip: scene {sid}  ({scene['duration']:.1f}s)...")
-            render_scene_clip(scene, src, out)
+            render_scene_clip(
+                scene, src, out, transition=transition, ken_burns=ken_burns,
+            )
             rendered += 1
         clip_paths.append(out)
 
@@ -280,13 +340,28 @@ def mux_audio(
     return out
 
 
-def assemble(project_name: str, footage_paths: dict) -> str:
-    """Full assembly: audio → clips → concat → subtitles → mux → final.mp4"""
+def assemble(
+    project_name: str,
+    footage_paths: dict,
+    *,
+    transition: str = "cut",
+    ken_burns: bool = False,
+) -> str:
+    """Full assembly: audio → clips → concat → subtitles → mux → final.mp4
+
+    transition: "cut" (default) or "fade" — per-clip fade-in/out against black.
+    ken_burns: when True, applies a slow zoom to PNG (still-image) scenes only.
+    Both are per-render options; not persisted to project state."""
+    if transition not in ("cut", "fade"):
+        raise ValueError(f"transition must be 'cut' or 'fade', got {transition!r}")
+
     print("  Assembling audio...")
     audio = assemble_audio(project_name)
 
     print("  Rendering scene clips...")
-    clips = render_all_scene_clips(project_name, footage_paths)
+    clips = render_all_scene_clips(
+        project_name, footage_paths, transition=transition, ken_burns=ken_burns,
+    )
 
     print("  Concatenating clips...")
     silent = concat_clips(project_name, clips)
