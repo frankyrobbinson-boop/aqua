@@ -317,6 +317,51 @@ export async function startVisualsGenerate(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Visual prompt enhancement (pre-generation step that styles each scene's
+// AI-image prompt via the channel preset). Auto-applied, no editing UI.
+// ---------------------------------------------------------------------------
+
+export type VisualPromptStatus = {
+  exists: boolean;
+  scene_count: number;
+  generated_at: string | null;
+  model: string | null;
+  source: "enhanced" | "passthrough" | null;
+};
+
+export type VisualPromptModel = {
+  id: string;
+  label: string;
+  cost_per_video_estimate: number;
+};
+
+export type VisualPromptModelsResponse = {
+  default: string;
+  models: VisualPromptModel[];
+};
+
+export async function getVisualPromptStatus(
+  slug: string,
+): Promise<VisualPromptStatus> {
+  return getJSON<VisualPromptStatus>(
+    `/projects/${encodeURIComponent(slug)}/visual-prompts`,
+  );
+}
+
+export async function regenerateVisualPrompts(
+  slug: string,
+): Promise<StageResponse> {
+  return getJSON<StageResponse>(
+    `/projects/${encodeURIComponent(slug)}/visual-prompts/generate`,
+    { method: "POST" },
+  );
+}
+
+export async function getVisualPromptModels(): Promise<VisualPromptModelsResponse> {
+  return getJSON<VisualPromptModelsResponse>("/visual-prompt-models");
+}
+
 export async function startRender(slug: string): Promise<StageResponse> {
   return getJSON<StageResponse>("/render", {
     method: "POST",

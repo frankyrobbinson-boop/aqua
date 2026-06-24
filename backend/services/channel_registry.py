@@ -85,6 +85,56 @@ def resolve_channel_section(channel_id: str | None, section: str) -> str:
     return "\n".join(body).strip()
 
 
+# ---------------------------------------------------------------------------
+# Channel visuals (Phase 1 companion file; Phase 2 will live in preset.json)
+# ---------------------------------------------------------------------------
+
+# Defaults used when a channel has no companion file or a field is missing.
+# Mirrors the future preset.json `visuals` block exactly.
+_VISUALS_DEFAULTS: dict = {
+    "style_description": "",
+    "reference_image_paths": [],
+    "character_enabled": False,
+    "character_image_path": None,
+    "character_strength": 0.7,
+    "creative_direction": "",
+    "prompt_enhancement_model": "claude-haiku-4-5-20251001",
+}
+
+
+def resolve_channel_visuals(channel_id: str | None) -> dict:
+    """Read the channel's visuals config. Phase 1: companion ``.visuals.json``
+    file next to the channel's ``.md`` (e.g. ``channels/gardening.md`` ->
+    ``channels/gardening.visuals.json``).
+
+    Phase 2 commitment: when channel presets land, this function's internals
+    change to read from the channel's ``preset.json`` under the ``visuals`` key.
+    The public signature stays IDENTICAL — only the file-reading bit changes.
+    Callers (visual_prompt_service) should never need updating.
+
+    Missing fields are backfilled from ``_VISUALS_DEFAULTS`` so callers always
+    get the full schema. Missing companion file = all defaults (passthrough
+    mode triggers downstream when style/creative_direction are empty).
+    """
+    c = _resolve(channel_id)
+    module_rel = c["channel_module"]  # e.g. "channels/gardening.md"
+    companion_rel = module_rel.rsplit(".", 1)[0] + ".visuals.json"
+    companion_path = _PROMPTS_DIR / companion_rel
+
+    if not companion_path.exists():
+        return dict(_VISUALS_DEFAULTS)
+
+    with companion_path.open() as f:
+        loaded = json.load(f)
+
+    # Drop the documentation field if present — it's not part of the schema.
+    loaded.pop("_note", None)
+
+    merged = dict(_VISUALS_DEFAULTS)
+    merged.update({k: v for k, v in loaded.items() if k in _VISUALS_DEFAULTS})
+    return merged
+
+
 def channel_preferred_hook_archetype(channel_id: str | None) -> str | None:
     """Return the channel's preferred_hook_archetype field, or None if absent.
 

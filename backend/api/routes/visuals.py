@@ -13,7 +13,9 @@ shape so the frontend can reuse RunPanel + the existing tasks SSE plumbing.
 
 from __future__ import annotations
 
+import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -145,3 +147,76 @@ def start_visuals_generate(slug: str) -> GenerateVisualsResponse:
         metadata={"kind": "visuals", "project_slug": slug},
     )
     return GenerateVisualsResponse(task_id=task.id, project_slug=slug)
+
+
+# ---------------------------------------------------------------------------
+# Visual-prompt enhancement (status + standalone regenerate + model registry)
+# ---------------------------------------------------------------------------
+
+@router.get("/projects/{slug}/visual-prompts")
+def get_visual_prompts_status(slug: str) -> dict:
+    """File-metadata snapshot. Intentionally does NOT return the prompts —
+    the UI only needs to know whether they exist, when they were generated,
+    which model, and which source (enhanced vs passthrough). The prompts
+    themselves are auto-applied and not user-editable in Phase 1."""
+    p = _project_dir(slug)
+    prompts_path = p / "visual_prompts.json"
+    if not prompts_path.exists():
+        return {
+            "exists": False,
+            "scene_count": 0,
+            "generated_at": None,
+            "model": None,
+            "source": None,
+        }
+    try:
+        with prompts_path.open() as f:
+            payload = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {
+            "exists": False,
+            "scene_count": 0,
+            "generated_at": None,
+            "model": None,
+            "source": None,
+        }
+    mtime = prompts_path.stat().st_mtime
+    generated_at = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+    return {
+        "exists": True,
+        "scene_count": len(payload.get("scenes", [])),
+        "generated_at": generated_at,
+        "model": payload.get("model"),
+        "source": payload.get("source"),
+    }
+
+
+@router.post(
+    "/projects/{slug}/visual-prompts/generate",
+    response_model=GenerateVisualsResponse,
+)
+def start_visual_prompts_generate(slug: str) -> GenerateVisualsResponse:
+    """Kick off run_visual_prompts.py standalone. Same task-shape contract as
+    the visuals route so the frontend can stream logs with the existing
+    streamTaskLogs helper."""
+    _project_dir(slug)
+    cmd = [sys.executable, "run_visual_prompts.py", slug]
+    task = start_task(
+        cmd=cmd,
+        cwd=BACKEND_DIR,
+        metadata={"kind": "visual_prompts", "project_slug": slug},
+    )
+    return GenerateVisualsResponse(task_id=task.id, project_slug=slug)
+
+
+@router.get("/visual-prompt-models")
+def get_visual_prompt_models() -> dict:
+    """Model registry passthrough for a future model selector dropdown."""
+    registry_path = Path(BACKEND_DIR) / "prompts" / "visual_prompt_models.json"
+    if not registry_path.exists():
+        raise HTTPException(
+            status_code=500,
+            detail="visual_prompt_models.json missing from prompts/",
+        )
+    with registry_path.open() as f:
+        return json.load(f)

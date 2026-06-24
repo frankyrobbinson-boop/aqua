@@ -7,12 +7,15 @@ import {
   type TimelineSegment,
 } from "./VisualTimelineBar";
 import {
+  getVisualPromptStatus,
+  regenerateVisualPrompts,
   startVisualsGenerate,
   streamTaskLogs,
   updateVisualConfig,
   type SceneInfo,
   type TaskStatus,
   type VisualConfigResponse,
+  type VisualPromptStatus,
   type VisualProvidersResponse,
   type VisualSegmentConfig,
 } from "@/lib/api";
@@ -54,6 +57,31 @@ export function VisualPacingPanel({
   const [run, setRun] = useState<RunState | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Visual-prompt status (pre-generation enhancement step). Polled once on
+  // mount and refreshed after a regenerate completes. Errors are swallowed —
+  // the panel still works without the status line.
+  const [promptStatus, setPromptStatus] = useState<VisualPromptStatus | null>(
+    null,
+  );
+  const [promptRun, setPromptRun] = useState<RunState | null>(null);
+  const promptCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getVisualPromptStatus(slug)
+      .then((s) => {
+        if (!cancelled) setPromptStatus(s);
+      })
+      .catch(() => {
+        // Non-fatal: leave promptStatus null and skip rendering the line.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  useEffect(() => () => promptCleanupRef.current?.(), []);
+
   // Debounce-save when segments change. Skip the initial mount so we don't
   // PUT the server's own response right back at it.
   const isFirstRender = useRef(true);
@@ -87,6 +115,30 @@ export function VisualPacingPanel({
   const totalScenes = segments.reduce((sum, s) => sum + s.scene_count, 0);
   const canGenerate =
     segments.length > 0 && !submitting && run?.status !== "running";
+
+  async function onRegeneratePrompts() {
+    promptCleanupRef.current?.();
+    try {
+      const { task_id } = await regenerateVisualPrompts(slug);
+      setPromptRun({ taskId: task_id, logs: [], status: "running" });
+      promptCleanupRef.current = streamTaskLogs(
+        task_id,
+        (line) =>
+          setPromptRun((prev) =>
+            prev ? { ...prev, logs: [...prev.logs, line] } : prev,
+          ),
+        (status) => {
+          setPromptRun((prev) => (prev ? { ...prev, status } : prev));
+          // Refresh status snapshot once the run settles.
+          getVisualPromptStatus(slug)
+            .then((s) => setPromptStatus(s))
+            .catch(() => {});
+        },
+      );
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err));
+    }
+  }
 
   async function onGenerate() {
     if (!canGenerate) return;
@@ -160,6 +212,56 @@ export function VisualPacingPanel({
       <div className="mb-5">
         <VisualTimelineBar segments={timelineSegments} />
       </div>
+
+      {promptStatus && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-border bg-surface/40 px-3 py-2 text-xs text-muted">
+          <span className="truncate">
+            {promptStatus.exists
+              ? `Prompts: ${promptStatus.scene_count} generated · ${promptStatus.model ?? "?"} · ${promptStatus.source ?? "?"} · ${formatRelativeTime(promptStatus.generated_at)}`
+              : "Prompts: not generated yet — will run automatically when you click Generate Scenes."}
+          </span>
+          {promptStatus.exists && (
+            <button
+              type="button"
+              onClick={onRegeneratePrompts}
+              disabled={promptRun?.status === "running"}
+              className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground hover:bg-surface-2 disabled:cursor-not-allowed disabled:text-muted"
+            >
+              {promptRun?.status === "running" ? "Regenerating..." : "Regenerate"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {promptRun && (
+        <div className="mb-3 overflow-hidden rounded-lg border border-border bg-background">
+          <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                promptRun.status === "completed"
+                  ? "bg-success"
+                  : promptRun.status === "failed"
+                    ? "bg-danger"
+                    : "bg-accent animate-pulse"
+              }`}
+            />
+            <span className="text-xs font-medium text-foreground">
+              {promptRun.status === "running"
+                ? "Regenerating prompts..."
+                : promptRun.status === "completed"
+                  ? "Prompts ready"
+                  : promptRun.status === "failed"
+                    ? "Prompt regeneration failed"
+                    : "Queued"}
+            </span>
+          </div>
+          <pre className="max-h-48 overflow-auto px-4 py-2 font-mono text-xs leading-relaxed text-muted-strong">
+            {promptRun.logs.length === 0
+              ? "Waiting for output..."
+              : promptRun.logs.join("\n")}
+          </pre>
+        </div>
+      )}
 
       {segments.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-surface/40 p-6 text-center text-sm text-muted">
@@ -240,6 +342,18 @@ export function VisualPacingPanel({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Compact relative-time formatter for the prompt-status row. */
+function formatRelativeTime(iso: string | null): string {
+  if (!iso) return "unknown time";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "unknown time";
+  const diffSec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (diffSec < 60) return "just now";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+  return `${Math.floor(diffSec / 86400)}d ago`;
+}
 
 /** Human-readable label for a segment. Matches scene_plan conventions:
  *  -1 = hook, -2 = conclusion, otherwise "Segment N" (1-indexed). */

@@ -22,6 +22,7 @@ concurrency to Google.
 
 from __future__ import annotations
 
+import json
 import os
 import threading
 from pathlib import Path
@@ -66,6 +67,14 @@ class NanoBananaProvider(VisualProvider):
         # package installed; this provider may not even be exercised today.
         self._client = None
         self._client_lock = threading.Lock()
+        # Per-project enhanced visual-prompts payload (visual_prompts.json),
+        # lazy-loaded on first scene fetch. ``None`` = "not yet loaded";
+        # ``{}`` after attempted load = "no file present, run in fallback mode
+        # for every scene". Keyed by project_name so a long-lived provider
+        # instance handling multiple projects (test scripts, not the live
+        # orchestrator) doesn't cross-contaminate prompts.
+        self._visual_prompts_cache: dict[str, dict | None] = {}
+        self._visual_prompts_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # SDK wiring
@@ -110,9 +119,21 @@ class NanoBananaProvider(VisualProvider):
             raise ValueError(
                 f"Scene {sid} has no visual_description to generate from"
             )
-        prompt = _BASELINE_PREFIX + query
 
-        cache_key = {"prompt": prompt, "model": _MODEL_ID}
+        # Prefer the enhanced prompt from visual_prompt_service if present.
+        # The enhancer already incorporates the baseline cinematic language,
+        # so we use its prompt VERBATIM — no _BASELINE_PREFIX prepending.
+        enhanced = self._lookup_enhanced(project_name, sid)
+        if enhanced is not None:
+            prompt = enhanced["prompt"]
+            source = enhanced["source"]
+        else:
+            prompt = _BASELINE_PREFIX + query
+            source = "fallback"
+
+        # ``source`` makes the cache invalidate on a mode flip even if the
+        # exact prompt text happens to collide between enhanced/passthrough.
+        cache_key = {"prompt": prompt, "model": _MODEL_ID, "source": source}
         if is_cache_valid(output, cache_key):
             print(f"  [scene {sid}] nano_banana cached -> {output}", flush=True)
             return output
@@ -144,6 +165,37 @@ class NanoBananaProvider(VisualProvider):
     # ------------------------------------------------------------------
     # Internals
     # ------------------------------------------------------------------
+
+    def _lookup_enhanced(self, project_name: str, scene_id: int) -> dict | None:
+        """Return ``{"prompt": str, "source": "enhanced"|"passthrough"}`` for
+        ``scene_id`` from this project's ``visual_prompts.json``, or None if
+        the file is missing / the scene is absent / the prompt is empty.
+
+        Thread-safe lazy load: the orchestrator dispatches scenes across N
+        workers, so the first one in pays the disk read while others wait."""
+        with self._visual_prompts_lock:
+            payload = self._visual_prompts_cache.get(project_name, None)
+            if project_name not in self._visual_prompts_cache:
+                path = Path(f"../projects/{project_name}/visual_prompts.json")
+                if path.exists():
+                    try:
+                        with path.open() as f:
+                            payload = json.load(f)
+                    except (OSError, json.JSONDecodeError):
+                        payload = None
+                else:
+                    payload = None
+                self._visual_prompts_cache[project_name] = payload
+        if not payload:
+            return None
+        source = payload.get("source", "enhanced")
+        for entry in payload.get("scenes", []):
+            if int(entry.get("id", -1)) == scene_id:
+                prompt = (entry.get("prompt") or "").strip()
+                if not prompt:
+                    return None
+                return {"prompt": prompt, "source": source}
+        return None
 
     def _generate(self, prompt: str, scene_id: int) -> bytes:
         """One Gemini image generation call. Surfaces the API error verbatim

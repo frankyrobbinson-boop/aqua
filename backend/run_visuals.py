@@ -1,7 +1,9 @@
-"""Visuals stage: scene_plan -> scene_windows -> fetch per-segment footage.
+"""Visuals stage: scene_plan -> scene_windows -> visual_prompts -> footage.
 
 scene_plan reads script_draft.json; scene_windows reads scene_plan.json +
-audio_timeline.json. Footage fetch is dispatched per-segment via
+audio_timeline.json; visual_prompts reads scene_plan.json + the channel's
+visuals config and emits per-scene AI-image prompts (passthrough when the
+channel has no style configured). Footage fetch is dispatched per-segment via
 visual_service.fetch_all_scene_footage, which reads visual_config.json (or
 falls back to the all-Pexels default).
 
@@ -10,10 +12,19 @@ falls back to the all-Pexels default).
 
 import os
 import sys
+import traceback
 
 from services.scene_plan_service import generate_scene_plan, save_scene_plan
 from services.scene_timing_service import compute_scene_windows, save_scene_windows
 from services.stage_graph import missing_inputs
+from services.visual_prompt_service import (
+    _build_passthrough_payload,
+    _load_channel_id,
+    compute_cache_key,
+    generate_visual_prompts,
+    save_visual_prompts,
+)
+from services.channel_registry import resolve_channel_visuals
 from services.visual_service import fetch_all_scene_footage
 
 
@@ -29,20 +40,55 @@ def _check_inputs(project_name: str):
         )
 
 
+def _safe_visual_prompts(project_name: str) -> dict:
+    """Run the enhancer; on any failure, fall back to a passthrough payload so
+    footage gen still proceeds. The expensive step is image generation —
+    mediocre prompts beat no prompts at all."""
+    try:
+        return generate_visual_prompts(project_name)
+    except Exception as exc:
+        print(
+            f"      ERROR: visual-prompt enhancement failed: {exc!r}",
+            flush=True,
+        )
+        traceback.print_exc()
+        # Build a minimal passthrough payload directly from scene_plan so the
+        # provider lookup still finds entries. Re-uses service internals so
+        # the payload shape stays in lockstep.
+        import json
+        with open(f"../projects/{project_name}/scene_plan.json") as f:
+            scene_plan = json.load(f)
+        scenes = scene_plan.get("scene_intent", []) or []
+        channel_id = _load_channel_id(project_name)
+        channel_visuals = resolve_channel_visuals(channel_id)
+        model = channel_visuals.get("prompt_enhancement_model") or "claude-haiku-4-5-20251001"
+        cache_key = compute_cache_key(channel_visuals, scenes)
+        print("      Falling back to passthrough payload.", flush=True)
+        return _build_passthrough_payload(channel_id, model, cache_key, scenes)
+
+
 def run_visuals(project_name: str) -> dict:
     _check_inputs(project_name)
 
-    print(f"\n[1/3] Scene plan for '{project_name}'...")
+    print(f"\n[1/4] Scene plan for '{project_name}'...")
     scene_plan = generate_scene_plan(project_name)
     save_scene_plan(project_name, scene_plan)
     print(f"      {len(scene_plan.get('scene_intent', []))} scenes planned")
 
-    print("\n[2/3] Computing scene windows...")
+    print("\n[2/4] Computing scene windows...")
     scene_windows = compute_scene_windows(project_name)
     save_scene_windows(project_name, scene_windows)
     print(f"      {len(scene_windows)} scene windows")
 
-    print("\n[3/3] Fetching footage (per-segment providers)...")
+    print("\n[3/4] Enhancing visual prompts...")
+    prompt_payload = _safe_visual_prompts(project_name)
+    save_visual_prompts(project_name, prompt_payload)
+    print(
+        f"      {len(prompt_payload.get('scenes', []))} prompts "
+        f"({prompt_payload.get('source', '?')}, model={prompt_payload.get('model', '?')})"
+    )
+
+    print("\n[4/4] Fetching footage (per-segment providers)...")
     footage_paths = fetch_all_scene_footage(project_name)
 
     print(f"\nDONE: {len(footage_paths)} clips at ../projects/{project_name}/footage/")
