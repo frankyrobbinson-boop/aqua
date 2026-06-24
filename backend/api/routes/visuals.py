@@ -135,7 +135,7 @@ def update_visual_config(slug: str, payload: VisualConfigPayload) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/projects/{slug}/visuals/generate", response_model=GenerateVisualsResponse)
-def start_visuals_generate(slug: str) -> GenerateVisualsResponse:
+async def start_visuals_generate(slug: str) -> GenerateVisualsResponse:
     """Trigger run_visuals.py for this project. Mirrors api.routes.pipeline's
     /visuals route shape (same task_id contract) so the frontend's RunPanel /
     tasks-SSE plumbing works unchanged."""
@@ -195,7 +195,7 @@ def get_visual_prompts_status(slug: str) -> dict:
     "/projects/{slug}/visual-prompts/generate",
     response_model=GenerateVisualsResponse,
 )
-def start_visual_prompts_generate(slug: str) -> GenerateVisualsResponse:
+async def start_visual_prompts_generate(slug: str) -> GenerateVisualsResponse:
     """Kick off run_visual_prompts.py standalone. Same task-shape contract as
     the visuals route so the frontend can stream logs with the existing
     streamTaskLogs helper."""
