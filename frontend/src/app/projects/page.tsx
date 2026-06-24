@@ -1,18 +1,17 @@
-import { listProjects } from "@/lib/api";
+"use client";
+
+import { useProjectsListQuery } from "@/lib/queries";
 import { ProjectCard } from "@/components/ProjectCard";
 import { NewProjectButton } from "@/components/NewProjectButton";
 
-export const dynamic = "force-dynamic";
-
-export default async function ProjectsPage() {
-  let projects;
-  let error: string | null = null;
-  try {
-    projects = await listProjects();
-  } catch (err) {
-    projects = [];
-    error = err instanceof Error ? err.message : String(err);
-  }
+export default function ProjectsPage() {
+  const { data, error, isLoading } = useProjectsListQuery();
+  const projects = data ?? [];
+  const errorMessage = error
+    ? error instanceof Error
+      ? error.message
+      : String(error)
+    : null;
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-10">
@@ -28,14 +27,18 @@ export default async function ProjectsPage() {
         <NewProjectButton />
       </div>
 
-      {error && (
+      {errorMessage && (
         <div className="mb-6 rounded-lg border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
-          Could not reach API at <span className="font-mono">{error}</span>.
+          Could not reach API at <span className="font-mono">{errorMessage}</span>.
           Is the FastAPI service running on port 8000?
         </div>
       )}
 
-      {projects.length === 0 && !error ? (
+      {isLoading ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface/40 p-12 text-center text-sm text-muted">
+          Loading projects...
+        </div>
+      ) : projects.length === 0 && !errorMessage ? (
         <div className="rounded-xl border border-dashed border-border bg-surface/40 p-12 text-center">
           <p className="text-sm text-muted">
             No projects yet. Click <span className="font-medium text-foreground">New project</span> to start.

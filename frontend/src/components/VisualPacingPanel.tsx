@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateForProject } from "@/lib/invalidation";
 import { SegmentVisualRow } from "./SegmentVisualRow";
 import {
   VisualTimelineBar,
@@ -49,6 +52,8 @@ export function VisualPacingPanel({
   providers,
   initialConfig,
 }: Props) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [segments, setSegments] = useState<VisualSegmentConfig[]>(
     initialConfig.config.segments,
   );
@@ -157,7 +162,12 @@ export function VisualPacingPanel({
           setRun((prev) =>
             prev ? { ...prev, logs: [...prev.logs, line] } : prev,
           ),
-        (status) => setRun((prev) => (prev ? { ...prev, status } : prev)),
+        (status) => {
+          setRun((prev) => (prev ? { ...prev, status } : prev));
+          if (status === "completed") {
+            invalidateForProject(queryClient, slug, router);
+          }
+        },
       );
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err));
@@ -324,7 +334,7 @@ export function VisualPacingPanel({
               {run.status === "running"
                 ? "Generating visuals..."
                 : run.status === "completed"
-                  ? "Visuals ready"
+                  ? "Generation complete — scene cards updated"
                   : run.status === "failed"
                     ? "Generation failed"
                     : "Queued"}

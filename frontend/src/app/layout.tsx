@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TopNav } from "@/components/TopNav";
+import { QueryProvider } from "@/components/QueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -30,8 +31,10 @@ export default function RootLayout({
       style={{ scrollbarGutter: "stable" }}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <TopNav />
-        <main className="flex-1">{children}</main>
+        <QueryProvider>
+          <TopNav />
+          <main className="flex-1">{children}</main>
+        </QueryProvider>
       </body>
     </html>
   );

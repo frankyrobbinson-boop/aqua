@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { streamTaskLogs, listTasks, getTaskStatus, type TaskStatus } from "@/lib/api";
+import { invalidateForProject } from "@/lib/invalidation";
 
 type RunState = {
   taskId: string;
@@ -24,8 +26,9 @@ type Props = {
    *  RunPanel auto-restores in-flight runs after a page reload. */
   stage?: string;
   projectSlug?: string;
-  /** What to show as the "next step" link when the run completes. If omitted,
-   *  a Refresh button is shown that re-fetches the server-rendered tree. */
+  /** Optional "next step" link rendered when the run completes. If omitted,
+   *  no button is shown — the page's queries auto-refresh via SSE-driven
+   *  invalidation. */
   nextHref?: (slug: string) => string;
   nextLabel?: string;
 };
@@ -43,6 +46,7 @@ export function RunPanel({
   nextLabel = "Next →",
 }: Props) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [run, setRun] = useState<RunState | null>(null);
@@ -105,10 +109,14 @@ export function RunPanel({
                   ? { ...prev, logs: [...prev.logs, line] }
                   : prev,
               ),
-            (status) =>
+            (status) => {
               setRun((prev) =>
                 prev && prev.taskId === t.id ? { ...prev, status } : prev,
-              ),
+              );
+              if (status === "completed") {
+                invalidateForProject(queryClient, projectSlug, router);
+              }
+            },
           );
         }
       } catch {
@@ -145,8 +153,12 @@ export function RunPanel({
           setRun((prev) =>
             prev ? { ...prev, logs: [...prev.logs, line] } : prev,
           ),
-        (status) =>
-          setRun((prev) => (prev ? { ...prev, status } : prev)),
+        (status) => {
+          setRun((prev) => (prev ? { ...prev, status } : prev));
+          if (status === "completed") {
+            invalidateForProject(queryClient, project_slug, router);
+          }
+        },
       );
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
@@ -197,14 +209,6 @@ export function RunPanel({
               >
                 {nextLabel}
               </a>
-            ) : run.status === "completed" ? (
-              <button
-                type="button"
-                onClick={() => router.refresh()}
-                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
-              >
-                Refresh →
-              </button>
             ) : null}
           </div>
           <pre className="max-h-96 overflow-auto bg-background px-5 py-3 font-mono text-xs leading-relaxed text-muted-strong">

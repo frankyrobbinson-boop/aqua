@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   createScript,
@@ -10,6 +11,7 @@ import {
   type ScriptRequest,
   type TaskStatus,
 } from "@/lib/api";
+import { invalidateForProject } from "@/lib/invalidation";
 
 import { ChannelSelect } from "@/components/ChannelSelect";
 import { HookArchetypeSelect } from "@/components/HookArchetypeSelect";
@@ -54,6 +56,7 @@ export function ScriptCreationForm({
   } | null>(null);
 
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const cleanupRef = useRef<(() => void) | null>(null);
   useEffect(() => () => cleanupRef.current?.(), []);
@@ -114,6 +117,12 @@ export function ScriptCreationForm({
           ),
         (status) => {
           setRun((prev) => (prev ? { ...prev, status } : prev));
+          if (status === "completed") {
+            // Belt-and-braces: parent handler may call router.refresh(), but
+            // also invalidate the TanStack cache so any client component
+            // reading via useProjectQuery / useScenesQuery picks up changes.
+            invalidateForProject(queryClient, resp.project_slug, router);
+          }
           if (status === "completed" || status === "failed") {
             onRunComplete?.(resp.project_slug, status);
           }
