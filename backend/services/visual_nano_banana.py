@@ -40,6 +40,11 @@ load_dotenv()
 
 _MODEL_ID = "gemini-2.5-flash-image"
 _GEMINI_CONCURRENCY = int(os.getenv("GEMINI_CONCURRENCY", "8"))
+# Gemini 2.5 Flash Image defaults to 1:1 (square) unless an aspect ratio is
+# explicitly requested via image_config. YouTube needs 16:9 — hardcode here.
+# This is also factored into the cache key so flipping ratios invalidates
+# existing images without manual file deletion.
+_ASPECT_RATIO = "16:9"
 
 # Baseline image-direction prefix prepended to every scene's visual_description.
 # Kept short and generic for Phase 1 — better per-channel prompt engineering is
@@ -133,7 +138,7 @@ class NanoBananaProvider(VisualProvider):
 
         # ``source`` makes the cache invalidate on a mode flip even if the
         # exact prompt text happens to collide between enhanced/passthrough.
-        cache_key = {"prompt": prompt, "model": _MODEL_ID, "source": source}
+        cache_key = {"prompt": prompt, "model": _MODEL_ID, "source": source, "aspect_ratio": _ASPECT_RATIO}
         if is_cache_valid(output, cache_key):
             print(f"  [scene {sid}] nano_banana cached -> {output}", flush=True)
             return output
@@ -202,7 +207,10 @@ class NanoBananaProvider(VisualProvider):
         with the scene id attached — per spec, do not swallow."""
         client = self._get_client()
         try:
-            response = client.generate_content(prompt)
+            response = client.generate_content(
+                prompt,
+                generation_config={"image_config": {"aspect_ratio": _ASPECT_RATIO}},
+            )
         except Exception as exc:
             raise RuntimeError(
                 f"Gemini image generation failed for scene {scene_id}: {exc!r}"

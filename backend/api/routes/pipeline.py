@@ -141,8 +141,16 @@ def get_scenes(slug: str) -> list[SceneInfo]:
     result: list[SceneInfo] = []
     for scene in scenes_data:
         sid = scene["id"]
-        footage_path = footage_dir / f"scene_{sid:03d}.mp4"
-        has_footage = footage_path.exists() and footage_path.stat().st_size > 0
+        # Footage can be MP4 (Pexels stock) or PNG (Nano Banana / AI image
+        # providers). Check both extensions; .png wins if both exist (newer
+        # AI providers running on top of an old Pexels-generated project).
+        ext = None
+        for candidate_ext in (".png", ".mp4"):
+            candidate = footage_dir / f"scene_{sid:03d}{candidate_ext}"
+            if candidate.exists() and candidate.stat().st_size > 0:
+                ext = candidate_ext
+                break
+        has_footage = ext is not None
         result.append(
             SceneInfo(
                 id=sid,
@@ -153,7 +161,7 @@ def get_scenes(slug: str) -> list[SceneInfo]:
                 duration=scene.get("duration"),
                 has_footage=has_footage,
                 footage_url=(
-                    f"/files/{slug}/footage/scene_{sid:03d}.mp4"
+                    f"/files/{slug}/footage/scene_{sid:03d}{ext}"
                     if has_footage
                     else None
                 ),
