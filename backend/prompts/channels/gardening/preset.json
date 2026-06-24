@@ -1,0 +1,18 @@
+{
+  "id": "gardening",
+  "label": "Gardening",
+  "description": "An everyday gardener channel \u2014 practical, conversational, leans on sensory detail.",
+  "color": "#7c7c3a",
+  "preferred_hook_archetype": "scene",
+  "visuals": {
+    "style_description": "",
+    "reference_image_paths": [],
+    "character": {
+      "enabled": false,
+      "image_path": null,
+      "strength": 0.7
+    },
+    "creative_direction": "",
+    "image_prompt_model": "claude-haiku-4-5-20251001"
+  }
+}

@@ -1,23 +1,82 @@
 """Registry of channels (narrator + audience + voice rules).
 
-Single source of truth: ``prompts/channels.json``. Mirror of the video_type
-registry pattern in ``video_type_registry.py`` — keep these symmetric so adding
-a new channel is one registry entry + one module file (no code changes).
+Phase 3a layout — data now lives in:
+  - ``prompts/channels.json``               slim registry (default + id list)
+  - ``prompts/channels/<id>/preset.json``   structured config (identity + visuals)
+  - ``prompts/channels/<id>/voice.md``      the narrator/audience/voice-rules markdown
+
+The legacy layout (loose ``channels/<id>.md`` + companion ``.visuals.json``)
+is auto-migrated at boot by ``services.channel_migration``. Idempotent.
+
+Public surface is intentionally unchanged from the pre-3a version — all the
+existing pipeline consumers (script_draft, outline, research, visual_prompt)
+keep working through these same functions. Only the internal file readers
+flipped. The richer editor-facing surface lives in
+``services.channel_preset_registry``.
 """
 
 import json
 from pathlib import Path
 
 _PROMPTS_DIR = Path("prompts")
+_CHANNELS_DIR = _PROMPTS_DIR / "channels"
 _REGISTRY_PATH = _PROMPTS_DIR / "channels.json"
 
 # Composition delimiter — must match the placeholder in *_base.md files.
 CHANNEL_SLOT = "{{CHANNEL}}"
 
 
-def _load_registry() -> dict:
+def _read_slim_registry() -> dict:
+    """Raw slim registry. Phase 3a shape:
+       {"default_channel": "<id>", "channels": ["<id>", ...]}
+    """
     with _REGISTRY_PATH.open() as f:
         return json.load(f)
+
+
+def _read_preset(channel_id: str) -> dict:
+    path = _CHANNELS_DIR / channel_id / "preset.json"
+    if not path.exists():
+        raise ValueError(
+            f"Channel preset missing: {path} (channel_id={channel_id!r})"
+        )
+    with path.open() as f:
+        return json.load(f)
+
+
+def _load_registry() -> dict:
+    """Internal: registry hydrated to the legacy dict shape so internal callers
+    (and ``hook_archetype_registry``, which iterates ``channels[*]`` for the
+    boot guard) don't need to change.
+
+    Returns:
+        {
+          "default_channel": "<id>",
+          "channels": [
+            {"id": ..., "name": ..., "description": ...,
+             "channel_module": "channels/<id>/voice.md",
+             "preferred_hook_archetype": ...},
+            ...
+          ]
+        }
+    """
+    slim = _read_slim_registry()
+    hydrated_channels: list[dict] = []
+    for cid in slim.get("channels", []):
+        preset = _read_preset(cid)
+        hydrated_channels.append({
+            "id": preset["id"],
+            # ``label`` is the new key; ``name`` is retained for the legacy
+            # dict shape consumers expect.
+            "name": preset.get("label", cid),
+            "description": preset.get("description", ""),
+            "channel_module": f"channels/{cid}/voice.md",
+            "preferred_hook_archetype": preset.get("preferred_hook_archetype"),
+        })
+    return {
+        "default_channel": slim["default_channel"],
+        "channels": hydrated_channels,
+    }
 
 
 def list_channels() -> list[dict]:
@@ -49,6 +108,8 @@ def resolve_channel(channel_id: str | None) -> str:
 
     Falls back to the registry's ``default_channel`` when ``channel_id`` is None.
     Raises ``ValueError`` for an unknown id.
+
+    Phase 3a: reads ``channels/<id>/voice.md`` (was ``channels/<id>.md``).
     """
     c = _resolve(channel_id)
     return (_PROMPTS_DIR / c["channel_module"]).read_text()
@@ -86,11 +147,13 @@ def resolve_channel_section(channel_id: str | None, section: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Channel visuals (Phase 1 companion file; Phase 2 will live in preset.json)
+# Channel visuals
 # ---------------------------------------------------------------------------
 
-# Defaults used when a channel has no companion file or a field is missing.
-# Mirrors the future preset.json `visuals` block exactly.
+# Defaults used when a channel's preset has no ``visuals`` block or a field is
+# missing. Shape matches what callers (visual_prompt_service) currently read —
+# the flat Phase 1 shape, NOT the nested preset.json shape. The resolver below
+# translates from nested back to flat so visual_prompt_service stays stable.
 _VISUALS_DEFAULTS: dict = {
     "style_description": "",
     "reference_image_paths": [],
@@ -102,37 +165,46 @@ _VISUALS_DEFAULTS: dict = {
 }
 
 
-def resolve_channel_visuals(channel_id: str | None) -> dict:
-    """Read the channel's visuals config. Phase 1: companion ``.visuals.json``
-    file next to the channel's ``.md`` (e.g. ``channels/gardening.md`` ->
-    ``channels/gardening.visuals.json``).
+def _flatten_visuals(nested: dict) -> dict:
+    """preset.json ``visuals`` block (nested character{}, image_prompt_model)
+    → the flat shape ``visual_prompt_service`` consumes
+    (character_enabled / character_image_path / character_strength /
+    prompt_enhancement_model). Refactoring the consumer is a later migration."""
+    character = nested.get("character") or {}
+    flat = {
+        "style_description": nested.get("style_description", ""),
+        "reference_image_paths": list(nested.get("reference_image_paths", []) or []),
+        "character_enabled": bool(character.get("enabled", False)),
+        "character_image_path": character.get("image_path"),
+        "character_strength": float(character.get("strength", 0.7)),
+        "creative_direction": nested.get("creative_direction", ""),
+        "prompt_enhancement_model": nested.get(
+            "image_prompt_model", "claude-haiku-4-5-20251001"
+        ),
+    }
+    merged = dict(_VISUALS_DEFAULTS)
+    merged.update({k: v for k, v in flat.items() if k in _VISUALS_DEFAULTS})
+    return merged
 
-    Phase 2 commitment: when channel presets land, this function's internals
-    change to read from the channel's ``preset.json`` under the ``visuals`` key.
-    The public signature stays IDENTICAL — only the file-reading bit changes.
-    Callers (visual_prompt_service) should never need updating.
+
+def resolve_channel_visuals(channel_id: str | None) -> dict:
+    """Read the channel's visuals config from ``channels/<id>/preset.json``
+    under the ``visuals`` key (Phase 3a).
+
+    Public signature is identical to the Phase 1 version that read
+    ``channels/<id>.visuals.json`` — callers (visual_prompt_service) see the
+    same flat schema. The nested-character + renamed
+    ``image_prompt_model`` shape lives only inside preset.json and gets flat-
+    tened here. Refactoring the consumer to use the nested shape is a follow-up
+    migration.
 
     Missing fields are backfilled from ``_VISUALS_DEFAULTS`` so callers always
-    get the full schema. Missing companion file = all defaults (passthrough
+    get the full schema. Missing visuals block = all defaults (passthrough
     mode triggers downstream when style/creative_direction are empty).
     """
     c = _resolve(channel_id)
-    module_rel = c["channel_module"]  # e.g. "channels/gardening.md"
-    companion_rel = module_rel.rsplit(".", 1)[0] + ".visuals.json"
-    companion_path = _PROMPTS_DIR / companion_rel
-
-    if not companion_path.exists():
-        return dict(_VISUALS_DEFAULTS)
-
-    with companion_path.open() as f:
-        loaded = json.load(f)
-
-    # Drop the documentation field if present — it's not part of the schema.
-    loaded.pop("_note", None)
-
-    merged = dict(_VISUALS_DEFAULTS)
-    merged.update({k: v for k, v in loaded.items() if k in _VISUALS_DEFAULTS})
-    return merged
+    preset = _read_preset(c["id"])
+    return _flatten_visuals(preset.get("visuals") or {})
 
 
 def channel_preferred_hook_archetype(channel_id: str | None) -> str | None:
