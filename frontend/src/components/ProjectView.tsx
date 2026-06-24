@@ -605,19 +605,29 @@ function VisualsConfigPanel() {
 }
 
 function SceneCard({ scene }: { scene: SceneInfo }) {
-  const videoUrl = scene.footage_url ? `${API_URL}${scene.footage_url}` : null;
+  const url = scene.footage_url ? `${API_URL}${scene.footage_url}` : null;
+  const isImage = url ? /\.(png|jpe?g|webp|gif)$/i.test(url) : false;
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface">
       <div className="relative aspect-video bg-background">
-        {videoUrl ? (
-          <video
-            src={videoUrl}
-            muted
-            playsInline
-            preload="metadata"
-            controls
-            className="h-full w-full object-cover"
-          />
+        {url ? (
+          isImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={url}
+              alt={scene.visual_description || `Scene ${scene.id}`}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <video
+              src={url}
+              muted
+              playsInline
+              preload="metadata"
+              controls
+              className="h-full w-full object-cover"
+            />
+          )
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted">
             No footage
