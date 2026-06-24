@@ -203,10 +203,22 @@ def render_scene_clip(
     ]
     # Ken Burns only on stills. zoompan needs an explicit frame count and
     # output size; without `s=`, it defaults to 1x1 which black-frames the clip.
+    # Linear interpolation from 1.0 -> KB_END_ZOOM across all frames so the
+    # motion never plateaus (the old `min(zoom+step, cap)` formula hit the
+    # cap mid-clip and held still after that). Center-cropped so the zoom
+    # pulls toward the middle of the image, not the top-left default.
     if ken_burns and is_png:
         total_frames = max(1, math.ceil(duration * FPS))
+        KB_END_ZOOM = 1.08  # subtle — ~8% over the full duration
+        # `on` is zoompan's output-frame counter (0..total_frames-1). Divide
+        # by max(1, total_frames-1) to avoid div-by-zero on 1-frame clips.
+        denom = max(1, total_frames - 1)
+        z_expr = f"1+{KB_END_ZOOM - 1:.4f}*on/{denom}"
+        x_expr = "iw/2-(iw/zoom/2)"
+        y_expr = "ih/2-(ih/zoom/2)"
         filters.append(
-            f"zoompan=z='min(zoom+0.0015,1.15)':d={total_frames}"
+            f"zoompan=z='{z_expr}':d={total_frames}"
+            f":x='{x_expr}':y='{y_expr}'"
             f":s={OUT_W}x{OUT_H}:fps={FPS}"
         )
     # Fade applies to every clip regardless of source type. Fade-out start =
