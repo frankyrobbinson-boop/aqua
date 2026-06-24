@@ -44,7 +44,7 @@ from services.scene_timing_service import (
 )
 
 from services.visual_service import fetch_scene_footage
-from services.stock_pexels import PexelsProvider
+from services.visual_pexels import PexelsProvider
 
 from services.assembly_service import assemble
 

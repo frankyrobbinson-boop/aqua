@@ -1,7 +1,9 @@
-"""Visuals stage: scene_plan → scene_windows → fetch stock footage.
+"""Visuals stage: scene_plan -> scene_windows -> fetch per-segment footage.
 
-scene_plan reads script_draft.json, scene_windows reads scene_plan.json +
-audio_timeline.json. Footage fetch is idempotent (per-clip cache).
+scene_plan reads script_draft.json; scene_windows reads scene_plan.json +
+audio_timeline.json. Footage fetch is dispatched per-segment via
+visual_service.fetch_all_scene_footage, which reads visual_config.json (or
+falls back to the all-Pexels default).
 
     python run_visuals.py <project_name>
 """
@@ -12,8 +14,7 @@ import sys
 from services.scene_plan_service import generate_scene_plan, save_scene_plan
 from services.scene_timing_service import compute_scene_windows, save_scene_windows
 from services.stage_graph import missing_inputs
-from services.visual_service import fetch_scene_footage
-from services.stock_pexels import PexelsProvider
+from services.visual_service import fetch_all_scene_footage
 
 
 def _check_inputs(project_name: str):
@@ -41,9 +42,8 @@ def run_visuals(project_name: str) -> dict:
     save_scene_windows(project_name, scene_windows)
     print(f"      {len(scene_windows)} scene windows")
 
-    print("\n[3/3] Fetching stock footage...")
-    provider = PexelsProvider()
-    footage_paths = fetch_scene_footage(project_name, scene_windows, provider)
+    print("\n[3/3] Fetching footage (per-segment providers)...")
+    footage_paths = fetch_all_scene_footage(project_name)
 
     print(f"\nDONE: {len(footage_paths)} clips at ../projects/{project_name}/footage/")
     return footage_paths

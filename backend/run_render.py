@@ -39,13 +39,22 @@ def run_render(project_name: str) -> str:
         scene_windows = json.load(f)
 
     footage_dir = f"../projects/{project_name}/footage"
+    # Either .mp4 (stock / AI video) or .png (AI image) — visual providers may
+    # produce either, and assembly_service.render_scene_clip accepts both
+    # transparently via ffmpeg -stream_loop on stills.
     footage_paths = {}
     for scene in scene_windows:
         sid = scene["id"]
-        path = os.path.join(footage_dir, f"scene_{sid:03d}.mp4")
-        if not os.path.exists(path):
+        path = None
+        for ext in ("mp4", "png"):
+            candidate = os.path.join(footage_dir, f"scene_{sid:03d}.{ext}")
+            if os.path.exists(candidate):
+                path = candidate
+                break
+        if path is None:
             raise FileNotFoundError(
-                f"Missing footage for scene {sid}: {path}. Run run_visuals.py."
+                f"Missing footage for scene {sid} in {footage_dir} "
+                f"(looked for scene_{sid:03d}.mp4 and .png). Run run_visuals.py."
             )
         footage_paths[sid] = path
 

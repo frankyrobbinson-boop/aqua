@@ -13,7 +13,7 @@ import sys
 
 from services.scene_timing_service import compute_scene_windows, save_scene_windows
 from services.visual_service import fetch_scene_footage
-from services.stock_pexels import PexelsProvider
+from services.visual_pexels import PexelsProvider
 from services.assembly_service import assemble
 
 
