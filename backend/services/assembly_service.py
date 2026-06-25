@@ -12,7 +12,7 @@ OUT_W, OUT_H = 1920, 1080
 # Bump when filter math changes in a way that should invalidate cached clips
 # (e.g., Ken Burns formula change, fade duration change). The boolean flags
 # in the cache key only catch flag flips; raw filter changes need this knob.
-_CLIP_CACHE_VERSION = 3
+_CLIP_CACHE_VERSION = 4
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -201,36 +201,35 @@ def render_scene_clip(
     is_png = footage_path.lower().endswith(".png")
 
     # Standard chain when Ken Burns is OFF (or source is video).
-    # When Ken Burns is ON and source is a PNG, we replace with a
-    # spatial-supersample + temporal-supersample + motion-blur chain.
-    # Why all three: zoompan's per-frame crop position rounds to integer
-    # pixels, causing visible 1px jitter. Spatial 2x makes the rounding
-    # subpixel-in-output. Temporal 2x renders at 50fps then `tblend`
-    # averages pairs of frames and `framestep=2` drops every other,
-    # producing real motion blur at the final 25fps. Together this
-    # mimics how a real camera handles slow continuous motion — no
-    # algorithmic shortcut fully fixes the rounding; only blending does.
+    # When Ken Burns is ON and source is a PNG, swap zoompan entirely
+    # for a scale-with-eval=frame + center-crop + motion-blur chain.
+    # zoompan's per-frame integer rounding of the crop center was the
+    # root cause of the residual jitter (visible 1px jumps every few
+    # frames); the `scale=eval=frame` filter does subpixel-accurate
+    # interpolation per frame instead. tblend at 2x temporal sampling
+    # smooths whatever rounding remains in the center-crop stage.
     if ken_burns and is_png:
         SUPER = 2
-        FPS_HI = FPS * 2  # temporal supersample
+        FPS_HI = FPS * 2  # temporal supersample for motion blur
         sw, sh = OUT_W * SUPER, OUT_H * SUPER
         total_frames_hi = max(1, math.ceil(duration * FPS_HI))
         KB_END_ZOOM = 1.08
         denom = max(1, total_frames_hi - 1)
-        z_expr = f"1+{KB_END_ZOOM - 1:.4f}*on/{denom}"
-        x_expr = "iw/2-(iw/zoom/2)"
-        y_expr = "ih/2-(ih/zoom/2)"
+        # Dynamic scale grows both dims uniformly (aspect preserved
+        # because we pre-fit to sw×sh first). Center-crop pulls the
+        # zoom toward the middle of the image instead of top-left.
+        zoom_expr = f"(1+{KB_END_ZOOM - 1:.4f}*n/{denom})"
         filters = [
             f"scale={sw}:{sh}:force_original_aspect_ratio=increase:flags=lanczos",
             f"crop={sw}:{sh}",
             f"fps={FPS_HI}",
             "format=yuv420p",
             (
-                f"zoompan=z='{z_expr}':d={total_frames_hi}"
-                f":x='{x_expr}':y='{y_expr}'"
-                f":s={sw}x{sh}:fps={FPS_HI}"
+                f"scale=w='{sw}*{zoom_expr}':h='{sh}*{zoom_expr}'"
+                f":eval=frame:flags=lanczos"
             ),
-            "tblend=all_mode=average",  # avg consecutive frames -> motion blur
+            f"crop={sw}:{sh}:x='(iw-{sw})/2':y='(ih-{sh})/2'",
+            "tblend=all_mode=average",  # blend pairs -> motion blur
             "framestep=2",                # drop every other -> back to FPS
             f"scale={OUT_W}:{OUT_H}:flags=lanczos",
         ]
