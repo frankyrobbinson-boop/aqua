@@ -12,7 +12,7 @@ OUT_W, OUT_H = 1920, 1080
 # Bump when filter math changes in a way that should invalidate cached clips
 # (e.g., Ken Burns formula change, fade duration change). The boolean flags
 # in the cache key only catch flag flips; raw filter changes need this knob.
-_CLIP_CACHE_VERSION = 4
+_CLIP_CACHE_VERSION = 5
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -209,16 +209,26 @@ def render_scene_clip(
     # interpolation per frame instead. tblend at 2x temporal sampling
     # smooths whatever rounding remains in the center-crop stage.
     if ken_burns and is_png:
-        SUPER = 2
+        # 4x spatial supersample: render the entire Ken Burns chain at
+        # 7680x4320 (4K) internally, lanczos-downscale to 1920x1080.
+        # The integer-pixel crop rounding inside the chain becomes 0.25px
+        # in output space — below the visible-jitter threshold once the
+        # downsample smooths it. 2x was not enough.
+        SUPER = 4
         FPS_HI = FPS * 2  # temporal supersample for motion blur
         sw, sh = OUT_W * SUPER, OUT_H * SUPER
         total_frames_hi = max(1, math.ceil(duration * FPS_HI))
         KB_END_ZOOM = 1.08
         denom = max(1, total_frames_hi - 1)
-        # Dynamic scale grows both dims uniformly (aspect preserved
-        # because we pre-fit to sw×sh first). Center-crop pulls the
-        # zoom toward the middle of the image instead of top-left.
+        # Scale grows uniformly per frame (aspect preserved via the
+        # pre-fit scale to sw×sh). Crop offset hardcoded from frame
+        # number `n` rather than `(iw-sw)/2`: crop's `iw` is cached at
+        # the initial value (sw) so the iw-based expression evaluates
+        # to 0 every frame -> top-left anchoring. Computing from n
+        # directly forces per-frame center-tracking.
         zoom_expr = f"(1+{KB_END_ZOOM - 1:.4f}*n/{denom})"
+        x_max = sw * (KB_END_ZOOM - 1) / 2  # 307.2 px at sw=7680, KB=1.08
+        y_max = sh * (KB_END_ZOOM - 1) / 2  # 172.8 px at sh=4320
         filters = [
             f"scale={sw}:{sh}:force_original_aspect_ratio=increase:flags=lanczos",
             f"crop={sw}:{sh}",
@@ -228,7 +238,7 @@ def render_scene_clip(
                 f"scale=w='{sw}*{zoom_expr}':h='{sh}*{zoom_expr}'"
                 f":eval=frame:flags=lanczos"
             ),
-            f"crop={sw}:{sh}:x='(iw-{sw})/2':y='(ih-{sh})/2'",
+            f"crop={sw}:{sh}:x='{x_max:.4f}*n/{denom}':y='{y_max:.4f}*n/{denom}'",
             "tblend=all_mode=average",  # blend pairs -> motion blur
             "framestep=2",                # drop every other -> back to FPS
             f"scale={OUT_W}:{OUT_H}:flags=lanczos",
