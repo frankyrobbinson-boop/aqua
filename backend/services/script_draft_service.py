@@ -129,7 +129,10 @@ def generate_script_draft(
     # become quality. Bump to high if scripts feel under-cooked; drop to low
     # only if cost becomes a problem and quality is still strong.
     with client.messages.stream(
-        model="claude-opus-4-7",
+        # Sonnet 4.6 — ~5x cheaper than Opus, handles structured creative
+        # work (script-from-outline) well. If script quality drops noticeably
+        # on real videos, revert to claude-opus-4-7 (keep effort=medium).
+        model="claude-sonnet-4-6",
         max_tokens=24576,
         thinking={"type": "adaptive"},
         output_config={
