@@ -7,6 +7,7 @@ You are given a finished YouTube script. The script has a hook, a list of `segme
 # Scene granularity
 
 - Target scene length: **5–9 seconds** of narration. Lean shorter, not longer — viewers retain better with frequent visual changes.
+- **Hook pacing exception:** scenes in the hook segment (`segment_id: -1`) should be **2–5 seconds** each, not 5–9. Faster cuts in the first 20–30 seconds boost first-minute retention. Plan more hook scenes if you need to — overlap a long sentence across two short scenes rather than letting one drag.
 - Cut to a new scene whenever the subject of the narration changes, a new noun is introduced, or a new beat lands. When in doubt, cut.
 - Don't over-cut a single coherent thought into three. Don't under-cut a paragraph that covers three distinct subjects into one.
 - A **10-minute video should land at roughly 70–100 scenes total** (one cut every ~6–8 seconds on average).
