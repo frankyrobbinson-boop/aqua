@@ -18,17 +18,18 @@ import { HookArchetypeSelect } from "@/components/HookArchetypeSelect";
 import { VideoTypeSelect } from "@/components/VideoTypeSelect";
 
 /**
- * Single canonical script-creation form used by both /create and
- * /projects/[slug] (when the project has no script yet). Fields here are the
- * per-video knobs that affect script generation; voice speed lives on the
+ * Single canonical script-creation form used by both /projects/new (creation)
+ * and /projects/[slug] (resuming a draft with no script yet). Fields here are
+ * the per-video knobs that affect script generation; voice speed lives on the
  * Voiceover tab (channel preset will own its default once channels land).
  */
 export type ScriptCreationFormProps = {
   /** When set, the script generates into this existing project slug.
-   * When unset, the API derives a slug from the topic and may create a new project. */
+   * When unset, the API derives a slug from the topic and creates a new project. */
   projectSlug?: string;
-  /** Called when a run completes successfully with the resolved slug.
-   * /create uses it to surface an "Open project →" link; /projects/[slug] uses it to refresh. */
+  /** Called when a run completes (or fails) with the resolved slug.
+   * /projects/new uses it to navigate to /projects/[slug] on success;
+   * /projects/[slug] uses it to refresh the page data. */
   onRunComplete?: (projectSlug: string, status: TaskStatus) => void;
 };
 
@@ -95,16 +96,17 @@ export function ScriptCreationForm({
         mode,
       });
 
-      // Backend may have renamed a draft slug to a topic-derived one. If the form
-      // was mounted from /projects/[draft-slug], navigate to the new URL so the
-      // user lands on the renamed project. router.replace (not push) — the draft
-      // URL isn't worth keeping in history.
+      // Backend may have renamed a legacy draft slug to a topic-derived one.
+      // If the form was mounted from /projects/[draft-slug], navigate to the
+      // new URL so the user lands on the renamed project. router.replace (not
+      // push) — the draft URL isn't worth keeping in history.
       //
-      // NOTE: This unmounts ScriptCreationForm on the per-project page (the route
-      // segment changes), so the in-flight run state here is lost. That's
-      // acceptable — Fix 2 (RunPanel hydration) plus the page's own re-render
-      // against the new slug recover the streaming progress immediately. On
-      // /create there's no [slug] route segment, so the form stays mounted.
+      // NOTE: This unmounts ScriptCreationForm on the per-project page (the
+      // route segment changes), so the in-flight run state here is lost.
+      // That's acceptable — Fix 2 (RunPanel hydration) plus the page's own
+      // re-render against the new slug recover the streaming progress
+      // immediately. On /projects/new there's no [slug] segment yet, so the
+      // form stays mounted and onRunComplete handles navigation on done.
       if (projectSlug && resp.project_slug !== projectSlug) {
         router.replace(`/projects/${resp.project_slug}`);
       }

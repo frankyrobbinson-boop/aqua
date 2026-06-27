@@ -40,7 +40,9 @@ export type ProjectDetail = ProjectSummary & {
 export type ScriptRequest = {
   topic: string;
   target_minutes: number;
-  /** If set, write artifacts to this project slug instead of one derived from topic. */
+  /** If set, write artifacts into this existing project slug (resume a draft
+   *  or re-run script for an existing project). When omitted, the backend
+   *  derives a unique slug from the topic. */
   project_slug?: string;
   /** Selects the outline/script structure module from video_types.json. */
   video_type?: string;
@@ -298,10 +300,6 @@ export async function createPipeline(body: ScriptRequest): Promise<StartScriptRe
     method: "POST",
     body: JSON.stringify(body),
   });
-}
-
-export async function createProject(): Promise<{ slug: string }> {
-  return getJSON<{ slug: string }>("/projects", { method: "POST" });
 }
 
 export async function deleteProject(slug: string): Promise<void> {

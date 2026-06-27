@@ -49,8 +49,10 @@ _DRAFT_SLUG_RE = re.compile(r"^draft-\d+-[a-f0-9]+$")
 class ScriptRequest(BaseModel):
     topic: str = Field(..., min_length=1, max_length=300)
     target_minutes: int = Field(default=10, ge=1, le=60)
-    # If provided, the run will write artifacts to this project folder instead
-    # of one derived from the topic. Used for the draft-project flow.
+    # If provided, the run writes artifacts into this existing project folder
+    # (used to resume a legacy draft-XXXX folder, or to re-run script generation
+    # for an existing topic-slug project). When omitted — the canonical path
+    # for new creations — the backend derives a unique slug from the topic.
     project_slug: Optional[str] = None
     # Selects the outline/script structure module from video_types.json.
     # None falls back to the registry's default_type at run time.
@@ -114,6 +116,20 @@ def _write_script_config(backend_dir: Path, project_slug: str, req: "ScriptReque
         except OSError:
             pass
         raise
+
+
+def _derive_unique_slug(topic: str, projects_root: Path) -> str:
+    """Slugify ``topic`` and append -2, -3, ... until the candidate doesn't
+    collide with an existing project directory. Used by the unified creation
+    flow (no draft folder pre-allocated) so the first write to disk happens
+    under the final slug."""
+    base = slugify(topic)
+    candidate = base
+    n = 2
+    while (projects_root / candidate).exists():
+        candidate = f"{base}-{n}"
+        n += 1
+    return candidate
 
 
 def _resolve_slug(req: ScriptRequest) -> str:
@@ -421,7 +437,14 @@ def create_channel(payload: ChannelCreatePayload) -> dict:
 async def create_script(req: ScriptRequest) -> ScriptResponse:
     """Start a script-only generation run."""
     _validate_hook_archetype(req.hook_archetype)
-    project_slug = _migrate_draft_slug(req)
+    if req.project_slug:
+        # Existing draft slug or existing project — keep the migration path so
+        # legacy draft-XXXX folders still rename to their topic slug.
+        project_slug = _migrate_draft_slug(req)
+    else:
+        # Unified creation flow: no folder pre-allocated; derive a unique slug
+        # straight from the topic. Collisions append -2, -3, ...
+        project_slug = _derive_unique_slug(req.topic, PROJECTS_ROOT)
     backend_dir = Path(__file__).resolve().parent.parent.parent
     _write_pre_research(backend_dir, project_slug, req.pre_research)
     _write_script_config(backend_dir, project_slug, req)
@@ -452,7 +475,10 @@ async def create_script(req: ScriptRequest) -> ScriptResponse:
 async def create_pipeline(req: ScriptRequest) -> ScriptResponse:
     """Start an end-to-end pipeline run: script → voiceover → visuals → render."""
     _validate_hook_archetype(req.hook_archetype)
-    project_slug = _migrate_draft_slug(req)
+    if req.project_slug:
+        project_slug = _migrate_draft_slug(req)
+    else:
+        project_slug = _derive_unique_slug(req.topic, PROJECTS_ROOT)
     backend_dir = Path(__file__).resolve().parent.parent.parent
     _write_pre_research(backend_dir, project_slug, req.pre_research)
     _write_script_config(backend_dir, project_slug, req)

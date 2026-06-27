@@ -1,9 +1,7 @@
 """Project listing and detail endpoints. Reads from ../projects/."""
 
 import json
-import secrets
 import shutil
-import time
 from pathlib import Path
 from typing import Any
 
@@ -108,21 +106,6 @@ def get_project(slug: str) -> dict:
         "audio_timeline": _load_json(p / "audio_timeline.json"),
         "scene_windows": _load_json(p / "scene_windows.json"),
     }
-
-
-class NewProjectResponse(BaseModel):
-    slug: str
-
-
-@router.post("", response_model=NewProjectResponse)
-def create_project() -> NewProjectResponse:
-    """Create an empty draft project. The slug is temporary — the script
-    generation step will use whatever topic the user later enters."""
-    PROJECTS_ROOT.mkdir(parents=True, exist_ok=True)
-    # Short URL-friendly id. Collisions virtually impossible.
-    slug = f"draft-{int(time.time())}-{secrets.token_hex(2)}"
-    (PROJECTS_ROOT / slug).mkdir(parents=True, exist_ok=False)
-    return NewProjectResponse(slug=slug)
 
 
 @router.delete("/{slug}")
