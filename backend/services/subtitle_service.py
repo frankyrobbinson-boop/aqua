@@ -9,6 +9,7 @@ span of its words.
 
 import json
 import os
+import re
 from typing import List, Dict
 
 
@@ -119,6 +120,48 @@ def _is_dash_token(token: str) -> bool:
     return stripped != "" and all(ch in _EM_DASHES for ch in stripped)
 
 
+_DASH_SPLIT_RE = re.compile(r'[—–]+')
+
+
+def _split_dash_token(word: Dict) -> List[Dict]:
+    """Expand a dash-joined ElevenLabs token into separate pseudo-words.
+
+    ElevenLabs returns dash-joined phrases like 'before—you' or 'tag—Wave,'
+    as a single audio token with one timestamp. The prior fix
+    (`_clean_display` replacing the dash with a space) made them display
+    as two visual words but they still shared one highlight slot — so the
+    user saw two words light up simultaneously when the highlight reached
+    that token.
+
+    Splitting here at card-construction time gives each piece its own
+    timestamp slice (equal divisions of the original duration) and its
+    own highlight slot, so the karaoke effect advances word-by-word the
+    way the viewer expects.
+    """
+    raw = word["word"]
+    parts = [p for p in _DASH_SPLIT_RE.split(raw) if p.strip()]
+    if len(parts) <= 1:
+        return [word]
+    start = word["global_start"]
+    end = word["global_end"]
+    duration = end - start
+    if duration <= 0:
+        # Defensive: zero-duration token. Same timestamp on every piece.
+        return [
+            {"word": p, "global_start": start, "global_end": end}
+            for p in parts
+        ]
+    slice_dur = duration / len(parts)
+    return [
+        {
+            "word": parts[i],
+            "global_start": start + i * slice_dur,
+            "global_end": start + (i + 1) * slice_dur,
+        }
+        for i in range(len(parts))
+    ]
+
+
 def _clean_display(token: str) -> str:
     """Replace em-dashes (—) and en-dashes (–) with a space for subtitle
     display. ElevenLabs returns dash-joined phrases like 'tag—Wave,' or
@@ -185,7 +228,13 @@ def build_subtitles(project_name: str, output_path: str) -> str:
     all_cards: List[List[Dict]] = []
     for sentence in sentences:
         for card_words in _split_into_cards(sentence, MAX_WORDS_PER_CARD):
-            cleaned = [w for w in card_words if not _is_dash_token(w["word"])]
+            # Expand dash-joined tokens FIRST so each piece gets its own
+            # highlight slot, then filter out any pure-dash tokens (which
+            # are phrase separators that shouldn't render at all).
+            expanded: List[Dict] = []
+            for w in card_words:
+                expanded.extend(_split_dash_token(w))
+            cleaned = [w for w in expanded if not _is_dash_token(w["word"])]
             if cleaned:
                 all_cards.append(cleaned)
 
