@@ -133,7 +133,12 @@ def generate_script_draft(
         # work (script-from-outline) well. If script quality drops noticeably
         # on real videos, revert to claude-opus-4-7 (keep effort=medium).
         model="claude-sonnet-4-6",
-        max_tokens=24576,
+        # 65536: adaptive thinking + structured output share this budget.
+        # An 8-item 16-min listicle (~2400 spoken words) is ~3500 tokens of
+        # JSON output; Sonnet's thinking can chew through 20K+ tokens before
+        # the output starts. 24K crashed on this case with stop_reason=
+        # max_tokens. 64K leaves comfortable headroom for even larger scripts.
+        max_tokens=65536,
         thinking={"type": "adaptive"},
         output_config={
             "format": {"type": "json_schema", "schema": SCRIPT_SCHEMA},
