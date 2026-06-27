@@ -215,6 +215,65 @@ def resolve_channel_visuals(channel_id: str | None) -> dict:
     return _flatten_visuals(preset.get("visuals") or {})
 
 
+# ---------------------------------------------------------------------------
+# Channel voiceover
+# ---------------------------------------------------------------------------
+
+# Defaults used when a channel's preset has no ``voiceover`` block or a field
+# is missing. Shape matches what voice_service / voice providers consume —
+# flat dict mirroring resolve_channel_visuals semantics. ``voice_id``,
+# ``voice_reference_path`` are None when unset (no fallback id baked here so
+# the provider's own default-voice precedence stays the single source of
+# truth — for ElevenLabs that's env ELEVENLABS_VOICE_ID > built-in George).
+_VOICEOVER_DEFAULTS: dict = {
+    "provider": "elevenlabs",
+    "voice_id": None,
+    "model": "eleven_multilingual_v2",
+    "speed": 1.0,
+    "settings": {
+        "stability": 0.5,
+        "similarity_boost": 0.75,
+        "style": 0.0,
+        "use_speaker_boost": True,
+    },
+    "voice_reference_path": None,
+}
+
+
+def _flatten_voiceover(nested: dict) -> dict:
+    """preset.json ``voiceover`` block → flat schema consumed by voice
+    providers. Missing fields are backfilled from ``_VOICEOVER_DEFAULTS``;
+    ``settings`` is shallow-merged so a preset can override only the keys it
+    cares about without re-stating the whole settings dict."""
+    merged: dict = dict(_VOICEOVER_DEFAULTS)
+    for k, v in (nested or {}).items():
+        if k not in _VOICEOVER_DEFAULTS:
+            continue
+        if k == "settings" and isinstance(v, dict):
+            merged_settings = dict(_VOICEOVER_DEFAULTS["settings"])
+            merged_settings.update(v)
+            merged["settings"] = merged_settings
+        else:
+            merged[k] = v
+    return merged
+
+
+def resolve_channel_voiceover(channel_id: str | None) -> dict:
+    """Read the channel's voiceover config from ``channels/<id>/preset.json``
+    under the ``voiceover`` key. Returns the flat schema with defaults filled
+    in; if the preset has no voiceover block (e.g., the gardening preset
+    pre-migration), returns all defaults.
+
+    Public signature mirrors ``resolve_channel_visuals`` and is meant to stay
+    stable across the channel-preset architecture migration — callers in
+    voice_service and the provider classes consume this dict and rely on the
+    full schema being present.
+    """
+    c = _resolve(channel_id)
+    preset = _read_preset(c["id"])
+    return _flatten_voiceover(preset.get("voiceover") or {})
+
+
 def channel_preferred_hook_archetype(channel_id: str | None) -> str | None:
     """Return the channel's preferred_hook_archetype field, or None if absent.
 

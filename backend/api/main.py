@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import pipeline, projects, scripts, tasks, visuals
+from api.routes import pipeline, projects, scripts, tasks, visuals, voice
 from services.channel_migration import run_channel_migration
 from services.channel_preset_registry import verify_presets
 from services.hook_archetype_registry import (
@@ -20,6 +20,7 @@ from services.hook_archetype_registry import (
 from services.research_service import verify_research_slot
 from services.video_type_registry import verify_base_slots, verify_modules_exist
 from services.visual_provider_registry import verify_providers_exist
+from services.voice_provider_registry import verify_voice_providers_exist
 
 # Channel preset auto-migration runs FIRST — flips legacy
 # channels/<id>.md + companion .visuals.json into channels/<id>/{preset.json,
@@ -34,6 +35,7 @@ verify_research_slot()
 verify_archetype_modules_exist()
 verify_hook_slot()
 verify_providers_exist()
+verify_voice_providers_exist()
 verify_presets()
 
 
@@ -64,3 +66,4 @@ app.include_router(scripts.router)
 app.include_router(tasks.router)
 app.include_router(pipeline.router)
 app.include_router(visuals.router)
+app.include_router(voice.router)

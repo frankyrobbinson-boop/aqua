@@ -1,0 +1,8 @@
+{
+  "default_provider": "elevenlabs",
+  "providers": [
+    {"id": "elevenlabs", "label": "ElevenLabs", "available": true, "cost_per_unit": 0.30, "unit": "1000_chars"},
+    {"id": "qwen3_hosted", "label": "Qwen3 (hosted via DashScope/WaveSpeed)", "available": false, "cost_per_unit": 0.005, "unit": "clip"},
+    {"id": "qwen3_local", "label": "Qwen3 (local MLX)", "available": false, "cost_per_unit": 0.0, "unit": "clip"}
+  ]
+}

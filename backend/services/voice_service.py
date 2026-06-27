@@ -1,4 +1,29 @@
-import base64
+"""Voiceover orchestrator: dispatch each unit to its configured provider.
+
+Reads voice units (via ``voice_prep_service``), looks up the channel's
+voiceover config (via ``channel_registry.resolve_channel_voiceover``),
+resolves the provider via ``voice_provider_registry``, and calls
+``synth_unit`` per unit. Cache, request-id chaining, and per-segment
+serialization live here; provider-specific work (SDK calls, alignment,
+trimming) lives in the provider classes.
+
+Behavioral preservation: with the default (no channel override) the orchestrator
+routes every unit to ``ElevenLabsProvider`` with the same defaults the legacy
+inline code used, so projects predating this refactor run exactly as before
+— same timeline, same audio files, same cache compatibility.
+
+Public surface (kept stable for existing callers in pipeline.py, run_audio.py,
+test_voice.py):
+    generate_audio(project_name, voice_speed=1.0, channel_id=None) -> list
+    save_audio_timeline(project_name, timeline)
+    load_audio_timeline(project_name) -> list
+    CHUNK_GAP                                  # consumed by assembly_service
+    _generate_unit(unit, audio_dir, ...)       # legacy single-unit helper
+                                               # used by test_voice.py
+"""
+
+from __future__ import annotations
+
 import json
 import os
 import re
@@ -7,51 +32,30 @@ from itertools import groupby
 from typing import Optional
 
 from dotenv import load_dotenv
-from elevenlabs.client import ElevenLabs
-from elevenlabs import VoiceSettings
 
+from services.channel_registry import resolve_channel_voiceover
 from services.voice_prep_service import load_voice_units
-
-# ElevenLabs concurrency: free tier allows 2, paid tiers allow more. Default 3
-# is safe on most plans. Set ELEVENLABS_CONCURRENCY to override (drop to 2 on
-# free tier if you see 429s).
-_ELEVEN_CONCURRENCY = int(os.getenv("ELEVENLABS_CONCURRENCY", "3"))
+from services.voice_provider_registry import default_provider_id, get_provider
 
 load_dotenv()
 
-client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
-VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "JBFqnCBsd6RMkjVDRZzb")  # default: George
-MODEL_ID = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
+# ElevenLabs concurrency: free tier allows 2, paid tiers allow more. Default 3
+# is safe on most plans. Set ELEVENLABS_CONCURRENCY to override (drop to 2 on
+# free tier if you see 429s). Kept here (vs. in the provider) because it bounds
+# segment-level parallelism in the orchestrator; per-provider rate caps for
+# future Qwen3 providers can layer in on top.
+_ELEVEN_CONCURRENCY = int(os.getenv("ELEVENLABS_CONCURRENCY", "3"))
 
-# Fixed across every chunk so prosody stays consistent throughout the video
-SEED = 42
-
-# ElevenLabs `speed` accepts ~0.7–1.2; clamp to a safer 0.8–1.2 range and treat
-# anything else as 1.0 to avoid request rejections.
-_SPEED_MIN, _SPEED_MAX = 0.8, 1.2
-
-
-def _voice_settings(speed: float = 1.0) -> VoiceSettings:
-    """Build a VoiceSettings with the given speed; other params are fixed so
-    voice character stays consistent across runs."""
-    speed = max(_SPEED_MIN, min(_SPEED_MAX, float(speed)))
-    return VoiceSettings(
-        stability=0.5,
-        similarity_boost=0.75,
-        style=0.0,
-        use_speaker_boost=True,
-        speed=speed,
-    )
-
-
-CHUNK_GAP = 0.3  # silence added between chunks in the timeline (no in-audio break tag)
+# Silence added between chunks in the timeline (no in-audio break tag). Stays
+# at module level so assembly_service can import it for video alignment.
+CHUNK_GAP = 0.3
 
 # Trim a small slice off the end of each chunk's spoken span before stamping
-# timeline coords. ElevenLabs occasionally emits a tiny artifact (lip smack,
-# click, breath) after the last word's transcript-end timestamp; trimming
-# before speech_end keeps that artifact out of the assembled audio. The
-# timeline reflects the trimmed span, so assembly_service consumes
-# speech_end as-is — no second trim downstream.
+# timeline coords. Providers may emit a tiny artifact (lip smack, click,
+# breath) after the last word's transcript-end timestamp; trimming before
+# speech_end keeps that artifact out of the assembled audio. The timeline
+# reflects the trimmed span, so assembly_service consumes speech_end as-is —
+# no second trim downstream.
 TRAILING_TRIM = 0.03
 
 
@@ -69,52 +73,24 @@ def _head_sentences(unit: dict, n: int = 2) -> str:
     return ' '.join(sentences[:n]).strip()
 
 
-def _chars_to_words(characters: list, start_times: list, end_times: list) -> list:
-    """Aggregate character-level alignment to word-level timestamps (seconds).
-    Characters inside SSML tags (<...>) are skipped entirely."""
-    words = []
-    current_word = ""
-    word_start = None
-    in_tag = False
+def _resolve_voice_config(channel_id: str | None) -> dict:
+    """Look up the channel's voiceover config. Falls back to ALL defaults
+    (provider=elevenlabs) when the channel has no voiceover block yet —
+    preserves pre-refactor behavior for projects that predate the channel
+    preset's voiceover field."""
+    try:
+        return resolve_channel_voiceover(channel_id)
+    except ValueError:
+        # Unknown / unset channel — return defaults so the legacy hardcoded
+        # ElevenLabs path keeps working without forcing every caller to
+        # thread a channel_id through.
+        from services.channel_registry import _VOICEOVER_DEFAULTS
+        return dict(_VOICEOVER_DEFAULTS)
 
-    for i, char in enumerate(characters):
-        if char == "<":
-            in_tag = True
-            if current_word:
-                words.append({
-                    "word": current_word,
-                    "start": round(word_start, 3),
-                    "end": round(end_times[i - 1], 3)
-                })
-                current_word = ""
-                word_start = None
-        elif char == ">":
-            in_tag = False
-        elif in_tag:
-            pass
-        elif char in (" ", "\n"):
-            if current_word:
-                words.append({
-                    "word": current_word,
-                    "start": round(word_start, 3),
-                    "end": round(end_times[i - 1], 3)
-                })
-                current_word = ""
-                word_start = None
-        else:
-            if not current_word:
-                word_start = start_times[i]
-            current_word += char
 
-    if current_word:
-        words.append({
-            "word": current_word,
-            "start": round(word_start, 3),
-            "end": round(end_times[-1], 3)
-        })
-
-    return words
-
+# ---------------------------------------------------------------------------
+# Legacy single-unit helper (test_voice.py imports this directly)
+# ---------------------------------------------------------------------------
 
 def _generate_unit(
     unit: dict,
@@ -124,102 +100,74 @@ def _generate_unit(
     next_text: str = "",
     previous_request_id: str = "",
 ) -> dict:
-    filename = f"audio_{unit['id']:02d}_{unit['type']}.mp3"
-    filepath = os.path.join(audio_dir, filename)
-    cache_path = filepath.replace(".mp3", ".json")
+    """Backward-compatible wrapper around ``ElevenLabsProvider.synth_unit``.
 
-    tts_text = unit.get("ssml", unit["text"])
-    seed = unit.get("seed", SEED)  # per-chunk override: set "seed" on the unit to force a different take
+    ``audio_dir`` is accepted for signature compatibility but ignored — the
+    provider derives its own canonical path from ``project_name``. We extract
+    the project name from the conventional ``../projects/<name>/audio`` path
+    so existing callers keep working.
 
-    if os.path.exists(filepath) and os.path.exists(cache_path):
-        with open(cache_path) as f:
-            cached = json.load(f)
-        # Cache key includes voice_speed so a speed change forces regeneration.
-        if (
-            cached.get("tts_source") == tts_text
-            and cached.get("seed") == seed
-            and cached.get("voice_speed", 1.0) == voice_speed
-        ):
-            return cached
-
-    kwargs = dict(
-        voice_id=VOICE_ID,
-        text=tts_text,
-        model_id=MODEL_ID,
-        output_format="mp3_44100_128",
-        apply_text_normalization="off",
+    Used by ``test_voice.py``'s --hook path; not used by the orchestrator
+    itself (which goes through the registry directly).
+    """
+    project_name = _infer_project_name(audio_dir)
+    provider = get_provider(default_provider_id())
+    voice_config = _resolve_voice_config(None)
+    return provider.synth_unit(
+        project_name=project_name,
+        unit=unit,
+        voice_config=voice_config,
+        voice_speed=voice_speed,
         previous_text=previous_text,
         next_text=next_text,
-        seed=seed,
-        voice_settings=_voice_settings(voice_speed),
-    )
-    if previous_request_id:
-        kwargs["previous_request_ids"] = [previous_request_id]
-
-    # Use with_raw_response to capture the request ID for subsequent stitching
-    request_id = ""
-    try:
-        raw = client.text_to_speech.with_raw_response.convert_with_timestamps(**kwargs)
-        request_id = raw.headers.get("request-id") or raw.headers.get("x-request-id") or ""
-        response = raw.data
-    except Exception as exc:
-        print(f"  WARNING: with_raw_response failed for {unit['title']!r} ({exc!r}); "
-              f"retrying without request_id — prosody stitching disabled for this chunk")
-        response = client.text_to_speech.convert_with_timestamps(**kwargs)
-
-    audio_bytes = base64.b64decode(response.audio_base_64)
-    with open(filepath, "wb") as f:
-        f.write(audio_bytes)
-
-    alignment = response.alignment
-    words = _chars_to_words(
-        alignment.characters,
-        alignment.character_start_times_seconds,
-        alignment.character_end_times_seconds
+        previous_request_id=previous_request_id,
     )
 
-    duration = round(alignment.character_end_times_seconds[-1], 3)
 
-    # Tripwire: warn if the file has more than 1s of trailing silence beyond the last spoken word.
-    # Causes: bad break tags (e.g. time="zero.7s"), breaks at chunk edges, prompt regressions.
-    # Uses afinfo (macOS) for real VBR duration; skips silently on other platforms.
-    speech_end = words[-1]["end"] if words else duration
+def _infer_project_name(audio_dir: str) -> str:
+    """Extract the project name from a ``../projects/<name>/audio[/]`` path.
+    Tolerant of trailing slash. Raises ValueError if the path doesn't look
+    like the conventional layout."""
+    norm = os.path.normpath(audio_dir).replace("\\", "/")
+    parts = norm.split("/")
     try:
-        import subprocess, re as _re
-        out = subprocess.check_output(["afinfo", filepath], stderr=subprocess.STDOUT).decode()
-        m = _re.search(r"estimated duration: ([\d.]+)", out)
-        if m:
-            file_duration = float(m.group(1))
-            if file_duration - speech_end > 1.0:
-                print(f"  WARNING [{unit['title']}]: {file_duration - speech_end:.1f}s trailing silence "
-                      f"(speech {speech_end:.1f}s, file {file_duration:.1f}s) — check break tags")
-    except Exception:
-        pass
-
-    result = {
-        "segment_id": unit["id"],
-        "type": unit["type"],
-        "title": unit["title"],
-        "text": unit["text"],
-        "audio_file": filename,
-        "duration": duration,
-        "words": words,
-        "tts_source": tts_text,
-        "seed": seed,
-        "voice_speed": voice_speed,
-        "request_id": request_id,
-    }
-
-    with open(cache_path, "w") as f:
-        json.dump(result, f, indent=2)
-
-    return result
+        idx = parts.index("projects")
+    except ValueError as e:
+        raise ValueError(
+            f"Cannot infer project name from audio_dir={audio_dir!r}; "
+            f"expected '.../projects/<name>/audio'"
+        ) from e
+    if idx + 1 >= len(parts):
+        raise ValueError(
+            f"audio_dir={audio_dir!r} has no project name after 'projects/'"
+        )
+    return parts[idx + 1]
 
 
-def generate_audio(project_name: str, voice_speed: float = 1.0) -> list:
+# ---------------------------------------------------------------------------
+# Public orchestrator
+# ---------------------------------------------------------------------------
+
+def generate_audio(
+    project_name: str,
+    voice_speed: float = 1.0,
+    channel_id: str | None = None,
+) -> list:
+    """Synthesize every voice unit + build the timeline.
+
+    Channel routing: if ``channel_id`` is None, falls back to all-defaults
+    voiceover config (provider=elevenlabs). Once the channel preset gains a
+    voiceover block, callers can pass channel_id to honor it. The
+    pipeline/run_audio entrypoints don't pass it yet — that wiring is a
+    future phase. Behavior is unchanged today.
+    """
     units = load_voice_units(project_name)
     audio_dir = f"../projects/{project_name}/audio"
     os.makedirs(audio_dir, exist_ok=True)
+
+    voice_config = _resolve_voice_config(channel_id)
+    provider_id = voice_config.get("provider") or default_provider_id()
+    provider = get_provider(provider_id)
 
     # Pre-compute previous_text/next_text for every unit from global neighbors.
     # These are prosody HINTS only (not spoken), so segment boundaries can still
@@ -248,10 +196,14 @@ def generate_audio(project_name: str, voice_speed: float = 1.0) -> list:
         for idx in seg:
             unit = units[idx]
             print(f"  Generating: {unit['title']}...", flush=True)
-            entry = _generate_unit(
-                unit, audio_dir, voice_speed,
-                contexts[idx]["previous_text"], contexts[idx]["next_text"],
-                prev_request_id,
+            entry = provider.synth_unit(
+                project_name=project_name,
+                unit=unit,
+                voice_config=voice_config,
+                voice_speed=voice_speed,
+                previous_text=contexts[idx]["previous_text"],
+                next_text=contexts[idx]["next_text"],
+                previous_request_id=prev_request_id,
             )
             prev_request_id = entry.get("request_id", "")
             local[idx] = entry
@@ -284,7 +236,7 @@ def generate_audio(project_name: str, voice_speed: float = 1.0) -> list:
         words = entry["words"]
         speech_start = words[0]["start"] if words else 0.0
         raw_speech_end = words[-1]["end"] if words else entry["duration"]
-        # Trim before the last word's transcript-end to drop ElevenLabs artifacts.
+        # Trim before the last word's transcript-end to drop provider artifacts.
         # Floor at speech_start + 0.05 so chunks with very short single-word spans
         # never collapse to <=0 duration (mirrors the safety floor assembly_service
         # used previously).
