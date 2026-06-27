@@ -164,18 +164,43 @@ def compute_scene_windows(project_name: str) -> list:
 
         # Cursor-based search missed. Do a whole-haystack semantic check to
         # classify WHY it missed.
-        is_final = (i == len(scenes) - 1)
         global_match = _find_subsequence(norm_haystack, needle, start=0)
 
         if global_match is None:
             # Not present anywhere in the audio — LLM hallucinated this scene.
-            if is_final:
-                print(
-                    f"WARNING: dropping scene {sid} — hallucinated narration "
-                    f"(not present in audio timeline) — dropped from output. "
-                    f"Narration: {excerpt!r}"
-                )
-                continue
+            # Trailing CTA hallucinations are common (scene_plan generates
+            # scenes for the script's cta field even though TTS doesn't voice
+            # it). Tolerate up to MAX_TRAILING_PHANTOMS consecutive trailing
+            # hallucinations: if EVERY remaining scene from this one to the
+            # end is also hallucinated, treat the whole tail as a phantom run
+            # and drop it. Otherwise raise — a mid-pipeline hallucination
+            # poisons downstream timing.
+            MAX_TRAILING_PHANTOMS = 5
+            remaining = scenes[i:]
+            if len(remaining) <= MAX_TRAILING_PHANTOMS:
+                all_trailing_phantom = True
+                for tail_scene in remaining:
+                    tail_tokens = _tokenize_narration(
+                        tail_scene.get('narration', '')
+                    )
+                    tail_needle = tail_tokens[:NEEDLE_K]
+                    if not tail_needle:
+                        continue
+                    if _find_subsequence(norm_haystack, tail_needle, start=0) is not None:
+                        all_trailing_phantom = False
+                        break
+                if all_trailing_phantom:
+                    for tail_scene in remaining:
+                        tail_sid = tail_scene.get('id', '?')
+                        tail_excerpt = (
+                            tail_scene.get('narration') or ''
+                        ).strip()[:80]
+                        print(
+                            f"WARNING: dropping scene {tail_sid} — hallucinated "
+                            f"narration (not present in audio timeline) — "
+                            f"dropped from output. Narration: {tail_excerpt!r}"
+                        )
+                    break  # exit the main loop; all trailing scenes dropped
             raise SceneTimingError(
                 f"Scene {sid} narration not present anywhere in the audio "
                 f"timeline (needle={needle!r}). This is a mid-pipeline LLM "
