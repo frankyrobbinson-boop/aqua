@@ -94,27 +94,31 @@ def assemble_audio(project_name: str) -> str:
     n_segments = len(concat_labels)  # = 2N-1 for N>=2, = 1 for N=1
     concat_chain = (
         f"{''.join(concat_labels)}concat=n={n_segments}:v=0:a=1[concat];"
-        f"[concat]dynaudnorm=f=200:p=0.85:s=20,"
-        f"loudnorm=I=-16:TP=-1.5:LRA=11,"
-        f"alimiter=limit=0.891251:level=disabled[out]"
+        f"[concat]loudnorm=I=-16:TP=-2:LRA=11[out]"
     )
     filter_complex = ";".join(chunk_filters) + ";" + concat_chain
 
     out_path = os.path.join(video_dir, "full_audio.mp3")
-    # Filter chain on [concat] (left-to-right):
-    #   dynaudnorm — smooth chunk-to-chunk loudness variance. p=0.85 leaves more
-    #     headroom for loudnorm; s=20 reduces gain-pump artifacts.
-    #   loudnorm   — single-pass EBU R128 to -16 LUFS / TP -1.5 (YouTube spec).
-    #   alimiter   — belt-and-suspenders true-peak limiter at -1.0 dBFS so any
-    #     residual clip from loudnorm's single-pass approximation is caught.
-    #     ffmpeg 8.x expects `limit` in linear amplitude (0.0625–1.0), not dB —
-    #     0.891251 ≈ 10^(-1/20), i.e. -1.0 dBFS.
+    # Single-filter chain on [concat]:
+    #   loudnorm — EBU R128 to -16 LUFS / true-peak -2 dBFS / LRA 11.
+    #
+    # Previously chained dynaudnorm + loudnorm + alimiter. dynaudnorm's
+    # rolling-window gain-pumping survived into loudnorm's "even" output as
+    # audible breathing; single-pass loudnorm overshoots, so the alimiter
+    # had to attenuate hard, sounding pumpy/compressed on speech.
+    # TP=-2 (was -1.5) gives loudnorm 0.5 dB more headroom, eliminating
+    # the need for the belt-and-suspenders alimiter. Result is cleaner
+    # speech with no audible distortion from the equalization chain.
+    #
+    # MP3 bitrate bumped to 192k (libmp3lame default trends ~128k VBR);
+    # ElevenLabs source is mp3_44100_128 already, so re-encoding at a
+    # higher bitrate avoids compounding compression artifacts.
     cmd = [
         "ffmpeg", "-y",
         *input_args,
         "-filter_complex", filter_complex,
         "-map", "[out]",
-        "-c:a", "libmp3lame", "-ar", "44100", out_path,
+        "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100", out_path,
     ]
     try:
         subprocess.run(cmd, check=True, capture_output=True)
