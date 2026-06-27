@@ -56,8 +56,17 @@ STAGES: tuple[Stage, ...] = (
         caches=("footage",),
     ),
     Stage(
+        # Per-scene render decisions (transition, ken_burns, text overlays).
+        # Sits between visuals and render so the cascade properly invalidates
+        # edl.json when scene_plan or outline changes — deleting scene_plan
+        # invalidates edl which then invalidates final.mp4.
+        name="edit",
+        inputs=("scene_windows.json", "scene_plan.json", "outline.json"),
+        outputs=("edl.json",),
+    ),
+    Stage(
         name="render",
-        inputs=("audio_timeline.json", "scene_windows.json", "footage"),
+        inputs=("audio_timeline.json", "scene_windows.json", "footage", "edl.json"),
         outputs=("video/final.mp4",),
         # Per-scene rendered clips, content-keyed by footage_mtime+duration sidecar
         caches=("clips",),

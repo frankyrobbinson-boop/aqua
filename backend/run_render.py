@@ -8,6 +8,7 @@ import os
 import sys
 
 from services.assembly_service import assemble
+from services.edl_service import generate_default_edl, load_edl, save_edl
 from services.stage_graph import missing_inputs
 
 
@@ -15,7 +16,10 @@ def _check_inputs(project_name: str):
     folder = f"../projects/{project_name}"
     if not os.path.isdir(folder):
         raise FileNotFoundError(f"Project folder not found: {folder}")
-    missing = missing_inputs(folder, "render")
+    # edl.json is a declared render input but we auto-generate it below if
+    # missing — filter it out so a fresh project that's never run the edit
+    # stage doesn't false-positive here.
+    missing = [m for m in missing_inputs(folder, "render") if m != "edl.json"]
     if missing:
         raise FileNotFoundError(
             f"Project '{project_name}' missing required artifacts: {missing}. "
@@ -65,6 +69,20 @@ def run_render(project_name: str) -> str:
         print(f"  WARN: RENDER_TRANSITION={transition!r} invalid, falling back to 'cut'")
         transition = "cut"
     ken_burns = os.environ.get("RENDER_KEN_BURNS", "0") == "1"
+
+    # Ensure an EDL exists before assembly. The EDL is the per-scene render
+    # decision list (transition, ken_burns, text overlays); when absent we
+    # generate one using the Render-tab options so the behavior matches
+    # pre-EDL rendering for users who skip the dedicated edit stage.
+    # If an EDL is already on disk (from a prior run_edit.py), it's
+    # authoritative — we don't overwrite it.
+    if load_edl(project_name) is None:
+        print("[1/2] Generating EDL...")
+        edl = generate_default_edl(
+            project_name, transition=transition, ken_burns=ken_burns,
+        )
+        save_edl(project_name, edl)
+        print(f"  edl.json saved ({len(edl['scenes'])} scenes)")
 
     print(
         f"\nAssembling video for '{project_name}' ({len(footage_paths)} scenes; "

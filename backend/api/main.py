@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import pipeline, projects, scripts, tasks, visuals, voice
+from api.routes import edit, pipeline, projects, scripts, tasks, visuals, voice
 from services.channel_migration import run_channel_migration
 from services.channel_preset_registry import verify_presets
 from services.hook_archetype_registry import (
@@ -67,3 +67,4 @@ app.include_router(tasks.router)
 app.include_router(pipeline.router)
 app.include_router(visuals.router)
 app.include_router(voice.router)
+app.include_router(edit.router)

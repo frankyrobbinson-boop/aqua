@@ -15,6 +15,7 @@ from services.stage_graph import is_stage_fresh
 from run_script_only import run_script_only
 from run_audio import run_audio
 from run_visuals import run_visuals
+from run_edit import run_edit
 from run_render import run_render
 
 
@@ -37,25 +38,31 @@ def run_full_pipeline(
     # the actual edges. A direct disk edit of script_draft.json after the last
     # voiceover run, for example, lands here as is_stage_fresh("voiceover")=False
     # — without anyone having to remember to add an mtime check.
-    _stage_banner(1, 4, "Script")
+    _stage_banner(1, 5, "Script")
     if is_stage_fresh(project_dir, "script"):
         print("Script artifacts already present and current — skipping.", flush=True)
     else:
         run_script_only(topic, target_minutes, project_name=project_name)
 
-    _stage_banner(2, 4, "Voiceover (ElevenLabs)")
+    _stage_banner(2, 5, "Voiceover (ElevenLabs)")
     if is_stage_fresh(project_dir, "voiceover"):
         print("Voiceover already present and current — skipping.", flush=True)
     else:
         run_audio(project_name)
 
-    _stage_banner(3, 4, "Visuals (scene plan + Pexels fetch + LLM rerank)")
+    _stage_banner(3, 5, "Visuals (scene plan + Pexels fetch + LLM rerank)")
     if is_stage_fresh(project_dir, "visuals"):
         print("Visuals already present and current — skipping.", flush=True)
     else:
         run_visuals(project_name)
 
-    _stage_banner(4, 4, "Render (assemble + subtitles + mux)")
+    _stage_banner(4, 5, "Edit (per-scene EDL + text overlays)")
+    if is_stage_fresh(project_dir, "edit"):
+        print("EDL already present and current — skipping.", flush=True)
+    else:
+        run_edit(project_name)
+
+    _stage_banner(5, 5, "Render (assemble + subtitles + mux)")
     if is_stage_fresh(project_dir, "render"):
         print("Render already present and current — skipping.", flush=True)
         final_video = f"{project_dir}/video/final.mp4"
