@@ -168,9 +168,13 @@ def compute_scene_windows(project_name: str) -> list:
 
         if global_match is None:
             # Not present anywhere in the audio — LLM hallucinated this scene.
-            # Trailing CTA hallucinations are common (scene_plan generates
-            # scenes for the script's cta field even though TTS doesn't voice
-            # it). Tolerate up to MAX_TRAILING_PHANTOMS consecutive trailing
+            # Historically the worst offender was scene_plan generating scenes
+            # for the script's `cta` field even though TTS never voiced it; the
+            # field has since been removed from the schema (CTA now lives at
+            # the end of the conclusion narration itself). The tolerance below
+            # stays as defense-in-depth for older projects whose script_draft
+            # still has the legacy field, and for any other model wander at
+            # the tail. Up to MAX_TRAILING_PHANTOMS consecutive trailing
             # hallucinations: if EVERY remaining scene from this one to the
             # end is also hallucinated, treat the whole tail as a phantom run
             # and drop it. Otherwise raise — a mid-pipeline hallucination

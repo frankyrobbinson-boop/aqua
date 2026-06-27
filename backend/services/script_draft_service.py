@@ -48,10 +48,9 @@ SCRIPT_SCHEMA = {
         "conclusion": {
             "type": "object",
             "properties": {
-                "narration": {"type": "string"},
-                "cta": {"type": "string"}
+                "narration": {"type": "string"}
             },
-            "required": ["narration", "cta"],
+            "required": ["narration"],
             "additionalProperties": False
         }
     },

@@ -24,7 +24,7 @@ export type ScriptDraft = {
     narration: string;
     visual_notes: string;
   }>;
-  conclusion: { narration: string; cta: string };
+  conclusion: { narration: string };
 };
 
 export type ProjectDetail = ProjectSummary & {

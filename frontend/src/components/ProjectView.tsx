@@ -158,7 +158,6 @@ function ScriptViewer({
       <ScriptBlock
         label="Conclusion"
         body={script.conclusion.narration}
-        note={`CTA: ${script.conclusion.cta}`}
       />
     </section>
   );
@@ -297,20 +296,6 @@ function ScriptEditor({
           })
         }
       />
-
-      <div className="mt-2 border-l-2 border-border pl-4">
-        <p className="mb-1 text-xs font-semibold text-foreground">CTA</p>
-        <input
-          value={draft.conclusion.cta}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              conclusion: { ...draft.conclusion, cta: e.target.value },
-            })
-          }
-          className="w-full rounded-md border border-border bg-surface-2 p-2 text-sm text-foreground outline-none focus:border-accent"
-        />
-      </div>
     </section>
   );
 }

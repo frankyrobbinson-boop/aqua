@@ -145,7 +145,6 @@ class _SegmentPayload(BaseModel):
 class _ConclusionPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
     narration: str
-    cta: str
 
 
 class ScriptDraftPayload(BaseModel):
