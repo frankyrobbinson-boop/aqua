@@ -74,7 +74,26 @@ def generate_research(topic: str, pre_research: str | None = None, channel: str 
     if text.startswith("```"):
         text = re.sub(r'^```(?:json)?\s*\n?', '', text)
         text = re.sub(r'\n?```\s*$', '', text)
-    return json.loads(text.strip())
+    text = text.strip()
+    # Extract the outermost {...} block. GPT-5 sometimes adds explanatory prose
+    # before or after the JSON despite the "no extra text" instruction; this
+    # regex pulls just the JSON object out so prose around it doesn't fail the
+    # parse. re.DOTALL lets `.` match newlines so multi-line JSON is captured.
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        text = match.group(0)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        # Surface what the model actually returned so future parse failures are
+        # debuggable. Mirror the script_draft / tts_prep error pattern.
+        head = text[:400]
+        tail = text[-400:] if len(text) > 800 else ""
+        raise RuntimeError(
+            f"Research JSON did not parse (text_len={len(text)}, error={e!r}).\n"
+            f"--- first 400 chars ---\n{head}\n"
+            f"--- last 400 chars ---\n{tail}"
+        ) from e
 
 
 def save_research(project_name, content):
