@@ -50,18 +50,26 @@ def fetch_all_scene_footage(project_name: str) -> dict[int, Path]:
     produced. Raises on the first hard error after letting other in-flight
     fetches settle (mirrors the legacy fetch_scene_footage abort behavior).
     """
-    scene_plan_path = f"../projects/{project_name}/scene_plan.json"
-    if not os.path.exists(scene_plan_path):
+    # Read scene_windows.json (not scene_plan.json) because:
+    #   1. Pexels provider needs `duration` per scene — only scene_windows has it
+    #      (it's computed from start_time/end_time during the scene-timing stage).
+    #   2. scene_windows is the canonical post-drop-phantom list: scene_plan can
+    #      contain trailing hallucinated CTA scenes that scene_timing already
+    #      dropped; fetching footage for those is wasted spend + wasted disk.
+    # scene_windows entries carry every original scene_plan field PLUS the
+    # timing block, so this is strictly a superset read.
+    scene_windows_path = f"../projects/{project_name}/scene_windows.json"
+    if not os.path.exists(scene_windows_path):
         raise FileNotFoundError(
-            f"scene_plan.json not found for {project_name!r} — "
-            f"run the script + scene-plan stages first"
+            f"scene_windows.json not found for {project_name!r} — "
+            f"run the scene-timing stage first (it runs automatically as "
+            f"step [2/4] inside run_visuals.py)"
         )
     import json
-    with open(scene_plan_path) as f:
-        scene_plan = json.load(f)
-    scenes: list[dict] = scene_plan.get("scene_intent", [])
+    with open(scene_windows_path) as f:
+        scenes: list[dict] = json.load(f)
     if not scenes:
-        raise RuntimeError(f"scene_plan for {project_name!r} has no scenes")
+        raise RuntimeError(f"scene_windows for {project_name!r} has no scenes")
 
     config = resolve_visual_config(project_name)
     config_by_segment: dict[int, dict] = {
