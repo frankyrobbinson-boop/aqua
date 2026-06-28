@@ -2,6 +2,8 @@
 
 Snapshot: 2026-06-18. Personal-use stage, not yet a real product. The lever right now is **content quality, not feature breadth** — prompt work outranks UI work until the user explicitly raises a UI pain.
 
+> **North star (2026-06-28):** Aqua's overarching goal is now AI movies, with YouTube videos as the easy case. See `goals.md` for the phased trajectory and the architectural shifts this implies. Everything below is Phase 0 of that trajectory — still in scope, but now framed as the substrate for narrative-film production rather than the destination.
+
 For deeper rationale on any item, look in `~/.claude/projects/-Users-aidanmcomie-Documents-Aqua/memory/` (referenced inline as `[[memory-name]]`).
 
 ---
