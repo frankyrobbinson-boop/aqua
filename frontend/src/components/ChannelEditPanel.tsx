@@ -19,6 +19,7 @@ import {
 import { ChannelStatusBar, type SaveState } from "./ChannelStatusBar";
 import { ColorSwatchPicker } from "./ColorSwatchPicker";
 import { HookArchetypeSelect } from "./HookArchetypeSelect";
+import { VoicePreviewButton } from "./VoicePreviewButton";
 import { Row } from "./channel/Row";
 import { VisualsSection } from "./channel/VisualsSection";
 
@@ -226,15 +227,18 @@ function EditorBody({
 
       {/* ----- Voice ------------------------------------------------------ */}
       <section className="rounded-xl border border-border bg-surface p-5 space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-strong">
-            Voice
-          </h2>
-          <p className="mt-1 text-xs text-muted">
-            Narrator, audience, and voice-rules markdown. Spliced into the{" "}
-            <span className="font-mono">{`{{CHANNEL}}`}</span> slot of every
-            prompt.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-strong">
+              Voice
+            </h2>
+            <p className="mt-1 text-xs text-muted">
+              Narrator, audience, and voice-rules markdown. Spliced into the{" "}
+              <span className="font-mono">{`{{CHANNEL}}`}</span> slot of every
+              prompt.
+            </p>
+          </div>
+          <VoicePreviewButton channelId={id} />
         </div>
         <textarea
           value={voice}

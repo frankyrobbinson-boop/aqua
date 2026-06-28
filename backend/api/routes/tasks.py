@@ -288,7 +288,12 @@ def list_tasks(
 @router.get("/{task_id}")
 def get_task_status(task_id: str) -> dict:
     task = get_task(task_id)
-    return {**task.summary(), "logs": task.log_lines}
+    stage_events = [e for e in task.events if e.get("type") == "stage"]
+    return {
+        **task.summary(),
+        "logs": task.log_lines,
+        "stage_events": stage_events,
+    }
 
 
 @router.get("/{task_id}/stream")

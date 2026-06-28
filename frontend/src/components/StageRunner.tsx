@@ -10,6 +10,12 @@ import {
 
 type Stage = "voiceover" | "visuals" | "render";
 
+const STAGE_LIST: Record<Stage, string[]> = {
+  voiceover: ["tts_prep", "voice_units", "delivery_plan", "audio"],
+  visuals: ["scene_plan", "scene_windows", "visual_prompts", "footage"],
+  render: ["edl", "render"],
+};
+
 const CONFIG = {
   voiceover: {
     starter: startVoiceover,
@@ -68,6 +74,7 @@ export function StageRunner({
       disabled={disabled}
       stage={stage}
       projectSlug={slug}
+      stageList={STAGE_LIST[stage]}
     />
   );
 }

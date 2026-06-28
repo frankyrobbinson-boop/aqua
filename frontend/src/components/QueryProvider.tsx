@@ -9,10 +9,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
  * Strict-Mode re-renders or hot reloads.
  *
  * Defaults are tuned for this app:
- *   - staleTime 30s: artifacts (script, scenes, project detail) don't change
- *     unless we explicitly invalidate after a task completes.
- *   - refetchOnWindowFocus off: tab-switching shouldn't re-fetch; we control
- *     refresh via SSE-driven invalidation.
+ *   - staleTime 5s: artifacts (script, scenes, project detail) get a short
+ *     stale window so per-scene regenerates and sibling edits surface quickly.
+ *   - refetchOnWindowFocus on: returning from a backend log tab refreshes the
+ *     visible artifacts; SSE invalidation still drives the primary path.
  *   - retry 1: fail fast for a local dev API.
  */
 export function QueryProvider({ children }: { children: React.ReactNode }) {
@@ -21,8 +21,8 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
-            refetchOnWindowFocus: false,
+            staleTime: 5_000,
+            refetchOnWindowFocus: true,
             retry: 1,
           },
         },

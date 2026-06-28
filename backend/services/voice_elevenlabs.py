@@ -131,6 +131,46 @@ def _chars_to_words(characters: list, start_times: list, end_times: list) -> lis
     return words
 
 
+def synth_preview(
+    text: str,
+    voice_config: dict,
+    voice_speed: float = 1.0,
+) -> bytes:
+    """One-shot synthesis for the channel-editor preview button. Does NOT
+    touch the cache/ledger/disk — the bytes are streamed straight back to
+    the browser. Uses the same voice_id/model/settings resolution as the
+    per-project provider so what you preview matches what the pipeline will
+    render."""
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY not set")
+
+    voice_id = (
+        voice_config.get("voice_id")
+        or os.getenv("ELEVENLABS_VOICE_ID")
+        or _DEFAULT_VOICE_ID
+    )
+    model_id = (
+        voice_config.get("model")
+        or os.getenv("ELEVENLABS_MODEL_ID")
+        or _DEFAULT_MODEL_ID
+    )
+    clamped_speed = _clamp_speed(voice_speed)
+    settings = _build_voice_settings(clamped_speed, voice_config.get("settings"))
+
+    client = ElevenLabs(api_key=api_key)
+    response = client.text_to_speech.convert(
+        voice_id=voice_id,
+        text=text,
+        model_id=model_id,
+        output_format="mp3_44100_128",
+        apply_text_normalization="off",
+        voice_settings=settings,
+    )
+    # SDK returns an iterator of audio chunks; collapse to bytes.
+    return b"".join(response)
+
+
 class ElevenLabsProvider(VoiceProvider):
     """ElevenLabs SDK-backed voice provider. Stateless across units — the
     request-id chaining for prosody continuity is threaded through the

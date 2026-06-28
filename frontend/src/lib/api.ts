@@ -262,7 +262,16 @@ export type TaskSummary = {
   metadata: Record<string, unknown>;
 };
 
-export type TaskWithLogs = TaskSummary & { logs: string[] };
+export type StageEvent = {
+  type: "stage";
+  stage: string;
+  status: "started" | "completed";
+};
+
+export type TaskWithLogs = TaskSummary & {
+  logs: string[];
+  stage_events?: StageEvent[];
+};
 
 async function getJSON<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
@@ -519,12 +528,15 @@ export async function startRender(
   });
 }
 
-/** Subscribe to a task's SSE log stream. Returns a cleanup function. */
+/** Subscribe to a task's SSE log stream. Returns a cleanup function.
+ *  ``onStage`` (optional) receives structured stage markers so callers can
+ *  render a per-stage checklist without screen-scraping log lines. */
 export function streamTaskLogs(
   taskId: string,
   onLog: (line: string) => void,
   onDone: (status: TaskStatus, exitCode: number | null) => void,
   onError?: (err: unknown) => void,
+  onStage?: (stage: string, status: "started" | "completed") => void,
 ): () => void {
   const source = new EventSource(`${API_URL}/tasks/${taskId}/stream`);
   source.onmessage = (event) => {
@@ -532,6 +544,8 @@ export function streamTaskLogs(
       const data = JSON.parse(event.data);
       if (data.type === "log") {
         onLog(data.line);
+      } else if (data.type === "stage") {
+        onStage?.(data.stage, data.status);
       } else if (data.type === "done") {
         onDone(data.status, data.exit_code);
         source.close();
@@ -548,6 +562,50 @@ export function streamTaskLogs(
     source.close();
   };
   return () => source.close();
+}
+
+/** Cancel a running task. No-op on the server if already finished. */
+export async function cancelTask(taskId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/tasks/${encodeURIComponent(taskId)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Cancel failed: ${res.status} ${text || res.statusText}`);
+  }
+}
+
+/** POST /channels/{id}/voice-preview — returns an MP3 blob. */
+export async function previewChannelVoice(
+  id: string,
+  text?: string,
+): Promise<Blob> {
+  const res = await fetch(
+    `${API_URL}/channels/${encodeURIComponent(id)}/voice-preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(text ? { text } : {}),
+    },
+  );
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(
+      `Voice preview failed: ${res.status} ${detail || res.statusText}`,
+    );
+  }
+  return res.blob();
+}
+
+/** Force a single scene's footage to regenerate via its configured provider. */
+export async function regenerateScene(
+  slug: string,
+  sceneId: number,
+): Promise<{ scene_id: number; footage_url: string }> {
+  return getJSON<{ scene_id: number; footage_url: string }>(
+    `/projects/${encodeURIComponent(slug)}/scenes/${sceneId}/regenerate`,
+    { method: "POST" },
+  );
 }
 
 /** List active tasks, optionally filtered. Used by RunPanel to recover an

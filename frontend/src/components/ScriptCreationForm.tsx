@@ -9,13 +9,32 @@ import {
   createPipeline,
   streamTaskLogs,
   type ScriptRequest,
+  type StageEvent,
   type TaskStatus,
 } from "@/lib/api";
 import { invalidateForProject } from "@/lib/invalidation";
 
 import { ChannelSelect } from "@/components/ChannelSelect";
 import { HookArchetypeSelect } from "@/components/HookArchetypeSelect";
+import { StageList } from "@/components/StageList";
 import { VideoTypeSelect } from "@/components/VideoTypeSelect";
+
+const SCRIPT_STAGES = ["research", "outline", "script_draft"];
+const PIPELINE_STAGES = [
+  "research",
+  "outline",
+  "script_draft",
+  "tts_prep",
+  "voice_units",
+  "delivery_plan",
+  "audio",
+  "scene_plan",
+  "scene_windows",
+  "visual_prompts",
+  "footage",
+  "edl",
+  "render",
+];
 
 /**
  * Single canonical script-creation form used by both /projects/new (creation)
@@ -52,6 +71,7 @@ export function ScriptCreationForm({
   const [run, setRun] = useState<{
     projectSlug: string;
     logs: string[];
+    stageEvents: StageEvent[];
     status: TaskStatus;
     mode: "script" | "pipeline";
   } | null>(null);
@@ -92,6 +112,7 @@ export function ScriptCreationForm({
       setRun({
         projectSlug: resp.project_slug,
         logs: [],
+        stageEvents: [],
         status: "running",
         mode,
       });
@@ -129,6 +150,19 @@ export function ScriptCreationForm({
             onRunComplete?.(resp.project_slug, status);
           }
         },
+        undefined,
+        (stageName, stageStatus) =>
+          setRun((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  stageEvents: [
+                    ...prev.stageEvents,
+                    { type: "stage", stage: stageName, status: stageStatus },
+                  ],
+                }
+              : prev,
+          ),
       );
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
@@ -340,10 +374,14 @@ function RunLog({
   run: {
     projectSlug: string;
     logs: string[];
+    stageEvents: StageEvent[];
     status: TaskStatus;
     mode: "script" | "pipeline";
   };
 }) {
+  const stages = run.mode === "pipeline" ? PIPELINE_STAGES : SCRIPT_STAGES;
+  const terminalStatus =
+    run.status === "completed" || run.status === "failed" ? run.status : null;
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-background">
       <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-2">
@@ -368,9 +406,21 @@ function RunLog({
                 : "Queued"}
         </span>
       </div>
-      <pre className="max-h-72 overflow-auto px-4 py-2 font-mono text-xs leading-relaxed text-muted-strong">
-        {run.logs.length === 0 ? "Waiting for output..." : run.logs.join("\n")}
-      </pre>
+      <div className="border-b border-border px-4 py-3">
+        <StageList
+          stages={stages}
+          events={run.stageEvents}
+          terminalStatus={terminalStatus}
+        />
+      </div>
+      <details>
+        <summary className="cursor-pointer px-4 py-2 text-xs text-muted hover:text-muted-strong">
+          Raw logs ({run.logs.length})
+        </summary>
+        <pre className="max-h-72 overflow-auto px-4 py-2 font-mono text-xs leading-relaxed text-muted-strong">
+          {run.logs.length === 0 ? "Waiting for output..." : run.logs.join("\n")}
+        </pre>
+      </details>
     </div>
   );
 }

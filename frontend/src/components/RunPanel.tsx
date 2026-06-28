@@ -3,13 +3,22 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { streamTaskLogs, listTasks, getTaskStatus, type TaskStatus } from "@/lib/api";
+import {
+  streamTaskLogs,
+  listTasks,
+  getTaskStatus,
+  type StageEvent,
+  type TaskStatus,
+} from "@/lib/api";
 import { invalidateForProject } from "@/lib/invalidation";
+import { StageList } from "./StageList";
+import { CancelTaskButton } from "./CancelTaskButton";
 
 type RunState = {
   taskId: string;
   projectSlug: string;
   logs: string[];
+  stageEvents: StageEvent[];
   status: TaskStatus;
 };
 
@@ -31,6 +40,10 @@ type Props = {
    *  invalidation. */
   nextHref?: (slug: string) => string;
   nextLabel?: string;
+  /** Ordered stage names for the structured checklist. When provided,
+   *  RunPanel renders a per-stage status list above the raw log box and
+   *  collapses the log box into a <details> element. */
+  stageList?: string[];
 };
 
 export function RunPanel({
@@ -44,6 +57,7 @@ export function RunPanel({
   projectSlug,
   nextHref,
   nextLabel = "Next →",
+  stageList,
 }: Props) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -94,6 +108,7 @@ export function RunPanel({
             taskId: t.id,
             projectSlug,
             logs: detail.logs,
+            stageEvents: detail.stage_events ?? [],
             status: detail.status,
           };
         });
@@ -117,6 +132,19 @@ export function RunPanel({
                 invalidateForProject(queryClient, projectSlug, router);
               }
             },
+            undefined,
+            (stageName, stageStatus) =>
+              setRun((prev) =>
+                prev && prev.taskId === t.id
+                  ? {
+                      ...prev,
+                      stageEvents: [
+                        ...prev.stageEvents,
+                        { type: "stage", stage: stageName, status: stageStatus },
+                      ],
+                    }
+                  : prev,
+              ),
           );
         }
       } catch {
@@ -143,6 +171,7 @@ export function RunPanel({
         taskId: task_id,
         projectSlug: project_slug,
         logs: [],
+        stageEvents: [],
         status: "running",
       };
       setRun(initialRun);
@@ -159,6 +188,19 @@ export function RunPanel({
             invalidateForProject(queryClient, project_slug, router);
           }
         },
+        undefined,
+        (stageName, stageStatus) =>
+          setRun((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  stageEvents: [
+                    ...prev.stageEvents,
+                    { type: "stage", stage: stageName, status: stageStatus },
+                  ],
+                }
+              : prev,
+          ),
       );
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : String(err));
@@ -202,18 +244,53 @@ export function RunPanel({
                 <p className="font-mono text-xs text-muted">{run.projectSlug}</p>
               </div>
             </div>
-            {run.status === "completed" && nextHref ? (
-              <a
-                href={nextHref(run.projectSlug)}
-                className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
-              >
-                {nextLabel}
-              </a>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {run.status === "running" && (
+                <CancelTaskButton taskId={run.taskId} />
+              )}
+              {run.status === "completed" && nextHref ? (
+                <a
+                  href={nextHref(run.projectSlug)}
+                  className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
+                >
+                  {nextLabel}
+                </a>
+              ) : null}
+            </div>
           </div>
-          <pre className="max-h-96 overflow-auto bg-background px-5 py-3 font-mono text-xs leading-relaxed text-muted-strong">
-            {run.logs.length === 0 ? "Waiting for output..." : run.logs.join("\n")}
-          </pre>
+
+          {stageList && stageList.length > 0 && (
+            <div className="border-b border-border px-5 py-3">
+              <StageList
+                stages={stageList}
+                events={run.stageEvents}
+                terminalStatus={
+                  run.status === "completed" || run.status === "failed"
+                    ? run.status
+                    : null
+                }
+              />
+            </div>
+          )}
+
+          {stageList && stageList.length > 0 ? (
+            <details className="bg-background">
+              <summary className="cursor-pointer px-5 py-2 text-xs text-muted hover:text-muted-strong">
+                Raw logs ({run.logs.length})
+              </summary>
+              <pre className="max-h-96 overflow-auto px-5 py-3 font-mono text-xs leading-relaxed text-muted-strong">
+                {run.logs.length === 0
+                  ? "Waiting for output..."
+                  : run.logs.join("\n")}
+              </pre>
+            </details>
+          ) : (
+            <pre className="max-h-96 overflow-auto bg-background px-5 py-3 font-mono text-xs leading-relaxed text-muted-strong">
+              {run.logs.length === 0
+                ? "Waiting for output..."
+                : run.logs.join("\n")}
+            </pre>
+          )}
         </div>
       )}
     </div>

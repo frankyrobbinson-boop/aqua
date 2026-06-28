@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { ScriptCreationForm } from "./ScriptCreationForm";
 import { StageRunner } from "./StageRunner";
 import { Stepper, type Step } from "./Stepper";
+import { CopyPathButton } from "./CopyPathButton";
+import { projectKeys } from "@/lib/queries";
 import {
   API_URL,
   projectFileUrl,
+  regenerateScene,
   updateScript,
   type ProjectDetail,
   type SceneInfo,
@@ -551,7 +555,7 @@ function VisualsTab({ slug, scenes }: { slug: string; scenes: SceneInfo[] }) {
           <h2 className="mb-4 text-sm font-medium text-foreground">Scenes</h2>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {scenes.map((scene) => (
-              <SceneCard key={scene.id} scene={scene} />
+              <SceneCard key={scene.id} slug={slug} scene={scene} />
             ))}
           </div>
         </section>
@@ -589,9 +593,32 @@ function VisualsConfigPanel() {
   );
 }
 
-function SceneCard({ scene }: { scene: SceneInfo }) {
-  const url = scene.footage_url ? `${API_URL}${scene.footage_url}` : null;
-  const isImage = url ? /\.(png|jpe?g|webp|gif)$/i.test(url) : false;
+function SceneCard({ slug, scene }: { slug: string; scene: SceneInfo }) {
+  const queryClient = useQueryClient();
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState<string | null>(null);
+  // Bumped after a successful regenerate so the <img>/<video> reloads even if
+  // the URL string is unchanged.
+  const [bust, setBust] = useState(0);
+
+  const baseUrl = scene.footage_url ? `${API_URL}${scene.footage_url}` : null;
+  const url = baseUrl && bust > 0 ? `${baseUrl}?v=${bust}` : baseUrl;
+  const isImage = url ? /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url) : false;
+
+  async function onRegenerate() {
+    setRegenError(null);
+    setRegenerating(true);
+    try {
+      await regenerateScene(slug, scene.id);
+      setBust(Date.now());
+      queryClient.invalidateQueries({ queryKey: projectKeys.scenes(slug) });
+    } catch (err) {
+      setRegenError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-border bg-surface">
       <div className="relative aspect-video bg-background">
@@ -626,12 +653,23 @@ function SceneCard({ scene }: { scene: SceneInfo }) {
             {scene.duration.toFixed(1)}s
           </span>
         )}
+        <button
+          type="button"
+          onClick={onRegenerate}
+          disabled={regenerating}
+          className="absolute bottom-2 right-2 rounded bg-background/80 px-2 py-1 text-xs font-medium text-foreground hover:bg-background disabled:opacity-50"
+        >
+          {regenerating ? "Regenerating..." : "Regenerate"}
+        </button>
       </div>
       <div className="p-3">
         <p className="line-clamp-2 text-xs font-medium text-foreground">
           {scene.visual_description || "(no query)"}
         </p>
         <p className="mt-1 line-clamp-2 text-xs text-muted">{scene.narration}</p>
+        {regenError && (
+          <p className="mt-1 text-xs text-danger">{regenError}</p>
+        )}
       </div>
     </div>
   );
@@ -667,6 +705,19 @@ function RenderTab({
       {videoUrl ? (
         <section className="overflow-hidden rounded-xl border border-border bg-surface">
           <video src={videoUrl} controls className="aspect-video w-full bg-black" />
+          <div className="flex items-center justify-end gap-2 border-t border-border px-4 py-3">
+            <CopyPathButton
+              path={`projects/${slug}/`}
+              label="Copy project folder path"
+            />
+            <a
+              href={videoUrl}
+              download
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
+            >
+              Download
+            </a>
+          </div>
         </section>
       ) : (
         <EmptyTab>No render yet — fetch footage, then render below.</EmptyTab>

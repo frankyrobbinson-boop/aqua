@@ -32,6 +32,7 @@ from services.visual_config_service import (
 from services.visual_provider_registry import (
     default_mode,
     default_provider_id,
+    get_provider,
     list_modes,
     list_providers,
 )
@@ -211,6 +212,68 @@ async def start_visual_prompts_generate(slug: str) -> GenerateVisualsResponse:
         project_slug=slug,
     )
     return GenerateVisualsResponse(task_id=task.id, project_slug=slug)
+
+
+# ---------------------------------------------------------------------------
+# Per-scene footage regeneration (one scene at a time, from the UI)
+# ---------------------------------------------------------------------------
+
+@router.post("/projects/{slug}/scenes/{sid}/regenerate")
+def regenerate_scene_footage(slug: str, sid: int) -> dict:
+    """Force a re-fetch for one scene: deletes cached scene_<sid>.{png,mp4}
+    + .cache.json sidecars, then dispatches the segment's configured provider.
+    Returns the new footage URL so the UI can hot-swap the asset without a
+    full scenes-list refresh."""
+    project_dir = _project_dir(slug)
+    scene_windows_path = project_dir / "scene_windows.json"
+    if not scene_windows_path.exists():
+        raise HTTPException(
+            status_code=422,
+            detail="scene_windows.json missing — run visuals stage first",
+        )
+    with scene_windows_path.open() as f:
+        scenes: list[dict] = json.load(f)
+    scene = next((s for s in scenes if int(s["id"]) == sid), None)
+    if scene is None:
+        raise HTTPException(status_code=404, detail=f"Scene {sid} not found")
+
+    visual_config = resolve_visual_config(slug)
+    seg_id = int(scene["segment_id"])
+    entry = next(
+        (s for s in visual_config.get("segments", []) if int(s["segment_id"]) == seg_id),
+        None,
+    )
+    if entry is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Segment {seg_id} has no visual_config entry",
+        )
+
+    footage_dir = project_dir / "footage"
+    for ext in (".png", ".mp4"):
+        for stale in (
+            footage_dir / f"scene_{sid:03d}{ext}",
+            footage_dir / f"scene_{sid:03d}{ext}.cache.json",
+        ):
+            if stale.exists():
+                try:
+                    stale.unlink()
+                except OSError:
+                    pass
+
+    provider = get_provider(entry["provider"])
+    try:
+        output_path = provider.fetch_for_scene(slug, scene)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Provider {entry['provider']!r} failed: {exc!r}"
+        )
+
+    ext = Path(str(output_path)).suffix
+    return {
+        "scene_id": sid,
+        "footage_url": f"/files/{slug}/footage/scene_{sid:03d}{ext}",
+    }
 
 
 @router.get("/visual-prompt-models")
