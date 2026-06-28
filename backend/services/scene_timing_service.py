@@ -127,13 +127,15 @@ def compute_scene_windows(project_name: str) -> list:
                 norm_haystack.append(n)
                 haystack_to_audio.append(audio_idx)
 
-    NEEDLE_K = 6  # 6 tokens is long enough to be uniquely identifying across
-                  # the whole video (3-token phrases like ['the','one','size']
-                  # collide too often). When both sides tokenize identically
-                  # (whitespace+hyphen split, strip non-alphanumerics, expand
-                  # numerals), a 6-token prefix should always match cleanly.
-                  # The only exception is a scene whose total normalized
-                  # narration is shorter than 6 tokens — then we use all of it.
+    NEEDLE_K = 12  # Bumped from 6 because 6-token prefixes still collided on
+                   # short generic openers ("And the next one is going to be")
+                   # that recurred across listicle items, snapping later
+                   # scenes to an earlier item's start. 12 tokens makes a
+                   # coincidental match astronomically unlikely while still
+                   # being short enough that every plausible scene has at
+                   # least that many narration tokens. The position-validation
+                   # block below is the belt-and-suspenders backstop for any
+                   # 12-token coincidence that does slip through.
 
     # Walk scenes forward, recording (scene_dict, start_haystack_index) only
     # for scenes that resolved to real audio. `cursor` indexes the haystack
@@ -158,6 +160,20 @@ def compute_scene_windows(project_name: str) -> list:
         match = _find_subsequence(norm_haystack, needle, start=cursor)
 
         if match is not None:
+            if resolved:
+                prev_scene, prev_start = resolved[-1]
+                prev_tokens = _tokenize_narration(prev_scene.get('narration', ''))
+                expected_next = prev_start + len(prev_tokens)
+                tolerance = max(50, int(0.3 * len(prev_tokens)))
+                if abs(match - expected_next) > tolerance:
+                    raise SceneTimingError(
+                        f"Scene {sid} matched at haystack index {match}, but "
+                        f"expected near {expected_next} (prev scene at "
+                        f"{prev_start}, +{len(prev_tokens)} tokens, tolerance "
+                        f"+/-{tolerance}). Likely a coincidental needle "
+                        f"alignment — inspect scene_plan.json around scene "
+                        f"{sid}. Narration: {excerpt!r}"
+                    )
             resolved.append((scene, match))
             cursor = match + 1
             continue

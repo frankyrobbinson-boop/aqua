@@ -10,12 +10,27 @@ from services.voice_service import CHUNK_GAP
 
 FPS = 25
 OUT_W, OUT_H = 1920, 1080
+
+# Ken Burns supersample quality knobs. Defaults preserve current "final-render
+# quality" behavior — every render gets the best output by default. Lower the
+# values during iteration to trade quality for render speed.
+#
+# SUPERSAMPLE: 4 (default) = current quality (eliminates sub-pixel jitter).
+#   Setting to 2 cuts spatial supersample work ~4x at the cost of some
+#   residual jitter on slow-zoom shots.
+# TEMPORAL_SUPERSAMPLE: 2 (default) = current motion-blur chain. Setting to 1
+#   skips the tblend/framestep pair entirely (~2x faster render, motion looks
+#   slightly steppier on fast pans).
+RENDER_KB_SUPERSAMPLE = int(os.environ.get("RENDER_KB_SUPERSAMPLE", "4"))
+RENDER_KB_TEMPORAL_SUPERSAMPLE = int(os.environ.get("RENDER_KB_TEMPORAL_SUPERSAMPLE", "2"))
+
 # Bump when filter math changes in a way that should invalidate cached clips
 # (e.g., Ken Burns formula change, fade duration change). The boolean flags
 # in the cache key only catch flag flips; raw filter changes need this knob.
 # v6: per-scene EDL drives overlay_text + overlay_position; cache key now
 # includes both so a text change invalidates only the affected clip.
-_CLIP_CACHE_VERSION = 6
+# v7: Ken Burns supersample is env-driven; bump invalidates v6 clips.
+_CLIP_CACHE_VERSION = 7
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -43,20 +58,30 @@ def _overlay_font_path() -> str | None:
     return None
 
 
+def _escape_filter_arg(s: str) -> str:
+    """Escape a string for use as an ffmpeg filtergraph argument value.
+
+    libavfilter's filtergraph parser treats backslash, single quote, colon,
+    comma, square brackets, and semicolon as structural characters. Any value
+    that may legitimately contain them (paths with colons or commas, text
+    with quotes) must escape them or the graph fails to parse. Backslash
+    MUST be escaped first so subsequent escapes don't get re-escaped."""
+    s = s.replace("\\", "\\\\")
+    for ch in ("'", ":", ",", "[", "]", ";"):
+        s = s.replace(ch, "\\" + ch)
+    return s
+
+
 def _escape_drawtext(s: str) -> str:
     """Escape a string for ffmpeg drawtext's text= argument.
 
-    drawtext parses its text= value through libavfilter's option parser, which
-    treats backslash, colon, single quote, and percent specially. We wrap the
-    whole text in single quotes and escape any embedded single quotes via
-    drawtext's own ``\\'`` escape, then escape the backslashes for the option
-    parser. Newlines and other control chars are stripped — a single-line
-    overlay is the only V1 layout."""
+    drawtext text= rides on top of the filtergraph parser, so we run the
+    standard filter-arg escape first, then layer drawtext's own ``%``-escape
+    on top (drawtext expands ``%{...}`` expressions in text= and a literal
+    percent has to be escaped to survive that pass). Newlines/CRs are
+    stripped — a single-line overlay is the only V1 layout."""
     cleaned = s.replace("\n", " ").replace("\r", " ")
-    # Order matters: backslash first so we don't double-escape escapes we add.
-    cleaned = cleaned.replace("\\", "\\\\")
-    cleaned = cleaned.replace(":", "\\:")
-    cleaned = cleaned.replace("'", "\\\\\\'")
+    cleaned = _escape_filter_arg(cleaned)
     cleaned = cleaned.replace("%", "\\%")
     return cleaned
 
@@ -110,7 +135,7 @@ def _build_overlay_filter(
         )
     parts = [
         f"text='{text_esc}'",
-        f"fontfile='{font}'",
+        f"fontfile='{_escape_filter_arg(font)}'",
         "fontsize=64",
         "fontcolor=white",
         "box=1",
@@ -195,31 +220,100 @@ def assemble_audio(project_name: str) -> str:
             concat_labels.append(f"[g{i}]")
 
     n_segments = len(concat_labels)  # = 2N-1 for N>=2, = 1 for N=1
-    concat_chain = (
-        f"{''.join(concat_labels)}concat=n={n_segments}:v=0:a=1[concat];"
-        f"[concat]loudnorm=I=-16:TP=-2:LRA=11[out]"
+    # Prefix is shared by both loudnorm passes: chunk filters + concat to
+    # produce a single [concat] label. Each pass appends its own loudnorm
+    # tail to this prefix.
+    filter_prefix = (
+        ";".join(chunk_filters)
+        + ";"
+        + f"{''.join(concat_labels)}concat=n={n_segments}:v=0:a=1[concat]"
     )
-    filter_complex = ";".join(chunk_filters) + ";" + concat_chain
 
     out_path = os.path.join(video_dir, "full_audio.mp3")
-    # Single-filter chain on [concat]:
-    #   loudnorm — EBU R128 to -16 LUFS / true-peak -2 dBFS / LRA 11.
+    # Two-pass loudnorm on [concat]:
+    #   pass 1 — measurement: loudnorm=...:print_format=json with -f null -
+    #     writes program-wide integrated loudness / true peak / LRA / threshold
+    #     / offset to stderr as a JSON block. No audio is written.
+    #   pass 2 — apply: loudnorm with linear=true and the measured_* values
+    #     from pass 1, which makes loudnorm perform a single linear gain
+    #     adjustment over the whole file instead of dynamic per-window gain
+    #     riding. The dynamic mode (what a single-pass invocation does) was
+    #     the source of audible breathing/pumping on speech in the previous
+    #     chain — linear=true requires measured_* inputs and is only valid in
+    #     two-pass mode. TP=-2 is now firm: with linear gain there's no
+    #     window-by-window overshoot to worry about, so -2 dBFS headroom is
+    #     enough to guarantee no true-peak clipping without an alimiter.
     #
-    # Previously chained dynaudnorm + loudnorm + alimiter. dynaudnorm's
-    # rolling-window gain-pumping survived into loudnorm's "even" output as
-    # audible breathing; single-pass loudnorm overshoots, so the alimiter
-    # had to attenuate hard, sounding pumpy/compressed on speech.
-    # TP=-2 (was -1.5) gives loudnorm 0.5 dB more headroom, eliminating
-    # the need for the belt-and-suspenders alimiter. Result is cleaner
-    # speech with no audible distortion from the equalization chain.
+    # Parse failure is loud by design — a malformed/missing JSON block means
+    # ffmpeg changed its output format or the chunk filters errored before
+    # loudnorm ran; either way we'd rather raise than silently fall back to
+    # the pumpy single-pass behavior we just removed.
     #
     # MP3 bitrate bumped to 192k (libmp3lame default trends ~128k VBR);
     # ElevenLabs source is mp3_44100_192, matching this re-encode bitrate
     # so we don't compound compression artifacts.
+    measure_filter = (
+        filter_prefix
+        + ";[concat]loudnorm=I=-16:TP=-2:LRA=11:print_format=json[out]"
+    )
+    measure_cmd = [
+        "ffmpeg", "-y",
+        *input_args,
+        "-filter_complex", measure_filter,
+        "-map", "[out]",
+        "-f", "null", "-",
+    ]
+    try:
+        measure_proc = subprocess.run(measure_cmd, check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+        print(f"ffmpeg failed loudnorm measurement pass for {project_name}:\n{stderr}")
+        raise
+
+    measure_stderr = measure_proc.stderr.decode("utf-8", errors="replace")
+    # Parse the LAST {...} block in stderr — ffmpeg emits the loudnorm summary
+    # near the end after the per-frame progress lines.
+    last_open = measure_stderr.rfind("{")
+    last_close = measure_stderr.rfind("}")
+    if last_open == -1 or last_close == -1 or last_close < last_open:
+        tail = measure_stderr[-2000:]
+        raise RuntimeError(
+            "loudnorm measurement pass produced no JSON block in stderr. "
+            f"Last 2000 chars of stderr:\n{tail}"
+        )
+    try:
+        measured = json.loads(measure_stderr[last_open:last_close + 1])
+    except json.JSONDecodeError as e:
+        tail = measure_stderr[-2000:]
+        raise RuntimeError(
+            f"loudnorm measurement JSON failed to parse ({e}). "
+            f"Last 2000 chars of stderr:\n{tail}"
+        )
+
+    required_keys = (
+        "input_i", "input_tp", "input_lra", "input_thresh", "target_offset",
+    )
+    missing_keys = [k for k in required_keys if k not in measured]
+    if missing_keys:
+        tail = measure_stderr[-2000:]
+        raise RuntimeError(
+            f"loudnorm measurement JSON missing keys {missing_keys}. "
+            f"Parsed: {measured!r}. Last 2000 chars of stderr:\n{tail}"
+        )
+
+    apply_filter = (
+        filter_prefix
+        + ";[concat]loudnorm=I=-16:TP=-2:LRA=11:linear=true"
+        + f":measured_I={measured['input_i']}"
+        + f":measured_TP={measured['input_tp']}"
+        + f":measured_LRA={measured['input_lra']}"
+        + f":measured_thresh={measured['input_thresh']}"
+        + f":offset={measured['target_offset']}[out]"
+    )
     cmd = [
         "ffmpeg", "-y",
         *input_args,
-        "-filter_complex", filter_complex,
+        "-filter_complex", apply_filter,
         "-map", "[out]",
         "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100", out_path,
     ]
@@ -335,13 +429,11 @@ def render_scene_clip(
     # interpolation per frame instead. tblend at 2x temporal sampling
     # smooths whatever rounding remains in the center-crop stage.
     if ken_burns and is_png:
-        # 4x spatial supersample: render the entire Ken Burns chain at
-        # 7680x4320 (4K) internally, lanczos-downscale to 1920x1080.
-        # The integer-pixel crop rounding inside the chain becomes 0.25px
-        # in output space — below the visible-jitter threshold once the
-        # downsample smooths it. 2x was not enough.
-        SUPER = 4
-        FPS_HI = FPS * 2  # temporal supersample for motion blur
+        # Spatial + temporal supersample knobs are env-driven (see module
+        # constants). Defaults match the prior hardcoded 4x / 2x behavior so
+        # final renders are unchanged; lower the env vars for fast iteration.
+        SUPER = RENDER_KB_SUPERSAMPLE
+        FPS_HI = FPS * RENDER_KB_TEMPORAL_SUPERSAMPLE
         sw, sh = OUT_W * SUPER, OUT_H * SUPER
         total_frames_hi = max(1, math.ceil(duration * FPS_HI))
         KB_END_ZOOM = 1.08
@@ -365,10 +457,14 @@ def render_scene_clip(
                 f":eval=frame:flags=lanczos"
             ),
             f"crop={sw}:{sh}:x='{x_max:.4f}*n/{denom}':y='{y_max:.4f}*n/{denom}'",
-            "tblend=all_mode=average",  # blend pairs -> motion blur
-            "framestep=2",                # drop every other -> back to FPS
-            f"scale={OUT_W}:{OUT_H}:flags=lanczos",
         ]
+        if RENDER_KB_TEMPORAL_SUPERSAMPLE > 1:
+            # Pair of frames -> averaged blend -> drop every other to land
+            # back at FPS. Only valid when FPS_HI > FPS; when temporal
+            # supersample is 1, FPS_HI == FPS already so we skip both.
+            filters.append("tblend=all_mode=average")
+            filters.append("framestep=2")
+        filters.append(f"scale={OUT_W}:{OUT_H}:flags=lanczos")
     else:
         filters = [
             f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase",
@@ -558,7 +654,7 @@ def mux_audio(
         # using an absolute path avoids confusion with the cwd at filter time.
         abs_sub = os.path.abspath(subtitle_path)
         cmd += [
-            "-vf", f"subtitles={abs_sub}",
+            "-vf", f"subtitles='{_escape_filter_arg(abs_sub)}'",
             "-c:v", "libx264", "-preset", "fast", "-crf", "18",
         ]
     else:
