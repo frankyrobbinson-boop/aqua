@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import anthropic
 
 from services import cost_ledger
+from services.paths import PROJECTS_ROOT
 from services.research_service import load_research
 from services.script_draft_service import load_script_draft
 
@@ -120,9 +121,9 @@ SCRIPT:
 
 def save_scene_plan(project_name, scene_plan):
 
-    folder = f"../projects/{project_name}"
+    folder = PROJECTS_ROOT / project_name
 
-    os.makedirs(folder, exist_ok=True)
+    folder.mkdir(parents=True, exist_ok=True)
 
-    with open(f"{folder}/scene_plan.json", "w") as f:
+    with (folder / "scene_plan.json").open("w") as f:
         json.dump(scene_plan, f, indent=2)

@@ -4,6 +4,7 @@ import os
 import subprocess
 
 from services.edl_service import generate_default_edl, load_edl, save_edl
+from services.paths import PROJECTS_ROOT
 from services.scene_timing_service import load_scene_windows, load_audio_timeline
 from services.subtitle_service import build_subtitles
 from services.voice_service import CHUNK_GAP
@@ -171,8 +172,8 @@ def assemble_audio(project_name: str) -> str:
     inside the graph — `d=0.3` at 44100 Hz is exactly 13230 samples.
     """
     timeline = load_audio_timeline(project_name)
-    audio_dir = f"../projects/{project_name}/audio"
-    video_dir = f"../projects/{project_name}/video"
+    audio_dir = str(PROJECTS_ROOT / project_name / "audio")
+    video_dir = str(PROJECTS_ROOT / project_name / "video")
     os.makedirs(video_dir, exist_ok=True)
 
     missing = [
@@ -564,7 +565,7 @@ def render_all_scene_clips(
     # (e.g. dropped hallucinated final scene) still pairs correctly.
     edl_by_id: dict[int, dict] = {e["id"]: e for e in edl.get("scenes", [])}
 
-    clips_dir = f"../projects/{project_name}/clips"
+    clips_dir = str(PROJECTS_ROOT / project_name / "clips")
     os.makedirs(clips_dir, exist_ok=True)
 
     clip_paths = []
@@ -616,7 +617,7 @@ def render_all_scene_clips(
 
 def concat_clips(project_name: str, clip_paths: list[str]) -> str:
     """Join scene clips with the concat demuxer (hard cuts)."""
-    video_dir = f"../projects/{project_name}/video"
+    video_dir = str(PROJECTS_ROOT / project_name / "video")
     concat_path = os.path.join(video_dir, "clips_concat.txt")
     with open(concat_path, "w") as f:
         for p in clip_paths:
@@ -646,7 +647,7 @@ def mux_audio(
     output_name: filename inside the project's video/ dir.
     duration_cap: if set, only encode the first N seconds (for fast previews).
     """
-    out = f"../projects/{project_name}/video/{output_name}"
+    out = str(PROJECTS_ROOT / project_name / "video" / output_name)
 
     cmd = ["ffmpeg", "-y", "-i", video_path, "-i", audio_path]
     if subtitle_path:
@@ -701,7 +702,7 @@ def assemble(
     print("  Building subtitles...")
     sub_path = build_subtitles(
         project_name,
-        f"../projects/{project_name}/video/subtitles.ass",
+        str(PROJECTS_ROOT / project_name / "video" / "subtitles.ass"),
     )
 
     print("  Muxing audio + burning subtitles...")

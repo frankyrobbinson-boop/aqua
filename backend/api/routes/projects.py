@@ -1,4 +1,4 @@
-"""Project listing and detail endpoints. Reads from ../projects/."""
+"""Project listing and detail endpoints. Reads from the canonical projects root."""
 
 import json
 import shutil
@@ -9,14 +9,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
 from services import cost_ledger
+from services.paths import PROJECTS_ROOT
 from services.stage_graph import invalidate_dependents
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
-
-# Anchor to this file's location so the API works regardless of where uvicorn
-# was launched from. routes/ → api/ → backend/ → repo-root/projects.
-PROJECTS_ROOT = Path(__file__).resolve().parent.parent.parent.parent / "projects"
 
 
 def _project_dir(slug: str) -> Path:

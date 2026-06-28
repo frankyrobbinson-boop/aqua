@@ -12,8 +12,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.routes.projects import PROJECTS_ROOT
 from api.routes.tasks import start_task
+from services.paths import PROJECTS_ROOT
 from services.channel_preset_registry import (
     create_channel as create_channel_preset,
     load_preset as load_channel_preset,
@@ -53,7 +53,13 @@ class ScriptRequest(BaseModel):
     # (used to resume a legacy draft-XXXX folder, or to re-run script generation
     # for an existing topic-slug project). When omitted — the canonical path
     # for new creations — the backend derives a unique slug from the topic.
-    project_slug: Optional[str] = None
+    # Pattern is a superset of the draft-slug shape (draft-{epoch}-{hex}) and
+    # the topic-slug shape produced by slugify(), so both kinds round-trip.
+    project_slug: Optional[str] = Field(
+        default=None,
+        pattern=r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
+        max_length=80,
+    )
     # Selects the outline/script structure module from video_types.json.
     # None falls back to the registry's default_type at run time.
     video_type: Optional[str] = None
@@ -77,21 +83,21 @@ class ScriptResponse(BaseModel):
     project_slug: str
 
 
-def _write_pre_research(backend_dir: Path, project_slug: str, content: Optional[str]) -> None:
+def _write_pre_research(project_slug: str, content: Optional[str]) -> None:
     if not content or not content.strip():
         return
-    project_dir = backend_dir / ".." / "projects" / project_slug
+    project_dir = PROJECTS_ROOT / project_slug
     project_dir.mkdir(parents=True, exist_ok=True)
     with (project_dir / "pre_research.txt").open("w") as f:
         f.write(content)
 
 
-def _write_script_config(backend_dir: Path, project_slug: str, req: "ScriptRequest") -> None:
+def _write_script_config(project_slug: str, req: "ScriptRequest") -> None:
     """Persist video_type + creator steering so run_script_only.py can read it.
 
     Always writes the file (even when fields are blank) so a re-run uses the
     latest settings and clears any stale ones."""
-    project_dir = backend_dir / ".." / "projects" / project_slug
+    project_dir = PROJECTS_ROOT / project_slug
     project_dir.mkdir(parents=True, exist_ok=True)
     config = {
         "channel": req.channel or default_channel_id(),
@@ -446,8 +452,8 @@ async def create_script(req: ScriptRequest) -> ScriptResponse:
         # straight from the topic. Collisions append -2, -3, ...
         project_slug = _derive_unique_slug(req.topic, PROJECTS_ROOT)
     backend_dir = Path(__file__).resolve().parent.parent.parent
-    _write_pre_research(backend_dir, project_slug, req.pre_research)
-    _write_script_config(backend_dir, project_slug, req)
+    _write_pre_research(project_slug, req.pre_research)
+    _write_script_config(project_slug, req)
 
     cmd = [
         sys.executable,
@@ -467,6 +473,8 @@ async def create_script(req: ScriptRequest) -> ScriptResponse:
             "project_slug": project_slug,
             "pre_research_provided": bool(req.pre_research),
         },
+        kind="script",
+        project_slug=project_slug,
     )
     return ScriptResponse(task_id=task.id, project_slug=project_slug)
 
@@ -480,8 +488,8 @@ async def create_pipeline(req: ScriptRequest) -> ScriptResponse:
     else:
         project_slug = _derive_unique_slug(req.topic, PROJECTS_ROOT)
     backend_dir = Path(__file__).resolve().parent.parent.parent
-    _write_pre_research(backend_dir, project_slug, req.pre_research)
-    _write_script_config(backend_dir, project_slug, req)
+    _write_pre_research(project_slug, req.pre_research)
+    _write_script_config(project_slug, req)
 
     cmd = [
         sys.executable,
@@ -501,5 +509,7 @@ async def create_pipeline(req: ScriptRequest) -> ScriptResponse:
             "project_slug": project_slug,
             "pre_research_provided": bool(req.pre_research),
         },
+        kind="pipeline",
+        project_slug=project_slug,
     )
     return ScriptResponse(task_id=task.id, project_slug=project_slug)

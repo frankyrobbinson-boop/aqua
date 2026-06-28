@@ -30,6 +30,7 @@ from dotenv import load_dotenv
 
 from services import cost_ledger
 from services.channel_registry import default_channel_id, resolve_channel_visuals
+from services.paths import PROJECTS_ROOT
 
 load_dotenv()
 
@@ -77,7 +78,7 @@ _VISUAL_PROMPT_SCHEMA = {
 
 
 def _project_dir(project_name: str) -> Path:
-    return Path(f"../projects/{project_name}")
+    return PROJECTS_ROOT / project_name
 
 
 def _visual_prompts_path(project_name: str) -> Path:

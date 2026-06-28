@@ -5,6 +5,7 @@ import json
 import re
 from services import cost_ledger
 from services.channel_registry import resolve_channel
+from services.paths import PROJECTS_ROOT
 from services.research_filters import strip_research_sources
 from services.research_service import load_research
 from services.video_type_registry import (
@@ -95,15 +96,12 @@ RESEARCH:
 
 
 def save_outline(project_name, outline):
-    folder = f"../projects/{project_name}"
-    os.makedirs(folder, exist_ok=True)
-    with open(f"{folder}/outline.json", "w") as f:
+    folder = PROJECTS_ROOT / project_name
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "outline.json").open("w") as f:
         json.dump(outline, f, indent=2)
 
 
 def load_outline(project_name):
-    with open(
-        f"../projects/{project_name}/outline.json",
-        "r"
-    ) as f:
+    with (PROJECTS_ROOT / project_name / "outline.json").open("r") as f:
         return json.load(f)

@@ -12,6 +12,8 @@ import os
 import re
 from typing import List, Dict
 
+from services.paths import PROJECTS_ROOT
+
 
 # --- Layout / look knobs ----------------------------------------------------
 
@@ -212,8 +214,8 @@ def _ass_header() -> str:
 
 
 def build_subtitles(project_name: str, output_path: str) -> str:
-    timeline_path = f"../projects/{project_name}/audio_timeline.json"
-    with open(timeline_path) as f:
+    timeline_path = PROJECTS_ROOT / project_name / "audio_timeline.json"
+    with timeline_path.open() as f:
         timeline = json.load(f)
 
     words = _flatten_words(timeline)

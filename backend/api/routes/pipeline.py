@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from api.routes.tasks import start_task
+from services.paths import PROJECTS_ROOT
 
 
 router = APIRouter(tags=["pipeline"])
@@ -25,7 +26,6 @@ _config_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 # File-anchored paths so the API works no matter where uvicorn was launched.
 _HERE = Path(__file__).resolve()
 BACKEND_DIR = str(_HERE.parent.parent.parent)
-PROJECTS_ROOT = _HERE.parent.parent.parent.parent / "projects"
 
 
 class ProjectStageRequest(BaseModel):
@@ -68,6 +68,8 @@ def _start_stage(
         cwd=BACKEND_DIR,
         metadata={"kind": stage, "project_slug": slug},
         env_overrides=env,
+        kind=stage,
+        project_slug=slug,
     )
     return StageResponse(task_id=task.id, project_slug=slug)
 

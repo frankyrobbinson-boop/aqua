@@ -12,8 +12,9 @@ import json
 import os
 import sys
 
-from services.research_service import generate_research, save_research, slugify
 from services.outline_service import generate_outline, save_outline
+from services.paths import PROJECTS_ROOT
+from services.research_service import generate_research, save_research, slugify
 from services.script_draft_service import generate_script_draft, save_script_draft
 
 
@@ -74,7 +75,7 @@ def _load_script_config(project_dir: str) -> dict:
 def run_script_only(topic: str, target_minutes: int = 10, project_name: str | None = None):
     if project_name is None:
         project_name = slugify(topic)
-    project_dir = f"../projects/{project_name}"
+    project_dir = str(PROJECTS_ROOT / project_name)
     research_path = f"{project_dir}/research.json"
     pre_research_path = f"{project_dir}/pre_research.txt"
     config = _load_script_config(project_dir)
@@ -105,6 +106,7 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
         else:
             print(f"\n[1/3] Research...  (topic: {topic!r}, {target_minutes}-min target)")
 
+        print("[[STAGE:research:started]]", flush=True)
         research = generate_research(
             topic,
             pre_research=pre_research,
@@ -113,8 +115,10 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
         )
         save_research(project_name, {"topic": topic, "research": research})
         print("      research saved")
+        print("[[STAGE:research:completed]]", flush=True)
 
     print("\n[2/3] Outline...")
+    print("[[STAGE:outline:started]]", flush=True)
     outline = generate_outline(
         project_name,
         topic,
@@ -126,8 +130,10 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
     )
     save_outline(project_name, outline)
     print(f"      outline saved  ({len(outline.get('sections', []))} sections)")
+    print("[[STAGE:outline:completed]]", flush=True)
 
     print("\n[3/3] Script draft...")
+    print("[[STAGE:script_draft:started]]", flush=True)
     script_draft = generate_script_draft(
         project_name,
         topic,
@@ -140,9 +146,10 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
     )
     save_script_draft(project_name, script_draft)
     print("      script_draft saved")
+    print("[[STAGE:script_draft:completed]]", flush=True)
 
     _print_script_summary(script_draft, target_minutes)
-    print(f"\nProject: ../projects/{project_name}/")
+    print(f"\nProject: {PROJECTS_ROOT / project_name}/")
     print("Next: review and edit the script. TTS prep happens in the voiceover stage.")
 
 

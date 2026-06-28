@@ -63,6 +63,8 @@ async def start_edit(slug: str, req: EditRequest) -> EditResponse:
         cwd=BACKEND_DIR,
         metadata={"kind": "edit", "project_slug": slug},
         env_overrides=env,
+        kind="edit",
+        project_slug=slug,
     )
     return EditResponse(task_id=task.id, project_slug=slug)
 

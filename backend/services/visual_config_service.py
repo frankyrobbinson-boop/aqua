@@ -1,6 +1,6 @@
 """Per-project visual configuration: which provider handles which segment.
 
-Stored at ``../projects/<name>/visual_config.json`` with schema:
+Stored at ``<projects_root>/<name>/visual_config.json`` with schema:
 
     {
       "segments": [
@@ -30,21 +30,20 @@ import tempfile
 from collections import OrderedDict
 from pathlib import Path
 
+from services.paths import PROJECTS_ROOT
 from services.visual_provider_registry import (
     default_mode,
     default_provider_for_mode,
     default_provider_id,
 )
 
-_PROJECTS_ROOT = Path("../projects")
-
 
 def _config_path(project_name: str) -> Path:
-    return _PROJECTS_ROOT / project_name / "visual_config.json"
+    return PROJECTS_ROOT / project_name / "visual_config.json"
 
 
 def _scene_plan_path(project_name: str) -> Path:
-    return _PROJECTS_ROOT / project_name / "scene_plan.json"
+    return PROJECTS_ROOT / project_name / "scene_plan.json"
 
 
 # ---------------------------------------------------------------------------

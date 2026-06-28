@@ -1,8 +1,8 @@
 import json
-import os
 import re
 from num2words import num2words
 
+from services.paths import PROJECTS_ROOT
 from services.tts_prep_service import load_tts_prep
 
 
@@ -110,12 +110,12 @@ def build_voice_units(project_name: str) -> list:
 
 
 def save_voice_units(project_name: str, units: list):
-    folder = f"../projects/{project_name}"
-    os.makedirs(folder, exist_ok=True)
-    with open(f"{folder}/voice_units.json", "w") as f:
+    folder = PROJECTS_ROOT / project_name
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "voice_units.json").open("w") as f:
         json.dump(units, f, indent=2)
 
 
 def load_voice_units(project_name: str) -> list:
-    with open(f"../projects/{project_name}/voice_units.json", "r") as f:
+    with (PROJECTS_ROOT / project_name / "voice_units.json").open("r") as f:
         return json.load(f)

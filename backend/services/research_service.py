@@ -7,6 +7,7 @@ from pathlib import Path
 from openai import OpenAI
 
 from services import cost_ledger
+from services.paths import PROJECTS_ROOT
 
 load_dotenv()
 
@@ -117,14 +118,14 @@ def generate_research(
 
 
 def save_research(project_name, content):
-    folder = f"../projects/{project_name}"
-    os.makedirs(folder, exist_ok=True)
-    with open(f"{folder}/research.json", "w") as f:
+    folder = PROJECTS_ROOT / project_name
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "research.json").open("w") as f:
         json.dump(content, f, indent=2)
 
 
 def load_research(project_name):
-    with open(f"../projects/{project_name}/research.json", "r") as f:
+    with (PROJECTS_ROOT / project_name / "research.json").open("r") as f:
         return json.load(f)
 
 

@@ -2,8 +2,8 @@
 60 seconds of the video. Lets you validate font/size/color/layout choices
 without waiting for the full ~20-min libass burn-in over a 10-min video.
 
-Output: ../projects/{project}/video/preview_v<N>.mp4 (next available slot
-so previous previews stick around for comparison).
+Output: <projects_root>/{project}/video/preview_v<N>.mp4 (next available
+slot so previous previews stick around for comparison).
 
     python preview_subtitles.py <project_name> [duration_seconds]
 """
@@ -12,8 +12,9 @@ import os
 import re
 import sys
 
-from services.subtitle_service import build_subtitles
 from services.assembly_service import mux_audio
+from services.paths import PROJECTS_ROOT
+from services.subtitle_service import build_subtitles
 
 
 DEFAULT_PREVIEW_SECONDS = 60
@@ -32,7 +33,7 @@ def _next_preview_name(video_dir: str) -> str:
 
 
 def preview_subtitles(project_name: str, duration: float) -> str:
-    video_dir = f"../projects/{project_name}/video"
+    video_dir = str(PROJECTS_ROOT / project_name / "video")
     silent = f"{video_dir}/video_no_audio.mp4"
     audio = f"{video_dir}/full_audio.mp3"
 

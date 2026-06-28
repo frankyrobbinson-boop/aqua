@@ -4,8 +4,6 @@ Run from backend/:
     uvicorn api.main:app --reload --port 8000
 """
 
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +15,7 @@ from services.hook_archetype_registry import (
     verify_archetype_modules_exist,
     verify_hook_slot,
 )
+from services.paths import PROJECTS_ROOT
 from services.research_service import verify_research_slot
 from services.video_type_registry import verify_base_slots, verify_modules_exist
 from services.visual_provider_registry import verify_providers_exist
@@ -50,10 +49,9 @@ app.add_middleware(
 )
 
 # Serve project artifacts (video, audio, images) for the frontend.
-# /files/{slug}/video/final.mp4 → ../projects/{slug}/video/final.mp4
-PROJECTS_ROOT = os.path.abspath("../projects")
-if os.path.isdir(PROJECTS_ROOT):
-    app.mount("/files", StaticFiles(directory=PROJECTS_ROOT), name="files")
+# /files/{slug}/video/final.mp4 → <projects_root>/{slug}/video/final.mp4
+if PROJECTS_ROOT.is_dir():
+    app.mount("/files", StaticFiles(directory=str(PROJECTS_ROOT)), name="files")
 
 
 @app.get("/health")

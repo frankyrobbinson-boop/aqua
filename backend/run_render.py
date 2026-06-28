@@ -9,23 +9,24 @@ import sys
 
 from services.assembly_service import assemble
 from services.edl_service import generate_default_edl, load_edl, save_edl
+from services.paths import PROJECTS_ROOT
 from services.stage_graph import missing_inputs
 
 
 def _check_inputs(project_name: str):
-    folder = f"../projects/{project_name}"
-    if not os.path.isdir(folder):
+    folder = PROJECTS_ROOT / project_name
+    if not folder.is_dir():
         raise FileNotFoundError(f"Project folder not found: {folder}")
     # edl.json is a declared render input but we auto-generate it below if
     # missing — filter it out so a fresh project that's never run the edit
     # stage doesn't false-positive here.
-    missing = [m for m in missing_inputs(folder, "render") if m != "edl.json"]
+    missing = [m for m in missing_inputs(str(folder), "render") if m != "edl.json"]
     if missing:
         raise FileNotFoundError(
             f"Project '{project_name}' missing required artifacts: {missing}. "
             "Run run_visuals.py first."
         )
-    footage_dir = f"{folder}/footage"
+    footage_dir = folder / "footage"
     # footage is a declared input but missing_inputs only checks existence;
     # an empty footage dir means visuals didn't actually fetch anything.
     if not os.listdir(footage_dir):
@@ -39,10 +40,10 @@ def run_render(project_name: str) -> str:
 
     # Build the {scene_id: footage_path} dict from disk.
     import json
-    with open(f"../projects/{project_name}/scene_windows.json") as f:
+    with (PROJECTS_ROOT / project_name / "scene_windows.json").open() as f:
         scene_windows = json.load(f)
 
-    footage_dir = f"../projects/{project_name}/footage"
+    footage_dir = str(PROJECTS_ROOT / project_name / "footage")
     # Either .mp4 (stock / AI video) or .png (AI image) — visual providers may
     # produce either, and assembly_service.render_scene_clip accepts both
     # transparently via ffmpeg -stream_loop on stills.
@@ -78,19 +79,23 @@ def run_render(project_name: str) -> str:
     # authoritative — we don't overwrite it.
     if load_edl(project_name) is None:
         print("[1/2] Generating EDL...")
+        print("[[STAGE:edl:started]]", flush=True)
         edl = generate_default_edl(
             project_name, transition=transition, ken_burns=ken_burns,
         )
         save_edl(project_name, edl)
         print(f"  edl.json saved ({len(edl['scenes'])} scenes)")
+        print("[[STAGE:edl:completed]]", flush=True)
 
     print(
         f"\nAssembling video for '{project_name}' ({len(footage_paths)} scenes; "
         f"transition={transition}, ken_burns={ken_burns})..."
     )
+    print("[[STAGE:render:started]]", flush=True)
     final_video = assemble(
         project_name, footage_paths, transition=transition, ken_burns=ken_burns,
     )
+    print("[[STAGE:render:completed]]", flush=True)
 
     print(f"\nDONE: {final_video}")
     return final_video

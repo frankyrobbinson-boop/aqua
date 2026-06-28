@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import anthropic
 
 from services import cost_ledger
+from services.paths import PROJECTS_ROOT
 from services.script_draft_service import load_script_draft, SCRIPT_SCHEMA
 
 load_dotenv()
@@ -82,12 +83,12 @@ def generate_tts_prep(project_name: str) -> dict:
 
 
 def save_tts_prep(project_name: str, tts_script: dict):
-    folder = f"../projects/{project_name}"
-    os.makedirs(folder, exist_ok=True)
-    with open(f"{folder}/tts_script.json", "w") as f:
+    folder = PROJECTS_ROOT / project_name
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "tts_script.json").open("w") as f:
         json.dump(tts_script, f, indent=2)
 
 
 def load_tts_prep(project_name: str) -> dict:
-    with open(f"../projects/{project_name}/tts_script.json") as f:
+    with (PROJECTS_ROOT / project_name / "tts_script.json").open() as f:
         return json.load(f)

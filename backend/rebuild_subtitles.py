@@ -13,8 +13,9 @@ import os
 import re
 import sys
 
-from services.subtitle_service import build_subtitles
 from services.assembly_service import mux_audio
+from services.paths import PROJECTS_ROOT
+from services.subtitle_service import build_subtitles
 
 
 def _next_versioned_name(video_dir: str, prefix: str = "final") -> str:
@@ -35,7 +36,7 @@ def _next_versioned_name(video_dir: str, prefix: str = "final") -> str:
 
 
 def rebuild_subtitles(project_name: str) -> str:
-    video_dir = f"../projects/{project_name}/video"
+    video_dir = str(PROJECTS_ROOT / project_name / "video")
     silent = f"{video_dir}/video_no_audio.mp4"
     audio = f"{video_dir}/full_audio.mp3"
 

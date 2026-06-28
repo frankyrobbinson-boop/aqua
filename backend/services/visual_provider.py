@@ -6,8 +6,8 @@ Imagen / Grok) implement ``VisualProvider``. The orchestrator in
 new provider is one class + one registry entry.
 
 Each provider is responsible for placing one footage file per scene at
-``../projects/<name>/footage/scene_<sid:03d>.<ext>`` (PNG for stills, MP4 for
-clips) and writing a ``<output>.cache.json`` sidecar so re-runs can skip
+``<projects_root>/<name>/footage/scene_<sid:03d>.<ext>`` (PNG for stills, MP4
+for clips) and writing a ``<output>.cache.json`` sidecar so re-runs can skip
 unchanged scenes. The cache helper here is the shared default — providers may
 key it on whatever fields make sense (visual_description hash, stock_id,
 generation prompt, etc).
@@ -21,6 +21,8 @@ import os
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
+
+from services.paths import PROJECTS_ROOT
 
 
 def cache_path_for(output_path: str | Path) -> str:
@@ -91,7 +93,7 @@ class VisualProvider(ABC):
           1) Check ``is_cache_valid`` against their provider-specific cache key
              and skip work on a hit.
           2) On a miss, generate/download the file to
-             ``../projects/<project_name>/footage/scene_<sid:03d>.<ext>``.
+             ``<projects_root>/<project_name>/footage/scene_<sid:03d>.<ext>``.
           3) Call ``write_cache`` AFTER the output is fully written.
           4) Raise on failure with the scene id in the error — do not swallow.
         """
@@ -100,7 +102,7 @@ class VisualProvider(ABC):
 def footage_dir_for(project_name: str) -> Path:
     """Canonical per-project footage directory. Created if absent so providers
     don't each re-implement the mkdir dance."""
-    p = Path(f"../projects/{project_name}/footage")
+    p = PROJECTS_ROOT / project_name / "footage"
     p.mkdir(parents=True, exist_ok=True)
     return p
 

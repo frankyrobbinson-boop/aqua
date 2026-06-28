@@ -6,9 +6,9 @@ interface, not the concrete classes — adding a new provider is one class + one
 registry entry.
 
 Each provider is responsible for placing one audio file per voice unit at
-``../projects/<name>/audio/audio_<id:02d>_<type>.mp3`` and writing a JSON cache
-sidecar so re-runs can skip unchanged units. The cache key is provider-defined
-(text + seed + speed for ElevenLabs, prompt + voice ref for Qwen3, etc).
+``<projects_root>/<name>/audio/audio_<id:02d>_<type>.mp3`` and writing a JSON
+cache sidecar so re-runs can skip unchanged units. The cache key is provider-
+defined (text + seed + speed for ElevenLabs, prompt + voice ref for Qwen3, etc).
 
 ``synth_unit`` returns the cache-entry dict the orchestrator's timeline builder
 consumes — same shape as the legacy ``voice_service._generate_unit`` so the
@@ -23,11 +23,13 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
+from services.paths import PROJECTS_ROOT
+
 
 def cache_path_for(audio_path: str | Path) -> str:
     """Sidecar path: ``<audio>.json`` (drops the .mp3 extension). Mirrors the
     convention the legacy ElevenLabs path used so existing on-disk caches in
-    ``../projects/<name>/audio/`` remain valid across the refactor."""
+    ``<projects_root>/<name>/audio/`` remain valid across the refactor."""
     p = str(audio_path)
     if p.endswith(".mp3"):
         return p[:-4] + ".json"
@@ -78,7 +80,7 @@ def write_cache(audio_path: str | Path, payload: dict[str, Any]) -> None:
 def audio_dir_for(project_name: str) -> Path:
     """Canonical per-project audio directory. Created if absent so providers
     don't each re-implement the mkdir dance."""
-    p = Path(f"../projects/{project_name}/audio")
+    p = PROJECTS_ROOT / project_name / "audio"
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -114,7 +116,7 @@ class VoiceProvider(ABC):
           1) Check ``is_cache_valid`` against their provider-specific cache key
              and return the cached dict on a hit.
           2) On a miss, synthesize the audio to
-             ``../projects/<project_name>/audio/audio_<id:02d>_<type>.mp3``.
+             ``<projects_root>/<project_name>/audio/audio_<id:02d>_<type>.mp3``.
           3) Call ``write_cache`` AFTER the file is fully written.
           4) Return a dict with keys: segment_id, type, title, text, audio_file,
              duration, words, tts_source, seed, voice_speed, request_id. (Extra

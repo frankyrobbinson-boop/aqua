@@ -23,6 +23,7 @@ import anthropic
 from dotenv import load_dotenv
 
 from services import cost_ledger
+from services.paths import PROJECTS_ROOT
 from services.stock_provider import StockClip
 
 load_dotenv()
@@ -53,7 +54,7 @@ def _load_project_topic(project_name: str) -> str:
         if project_name in _TOPIC_CACHE:
             return _TOPIC_CACHE[project_name]
         topic = ""
-        path = Path(f"../projects/{project_name}/research.json")
+        path = PROJECTS_ROOT / project_name / "research.json"
         if path.exists():
             try:
                 with path.open() as f:

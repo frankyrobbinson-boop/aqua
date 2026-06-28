@@ -31,11 +31,13 @@ def run_edit(
     if transition not in ("cut", "fade"):
         print(f"  WARN: transition={transition!r} invalid, falling back to 'cut'")
         transition = "cut"
+    print("[[STAGE:edl:started]]", flush=True)
     edl = generate_default_edl(
         project_name, transition=transition, ken_burns=ken_burns,
     )
     save_edl(project_name, edl)
     print(f"  edl.json saved ({len(edl['scenes'])} scenes)")
+    print("[[STAGE:edl:completed]]", flush=True)
     return edl
 
 

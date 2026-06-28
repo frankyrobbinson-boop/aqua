@@ -11,28 +11,20 @@ projects predating this refactor run exactly as before.
 
 Public surface:
     fetch_all_scene_footage(project_name) -> ({scene_id: Path}, {scene_id: str})
-        New orchestrator entrypoint. Use this for any new caller. Returns a
-        (paths, errors) tuple so callers can decide whether the error rate
-        is tolerable before aborting the run; an individual scene failure no
-        longer cancels the whole batch.
-
-    fetch_scene_footage(project_name, scene_windows, provider) -> {scene_id: str}
-        Legacy entrypoint kept for ``pipeline.py`` and ``run_video_only.py``.
-        Bypasses visual_config and forces the single passed-in provider for
-        every scene — preserves bug-for-bug behavior of the pre-refactor code.
+        Sole orchestrator entrypoint. Returns a (paths, errors) tuple so
+        callers can decide whether the error rate is tolerable before
+        aborting the run; an individual scene failure no longer cancels
+        the whole batch.
 """
 
 from __future__ import annotations
 
-import os
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
 
-from services.stock_provider import StockProvider
+from services.paths import PROJECTS_ROOT
 from services.visual_config_service import resolve_visual_config
-from services.visual_pexels import PexelsVisualProvider
 from services.visual_provider import VisualProvider
 from services.visual_provider_registry import get_provider
 
@@ -70,15 +62,15 @@ def fetch_all_scene_footage(
     #      dropped; fetching footage for those is wasted spend + wasted disk.
     # scene_windows entries carry every original scene_plan field PLUS the
     # timing block, so this is strictly a superset read.
-    scene_windows_path = f"../projects/{project_name}/scene_windows.json"
-    if not os.path.exists(scene_windows_path):
+    scene_windows_path = PROJECTS_ROOT / project_name / "scene_windows.json"
+    if not scene_windows_path.exists():
         raise FileNotFoundError(
             f"scene_windows.json not found for {project_name!r} — "
             f"run the scene-timing stage first (it runs automatically as "
             f"step [2/4] inside run_visuals.py)"
         )
     import json
-    with open(scene_windows_path) as f:
+    with scene_windows_path.open() as f:
         scenes: list[dict] = json.load(f)
     if not scenes:
         raise RuntimeError(f"scene_windows for {project_name!r} has no scenes")
@@ -152,47 +144,3 @@ def fetch_all_scene_footage(
                 print(f"  ERROR scene {sid}: {exc!r}", flush=True)
 
     return paths, errors
-
-
-# ---------------------------------------------------------------------------
-# Legacy entrypoint
-# ---------------------------------------------------------------------------
-
-def fetch_scene_footage(
-    project_name: str,
-    scene_windows: list,
-    provider: StockProvider,
-) -> dict[int, str]:
-    """Legacy parallel-Pexels fetch retained for ``pipeline.py`` and
-    ``run_video_only.py`` which haven't been migrated to the orchestrator.
-
-    Wraps the passed-in low-level Pexels client in a ``PexelsVisualProvider``
-    and runs every scene through it in parallel via the new interface (same
-    ``_MAX_WORKERS`` cap as before the refactor). Output shape matches the old
-    return: ``{scene_id: str path}``.
-    """
-    adapter = PexelsVisualProvider(client=provider)  # type: ignore[arg-type]
-    paths: dict[int, str] = {}
-
-    def _one(scene: dict) -> tuple[int, str]:
-        out = adapter.fetch_for_scene(project_name, scene)
-        return scene["id"], str(out)
-
-    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
-        futures = {pool.submit(_one, scene): scene["id"] for scene in scene_windows}
-        first_exc: Optional[BaseException] = None
-        for fut in as_completed(futures):
-            try:
-                sid, path = fut.result()
-                paths[sid] = path
-            except BaseException as exc:
-                if first_exc is None:
-                    first_exc = exc
-                    print(
-                        f"  ERROR scene {futures[fut]}: {exc!r} — waiting for "
-                        f"in-flight downloads to settle before aborting...",
-                        flush=True,
-                    )
-        if first_exc is not None:
-            raise first_exc
-    return paths

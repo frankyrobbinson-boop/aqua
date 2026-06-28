@@ -1,6 +1,6 @@
 """Per-project cost ledger.
 
-Writes to ``../projects/<name>/cost_ledger.json`` (a JSON array, NOT JSONL —
+Writes to ``<projects_root>/<name>/cost_ledger.json`` (a JSON array, NOT JSONL —
 the file is small enough that a flat array stays cheap to load and easy to
 diff). Every meaningful billable call (LLM token consumption, image
 generation, TTS character spend, stock-clip fetches) appends one entry.
@@ -20,7 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-_PROJECTS_ROOT = Path("../projects")
+from services.paths import PROJECTS_ROOT
 
 # Atomic-append guard. JSON arrays can't be appended-to like JSONL, so we
 # read-modify-write under a process-level lock. Concurrent multi-process
@@ -106,7 +106,7 @@ def estimate_unit_cost(provider: str, model: str, units: int | float) -> float:
 # ---------------------------------------------------------------------------
 
 def _project_path(project_name: str) -> Path:
-    return _PROJECTS_ROOT / project_name
+    return PROJECTS_ROOT / project_name
 
 
 def _ledger_path(project_name: str) -> Path:

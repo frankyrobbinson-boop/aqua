@@ -6,7 +6,7 @@ Routes:
     GET /visual-providers                     -> registry dump for dropdowns
     POST /projects/{slug}/visuals/generate    -> kick off run_visuals.py
 
-The GET/PUT pair operates on ``../projects/<slug>/visual_config.json`` via
+The GET/PUT pair operates on ``<projects_root>/<slug>/visual_config.json`` via
 ``visual_config_service``. The POST mirrors ``api.routes.pipeline.start_visuals``
 shape so the frontend can reuse RunPanel + the existing tasks SSE plumbing.
 """
@@ -145,6 +145,8 @@ async def start_visuals_generate(slug: str) -> GenerateVisualsResponse:
         cmd=cmd,
         cwd=BACKEND_DIR,
         metadata={"kind": "visuals", "project_slug": slug},
+        kind="visuals",
+        project_slug=slug,
     )
     return GenerateVisualsResponse(task_id=task.id, project_slug=slug)
 
@@ -205,6 +207,8 @@ async def start_visual_prompts_generate(slug: str) -> GenerateVisualsResponse:
         cmd=cmd,
         cwd=BACKEND_DIR,
         metadata={"kind": "visual_prompts", "project_slug": slug},
+        kind="visual_prompts",
+        project_slug=slug,
     )
     return GenerateVisualsResponse(task_id=task.id, project_slug=slug)
 

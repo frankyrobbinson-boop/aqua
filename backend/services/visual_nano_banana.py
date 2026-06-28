@@ -32,6 +32,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from services import cost_ledger
+from services.paths import PROJECTS_ROOT
 from services.visual_provider import (
     VisualProvider,
     clean_other_mode_files,
@@ -204,7 +205,7 @@ class NanoBananaProvider(VisualProvider):
         with self._visual_prompts_lock:
             payload = self._visual_prompts_cache.get(project_name, None)
             if project_name not in self._visual_prompts_cache:
-                path = Path(f"../projects/{project_name}/visual_prompts.json")
+                path = PROJECTS_ROOT / project_name / "visual_prompts.json"
                 if path.exists():
                     try:
                         with path.open() as f:

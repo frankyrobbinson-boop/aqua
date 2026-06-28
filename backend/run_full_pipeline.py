@@ -9,6 +9,7 @@ serves both a fresh "run everything" and a "finish what was started" flow.
 
 import sys
 
+from services.paths import PROJECTS_ROOT
 from services.research_service import slugify
 from services.stage_graph import is_stage_fresh
 
@@ -31,7 +32,7 @@ def run_full_pipeline(
 ) -> str:
     if project_name is None:
         project_name = slugify(topic)
-    project_dir = f"../projects/{project_name}"
+    project_dir = str(PROJECTS_ROOT / project_name)
 
     # Each stage's "skip if done" is the same predicate: declared outputs exist
     # AND aren't older than any declared input. See services/stage_graph.py for

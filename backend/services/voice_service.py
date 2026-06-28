@@ -34,6 +34,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 from services.channel_registry import resolve_channel_voiceover
+from services.paths import PROJECTS_ROOT
 from services.voice_prep_service import load_voice_units
 from services.voice_provider_registry import default_provider_id, get_provider
 
@@ -170,7 +171,7 @@ def generate_audio(
     future phase. Behavior is unchanged today.
     """
     units = load_voice_units(project_name)
-    audio_dir = f"../projects/{project_name}/audio"
+    audio_dir = str(PROJECTS_ROOT / project_name / "audio")
     os.makedirs(audio_dir, exist_ok=True)
 
     voice_config = _resolve_voice_config(channel_id)
@@ -274,11 +275,11 @@ def generate_audio(
 
 
 def save_audio_timeline(project_name: str, timeline: list):
-    folder = f"../projects/{project_name}"
-    with open(f"{folder}/audio_timeline.json", "w") as f:
+    folder = PROJECTS_ROOT / project_name
+    with (folder / "audio_timeline.json").open("w") as f:
         json.dump(timeline, f, indent=2)
 
 
 def load_audio_timeline(project_name: str) -> list:
-    with open(f"../projects/{project_name}/audio_timeline.json", "r") as f:
+    with (PROJECTS_ROOT / project_name / "audio_timeline.json").open("r") as f:
         return json.load(f)

@@ -4,6 +4,8 @@ to the client via SSE. In-memory registry; restart wipes task history."""
 import asyncio
 import json
 import os
+import re
+import threading
 import time
 import uuid
 from collections import OrderedDict
@@ -21,6 +23,14 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 # the cap alone (active tasks must not be lost).
 _MAX_TASKS = 200
 
+# Structured stage-event marker. Subprocesses print
+# ``[[STAGE:<name>:<status>]]`` on its own line; the task runner converts each
+# match into a typed SSE event so the frontend can render per-stage progress
+# without screen-scraping log lines. Non-matching lines flow through as plain
+# log events. Status whitelist: started, completed.
+_STAGE_EVENT_RE = re.compile(r"^\s*\[\[STAGE:([a-z_]+):([a-z_]+)\]\]\s*$")
+_STAGE_STATUSES = {"started", "completed"}
+
 
 class Task:
     def __init__(
@@ -29,16 +39,27 @@ class Task:
         cwd: str,
         metadata: dict | None = None,
         env_overrides: dict[str, str] | None = None,
+        kind: str | None = None,
+        project_slug: str | None = None,
     ):
         self.id = uuid.uuid4().hex
         self.cmd = cmd
         self.cwd = cwd
         self.status = "pending"  # pending | running | completed | failed
-        self.log_lines: list[str] = []
+        # Each entry is either {"type": "log", "line": str} or
+        # {"type": "stage", "stage": str, "status": str}. Stored as a single
+        # ordered list so SSE replay-on-reconnect preserves the original
+        # interleaving of stage markers and log lines.
+        self.events: list[dict[str, Any]] = []
         self.exit_code: int | None = None
         self.started_at: float | None = None
         self.finished_at: float | None = None
         self.metadata = metadata or {}
+        # Lock-registry coordinates: kept on the instance so Task.run()'s
+        # finally block can release the (slug, kind) reservation without
+        # needing the caller to re-derive them.
+        self.kind = kind
+        self.project_slug = project_slug
         # Extra env vars layered on top of os.environ when the subprocess
         # spawns. Used by /render to pass per-render flags to run_render.py.
         self.env_overrides = env_overrides or {}
@@ -52,6 +73,12 @@ class Task:
         # down the child.
         self._process: asyncio.subprocess.Process | None = None
 
+    @property
+    def log_lines(self) -> list[str]:
+        """Back-compat view: log lines only, excluding structured stage events.
+        Kept for ``GET /tasks/{id}`` callers that just want the raw stdout."""
+        return [e["line"] for e in self.events if e.get("type") == "log"]
+
     def summary(self) -> dict:
         return {
             "id": self.id,
@@ -59,9 +86,22 @@ class Task:
             "exit_code": self.exit_code,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
-            "log_count": len(self.log_lines),
+            "log_count": sum(1 for e in self.events if e.get("type") == "log"),
             "metadata": self.metadata,
         }
+
+    def _append_line(self, line: str) -> None:
+        """Classify ``line`` as a structured stage event or a plain log line
+        and append the corresponding event dict. Status outside the whitelist
+        falls through as a log line so a typo'd marker doesn't get silently
+        dropped."""
+        m = _STAGE_EVENT_RE.match(line)
+        if m and m.group(2) in _STAGE_STATUSES:
+            self.events.append(
+                {"type": "stage", "stage": m.group(1), "status": m.group(2)}
+            )
+        else:
+            self.events.append({"type": "log", "line": line})
 
     async def run(self):
         self.status = "running"
@@ -79,7 +119,7 @@ class Task:
             assert process.stdout is not None
             async for line_bytes in process.stdout:
                 line = line_bytes.decode("utf-8", errors="replace").rstrip("\n")
-                self.log_lines.append(line)
+                self._append_line(line)
                 self._new_lines.set()
             self.exit_code = await process.wait()
             self.status = "completed" if self.exit_code == 0 else "failed"
@@ -92,20 +132,28 @@ class Task:
                     await self._process.wait()
                 except Exception:
                     pass
-            self.log_lines.append("[cancelled]")
+            self._append_line("[cancelled]")
             self.status = "failed"
             self.exit_code = -1
             raise
         except Exception as exc:
-            self.log_lines.append(f"[task runner error] {exc!r}")
+            self._append_line(f"[task runner error] {exc!r}")
             self.status = "failed"
             self.exit_code = -1
         finally:
             self.finished_at = time.time()
             self._new_lines.set()
+            # Release the per-(slug, kind) reservation so the next request can
+            # start. Cleared in finally so cancelled / crashed tasks don't
+            # leave their slot wedged.
+            if self.kind is not None and self.project_slug is not None:
+                with _ACTIVE_LOCK:
+                    key = (self.project_slug, self.kind)
+                    if _ACTIVE_BY_KEY.get(key) == self.id:
+                        del _ACTIVE_BY_KEY[key]
 
-    async def stream_logs(self) -> AsyncIterator[str]:
-        """Yield log lines as they arrive, returning when the task finishes.
+    async def stream_events(self) -> AsyncIterator[dict[str, Any]]:
+        """Yield event dicts as they arrive, returning when the task finishes.
 
         Uses a clear-then-re-check pattern around `_new_lines.wait()`: a producer
         that appends + sets between our inner-while exit and the clear() would
@@ -114,15 +162,15 @@ class Task:
         wakeup compounds. The re-check after clear catches the race."""
         index = 0
         while True:
-            while index < len(self.log_lines):
-                yield self.log_lines[index]
+            while index < len(self.events):
+                yield self.events[index]
                 index += 1
             if self.status in ("completed", "failed"):
                 return
             self._new_lines.clear()
-            # Re-check after clearing: if a line landed (or the task ended)
+            # Re-check after clearing: if an event landed (or the task ended)
             # between exiting the inner while and clear(), don't go to sleep.
-            if index < len(self.log_lines) or self.status in ("completed", "failed"):
+            if index < len(self.events) or self.status in ("completed", "failed"):
                 continue
             await self._new_lines.wait()
 
@@ -130,6 +178,12 @@ class Task:
 # In-memory registry. Single-process — fine for local dev. Restart wipes.
 # OrderedDict so we can evict the oldest finished entry when we hit _MAX_TASKS.
 _REGISTRY: "OrderedDict[str, Task]" = OrderedDict()
+
+# Per-(project_slug, kind) reservations: at most one active task per pair.
+# Cleared from Task.run()'s finally block. Threading lock (not asyncio) so the
+# guard works whether start_task is called from sync or async code paths.
+_ACTIVE_BY_KEY: dict[tuple[str, str], str] = {}
+_ACTIVE_LOCK = threading.Lock()
 
 
 def _evict_if_full() -> None:
@@ -149,11 +203,45 @@ def start_task(
     cwd: str,
     metadata: dict | None = None,
     env_overrides: dict[str, str] | None = None,
+    kind: str | None = None,
+    project_slug: str | None = None,
 ) -> Task:
-    """Create a task, schedule its run, register, and return it."""
+    """Create a task, schedule its run, register, and return it.
+
+    When both ``kind`` and ``project_slug`` are supplied, enforces at most one
+    active task per (slug, kind) pair: a conflicting start raises HTTP 409 with
+    the existing task id surfaced in the detail message. Pass both fields from
+    every route so concurrent button-mashes can't spawn duplicate pipelines."""
+    if kind is not None and project_slug is not None:
+        key = (project_slug, kind)
+        with _ACTIVE_LOCK:
+            existing_id = _ACTIVE_BY_KEY.get(key)
+            if existing_id is not None:
+                existing = _REGISTRY.get(existing_id)
+                if existing is not None and existing.status in ("pending", "running"):
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"project {project_slug!r} already has a {kind!r} "
+                            f"task running (id={existing_id}). Wait for it to "
+                            f"finish or cancel it before starting another."
+                        ),
+                    )
+                # Stale reservation (task crashed without releasing) — drop it
+                # and proceed.
+                _ACTIVE_BY_KEY.pop(key, None)
+
     _evict_if_full()
-    task = Task(cmd, cwd, metadata, env_overrides=env_overrides)
+    task = Task(
+        cmd, cwd, metadata,
+        env_overrides=env_overrides,
+        kind=kind,
+        project_slug=project_slug,
+    )
     _REGISTRY[task.id] = task
+    if kind is not None and project_slug is not None:
+        with _ACTIVE_LOCK:
+            _ACTIVE_BY_KEY[(project_slug, kind)] = task.id
     # Keep a strong reference on the Task instance — asyncio only weak-refs
     # background tasks via the loop, so dropping this return value can let GC
     # cull the coroutine mid-run.
@@ -208,9 +296,11 @@ async def stream_task(task_id: str):
     task = get_task(task_id)
 
     async def event_gen():
-        # Replay any logs already accumulated, then stream new ones.
-        async for line in task.stream_logs():
-            yield f"data: {json.dumps({'type': 'log', 'line': line})}\n\n"
+        # Replay any events already accumulated, then stream new ones. Both
+        # log lines and structured stage events flow through this single
+        # iterator so reconnecting clients see the original interleaving.
+        async for event in task.stream_events():
+            yield f"data: {json.dumps(event)}\n\n"
         yield (
             f"data: {json.dumps({'type': 'done', 'status': task.status, 'exit_code': task.exit_code})}\n\n"
         )

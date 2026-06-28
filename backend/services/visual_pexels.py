@@ -89,9 +89,8 @@ def _pexels_call_with_retry(fn: Callable, *, label: str):
 # ---------------------------------------------------------------------------
 
 class _PexelsClient(StockProvider):
-    """Internal REST client. Kept conforming to ``StockProvider`` so the legacy
-    ``stock_pexels.PexelsProvider`` alias (re-exported below) and any external
-    callers still work during the transition."""
+    """Internal REST client. Conforms to ``StockProvider`` so a future stock
+    provider (e.g. Storyblocks) can drop into the same adapter shape."""
 
     name = "pexels"
 
@@ -174,12 +173,6 @@ def _pick_video_file(files: list) -> dict | None:
     if any_mp4:
         return max(any_mp4, key=lambda f: f.get("width", 0) * f.get("height", 0))
     return None
-
-
-# Legacy alias — pipeline.py and run_video_only.py still import this. Removing
-# the symbol would break those entrypoints; the orchestrator in visual_service
-# now wraps it through PexelsVisualProvider.
-PexelsProvider = _PexelsClient
 
 
 # ---------------------------------------------------------------------------

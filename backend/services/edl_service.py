@@ -1,6 +1,6 @@
 """Per-scene Edit Decision List (EDL) for the render stage.
 
-Stored at ``../projects/<name>/edl.json`` with schema::
+Stored at ``<projects_root>/<name>/edl.json`` with schema::
 
     {
       "version": 1,
@@ -36,13 +36,13 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-_PROJECTS_ROOT = Path("../projects")
+from services.paths import PROJECTS_ROOT
 
 EDL_SCHEMA_VERSION = 1
 
 
 def _project_path(project_name: str) -> Path:
-    return _PROJECTS_ROOT / project_name
+    return PROJECTS_ROOT / project_name
 
 
 def _edl_path(project_name: str) -> Path:

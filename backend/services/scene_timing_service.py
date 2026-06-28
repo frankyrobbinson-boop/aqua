@@ -1,8 +1,8 @@
 import json
-import os
 import re
 from typing import Optional
 
+from services.paths import PROJECTS_ROOT
 from services.voice_prep_service import _expand_numbers
 
 
@@ -19,12 +19,12 @@ class SceneTimingError(Exception):
 
 
 def load_scene_plan(project_name: str) -> dict:
-    with open(f"../projects/{project_name}/scene_plan.json") as f:
+    with (PROJECTS_ROOT / project_name / "scene_plan.json").open() as f:
         return json.load(f)
 
 
 def load_audio_timeline(project_name: str) -> list:
-    with open(f"../projects/{project_name}/audio_timeline.json") as f:
+    with (PROJECTS_ROOT / project_name / "audio_timeline.json").open() as f:
         return json.load(f)
 
 
@@ -275,12 +275,12 @@ def compute_scene_windows(project_name: str) -> list:
 
 
 def save_scene_windows(project_name: str, windows: list):
-    folder = f"../projects/{project_name}"
-    os.makedirs(folder, exist_ok=True)
-    with open(f"{folder}/scene_windows.json", "w") as f:
+    folder = PROJECTS_ROOT / project_name
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "scene_windows.json").open("w") as f:
         json.dump(windows, f, indent=2)
 
 
 def load_scene_windows(project_name: str) -> list:
-    with open(f"../projects/{project_name}/scene_windows.json") as f:
+    with (PROJECTS_ROOT / project_name / "scene_windows.json").open() as f:
         return json.load(f)

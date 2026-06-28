@@ -6,6 +6,7 @@ import anthropic
 from services import cost_ledger
 from services.channel_registry import resolve_channel
 from services.outline_service import load_outline
+from services.paths import PROJECTS_ROOT
 from services.research_filters import strip_research_sources
 from services.research_service import load_research
 from services.video_type_registry import (
@@ -185,15 +186,12 @@ RESEARCH:
 
 
 def save_script_draft(project_name, script_draft):
-    folder = f"../projects/{project_name}"
-    os.makedirs(folder, exist_ok=True)
-    with open(f"{folder}/script_draft.json", "w") as f:
+    folder = PROJECTS_ROOT / project_name
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "script_draft.json").open("w") as f:
         json.dump(script_draft, f, indent=2)
 
 
 def load_script_draft(project_name):
-    with open(
-        f"../projects/{project_name}/script_draft.json",
-        "r"
-    ) as f:
+    with (PROJECTS_ROOT / project_name / "script_draft.json").open("r") as f:
         return json.load(f)

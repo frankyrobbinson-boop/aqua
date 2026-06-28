@@ -20,6 +20,8 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 from dotenv import load_dotenv
 load_dotenv()
 
+from services.paths import PROJECTS_ROOT
+
 PROJECT = "why-potatoes-were-so-common-to-eat-a-few-hundred-years-ago"
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -79,7 +81,7 @@ def run_prep():
         print(f"       {u['text'][:90]}{'...' if len(u['text']) > 90 else ''}")
         print()
 
-    print(f"Saved → ../projects/{PROJECT}/voice_units.json")
+    print(f"Saved → {PROJECTS_ROOT / PROJECT / 'voice_units.json'}")
 
 
 def run_annotate():
@@ -117,7 +119,7 @@ def run_hook():
     print(f"  {hook['text']}\n")
     print("Sending to ElevenLabs...")
 
-    audio_dir = f"../projects/{PROJECT}/audio"
+    audio_dir = str(PROJECTS_ROOT / PROJECT / "audio")
     os.makedirs(audio_dir, exist_ok=True)
 
     entry = _generate_unit(hook, audio_dir)
@@ -132,7 +134,7 @@ def run_hook():
     _print_words(entry["words"])
 
     print(f"\nPlay it:")
-    print(f"  open ../projects/{PROJECT}/audio/{entry['audio_file']}")
+    print(f"  open {PROJECTS_ROOT / PROJECT / 'audio' / entry['audio_file']}")
 
 
 def run_full():
@@ -149,8 +151,8 @@ def run_full():
 
     _print_timeline_summary(timeline)
 
-    print(f"\nSaved → ../projects/{PROJECT}/audio_timeline.json")
-    print(f"Audio  → ../projects/{PROJECT}/audio/")
+    print(f"\nSaved → {PROJECTS_ROOT / PROJECT / 'audio_timeline.json'}")
+    print(f"Audio  → {PROJECTS_ROOT / PROJECT / 'audio'}/")
 
 
 # ── main ──────────────────────────────────────────────────────────────────────
