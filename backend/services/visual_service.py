@@ -10,8 +10,11 @@ falls back to ``stock_video`` / ``pexels`` (see ``visual_config_service``), so
 projects predating this refactor run exactly as before.
 
 Public surface:
-    fetch_all_scene_footage(project_name) -> {scene_id: Path}
-        New orchestrator entrypoint. Use this for any new caller.
+    fetch_all_scene_footage(project_name) -> ({scene_id: Path}, {scene_id: str})
+        New orchestrator entrypoint. Use this for any new caller. Returns a
+        (paths, errors) tuple so callers can decide whether the error rate
+        is tolerable before aborting the run; an individual scene failure no
+        longer cancels the whole batch.
 
     fetch_scene_footage(project_name, scene_windows, provider) -> {scene_id: str}
         Legacy entrypoint kept for ``pipeline.py`` and ``run_video_only.py``.
@@ -44,11 +47,20 @@ _MAX_WORKERS = 8
 # Public orchestrator
 # ---------------------------------------------------------------------------
 
-def fetch_all_scene_footage(project_name: str) -> dict[int, Path]:
+def fetch_all_scene_footage(
+    project_name: str,
+) -> tuple[dict[int, Path], dict[int, str]]:
     """Fetch footage for every scene, dispatching per-segment to the right
-    provider. Returns ``{scene_id: Path}`` for every scene successfully
-    produced. Raises on the first hard error after letting other in-flight
-    fetches settle (mirrors the legacy fetch_scene_footage abort behavior).
+    provider. Returns ``(paths, errors)`` where:
+
+      - ``paths`` is ``{scene_id: Path}`` for every scene that produced output
+      - ``errors`` is ``{scene_id: "<exception repr>"}`` for every scene that
+        failed
+
+    Does NOT raise on per-scene failures; the caller decides whether the error
+    rate is tolerable (see ``run_visuals.py`` which aborts above a threshold).
+    Still raises on whole-batch failures: missing scene_windows.json,
+    misconfigured visual_config, etc.
     """
     # Read scene_windows.json (not scene_plan.json) because:
     #   1. Pexels provider needs `duration` per scene — only scene_windows has it
@@ -116,6 +128,7 @@ def fetch_all_scene_footage(project_name: str) -> dict[int, Path]:
     )
 
     paths: dict[int, Path] = {}
+    errors: dict[int, str] = {}
 
     def _one(scene: dict, provider: VisualProvider, pid: str) -> tuple[int, Path]:
         sid = scene["id"]
@@ -127,23 +140,18 @@ def fetch_all_scene_footage(project_name: str) -> dict[int, Path]:
             pool.submit(_one, scene, provider, pid): scene["id"]
             for scene, provider, pid in scene_provider
         }
-        first_exc: Optional[BaseException] = None
+        # Collect per-scene errors into the dict instead of aborting on first.
+        # The caller (run_visuals) decides whether the error rate is tolerable.
         for fut in as_completed(futures):
+            sid = futures[fut]
             try:
-                sid, path = fut.result()
-                paths[sid] = path
+                got_sid, path = fut.result()
+                paths[got_sid] = path
             except BaseException as exc:
-                if first_exc is None:
-                    first_exc = exc
-                    print(
-                        f"  ERROR scene {futures[fut]}: {exc!r} — waiting for "
-                        f"in-flight fetches to settle before aborting...",
-                        flush=True,
-                    )
-        if first_exc is not None:
-            raise first_exc
+                errors[sid] = repr(exc)
+                print(f"  ERROR scene {sid}: {exc!r}", flush=True)
 
-    return paths
+    return paths, errors
 
 
 # ---------------------------------------------------------------------------

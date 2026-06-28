@@ -2,17 +2,21 @@
 
 Pexels returns ~10 candidates per search, ordered by their internal relevance —
 which is broad and frequently surfaces lifestyle stock for niche queries (a
-person eating fruit for a gardening clip, etc). This module asks Claude Haiku
-4.5 to look at each candidate's preview thumbnail and pick the one that best
-matches the scene's narration.
+person eating fruit when the topic is gardening, etc). This module asks Claude
+Haiku 4.5 to look at each candidate's preview thumbnail and pick the one that
+best matches the scene's narration, with the project's overall TOPIC threaded
+in so the model can reject off-topic candidates regardless of niche.
 
 Cost: ~$0.005–0.01 per scene at 8 candidates × low-res thumbnails. ~$0.30–0.60
 per 60-scene video. Falls back to the first candidate on any error so the
 pipeline never breaks because the reranker is unavailable.
 """
 
+import json
 import os
 import re
+import threading
+from pathlib import Path
 from typing import Optional
 
 import anthropic
@@ -28,12 +32,37 @@ _MAX_CANDIDATES = 8
 
 _client: Optional[anthropic.Anthropic] = None
 
+# Module-level project_name -> topic cache. Reranker is called per-scene and
+# the topic doesn't change within a run; re-reading research.json N times is
+# wasted I/O. ``""`` is a sentinel for "tried and found nothing" so we don't
+# re-check disk on every miss.
+_TOPIC_CACHE: dict[str, str] = {}
+_TOPIC_LOCK = threading.Lock()
+
 
 def _get_client() -> anthropic.Anthropic:
     global _client
     if _client is None:
         _client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     return _client
+
+
+def _load_project_topic(project_name: str) -> str:
+    """Return the project's research topic, cached. Empty string if missing."""
+    with _TOPIC_LOCK:
+        if project_name in _TOPIC_CACHE:
+            return _TOPIC_CACHE[project_name]
+        topic = ""
+        path = Path(f"../projects/{project_name}/research.json")
+        if path.exists():
+            try:
+                with path.open() as f:
+                    data = json.load(f)
+                topic = (data.get("topic") or "").strip()
+            except (OSError, json.JSONDecodeError):
+                topic = ""
+        _TOPIC_CACHE[project_name] = topic
+        return topic
 
 
 def rerank_candidates(
@@ -56,8 +85,12 @@ def rerank_candidates(
 
     pool = rankable[:_MAX_CANDIDATES]
 
+    topic = _load_project_topic(project_name) if project_name else ""
+
     try:
-        chosen_index = _ask_claude(narration, visual_description, pool, project_name)
+        chosen_index = _ask_claude(
+            narration, visual_description, pool, project_name, topic
+        )
     except Exception as exc:
         print(f"  [rerank] WARNING: falling back to first candidate ({exc!r})")
         return candidates[0]
@@ -71,20 +104,25 @@ def _ask_claude(
     narration: str,
     visual_description: str,
     pool: list[StockClip],
-    project_name: str | None = None,
+    project_name: str | None,
+    topic: str,
 ) -> int:
     """Returns the 0-indexed position of the chosen candidate in pool."""
+    topic_line = (
+        f"Overall video topic: \"{topic}\"\n" if topic else ""
+    )
     text_block = (
         "You're picking the best stock-footage clip for one scene of a YouTube "
-        "gardening video.\n\n"
+        "video.\n\n"
+        f"{topic_line}"
         f"Narration spoken over this clip: \"{narration}\"\n"
         f"Visual idea / search query: \"{visual_description}\"\n\n"
         f"Below are {len(pool)} candidate clips, each shown as a preview thumbnail "
         f"and numbered 1 to {len(pool)}. Pick the ONE that best fits as silent "
-        "B-roll behind the narration. Prefer clips that match the literal subject "
-        "(plants, soil, tools, hands working, gardens) over generic lifestyle "
-        "imagery (people eating, kids, unrelated activities) when the topic is "
-        "specifically about plants or gardening.\n\n"
+        "B-roll behind the narration. Prefer clips that literally show the "
+        "subject described in the visual idea and that fit the overall topic. "
+        "Reject clips that are off-topic or generic lifestyle imagery when a "
+        "more literal match is available.\n\n"
         f"Respond with ONLY a number from 1 to {len(pool)}."
     )
 

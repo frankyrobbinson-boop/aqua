@@ -103,3 +103,31 @@ def footage_dir_for(project_name: str) -> Path:
     p = Path(f"../projects/{project_name}/footage")
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+# Set of footage extensions any provider may produce. Used by
+# clean_other_mode_files to know what to sweep on a mode flip.
+_FOOTAGE_EXTS = (".png", ".mp4")
+
+
+def clean_other_mode_files(
+    footage_dir: Path, scene_id: int, keep_ext: str
+) -> None:
+    """Delete any scene_<id>.<ext> + matching sidecar for extensions OTHER than
+    ``keep_ext`` so a mode flip (e.g., stock_video -> ai_image) doesn't leave
+    both an .mp4 and .png that render's path-scan picks unpredictably.
+
+    Providers call this AFTER a cache miss decides it'll regenerate. Safe to
+    call when nothing to clean — missing files are silently skipped."""
+    keep = keep_ext if keep_ext.startswith(".") else f".{keep_ext}"
+    for ext in _FOOTAGE_EXTS:
+        if ext == keep:
+            continue
+        primary = footage_dir / f"scene_{scene_id:03d}{ext}"
+        sidecar = footage_dir / f"scene_{scene_id:03d}{ext}.cache.json"
+        for path in (primary, sidecar):
+            if path.exists():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass

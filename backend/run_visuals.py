@@ -89,7 +89,24 @@ def run_visuals(project_name: str) -> dict:
     )
 
     print("\n[4/4] Fetching footage (per-segment providers)...")
-    footage_paths = fetch_all_scene_footage(project_name)
+    footage_paths, footage_errors = fetch_all_scene_footage(project_name)
+
+    total = len(footage_paths) + len(footage_errors)
+    if footage_errors:
+        print(
+            f"\n      WARNING: {len(footage_errors)}/{total} scene(s) failed:",
+            flush=True,
+        )
+        for sid in sorted(footage_errors):
+            print(f"        scene {sid}: {footage_errors[sid]}", flush=True)
+        # Abort if more than 25% of scenes failed — past this point the output
+        # video would have too many missing-footage gaps to be usable.
+        if total > 0 and (len(footage_errors) / total) > 0.25:
+            raise RuntimeError(
+                f"Aborting: {len(footage_errors)}/{total} scene(s) failed "
+                f"({len(footage_errors) / total:.0%}, threshold 25%). "
+                f"Review the errors above, fix the underlying cause, and re-run."
+            )
 
     print(f"\nDONE: {len(footage_paths)} clips at ../projects/{project_name}/footage/")
     return footage_paths

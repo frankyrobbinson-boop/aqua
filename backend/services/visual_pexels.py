@@ -23,9 +23,10 @@ import json
 import os
 import shutil
 import threading
+import time
 import urllib.parse
 from pathlib import Path
-from typing import List
+from typing import Callable, List
 
 import requests
 from dotenv import load_dotenv
@@ -34,6 +35,7 @@ from services.stock_provider import StockClip, StockProvider, pick_best
 from services.visual_provider import (
     VisualProvider,
     cache_path_for,
+    clean_other_mode_files,
     footage_dir_for,
     is_cache_valid,
     write_cache,
@@ -44,6 +46,42 @@ load_dotenv()
 
 _SEARCH_URL = "https://api.pexels.com/videos/search"
 _TARGET_W, _TARGET_H = 1920, 1080
+
+# Retry policy for transient Pexels failures (rate limit / 5xx / network).
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 2.0  # seconds; exponential backoff: 2, 4, 8
+
+
+def _pexels_call_with_retry(fn: Callable, *, label: str):
+    """Run ``fn`` with exponential backoff on transient HTTP errors. Catches
+    requests.exceptions.RequestException (covers network/timeout/SSL) and
+    HTTPError where status_code is 5xx OR 429. Other HTTPErrors (4xx like
+    400/401/403) are permanent and propagate immediately."""
+    last_exc: Exception | None = None
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            return fn()
+        except requests.exceptions.HTTPError as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status is not None and status < 500 and status != 429:
+                raise
+            last_exc = exc
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+        if attempt == _MAX_RETRIES:
+            break
+        delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
+        print(
+            f"  [pexels {label}] transient error "
+            f"({type(last_exc).__name__}); retry {attempt}/{_MAX_RETRIES - 1} "
+            f"in {delay:.1f}s",
+            flush=True,
+        )
+        time.sleep(delay)
+
+    raise RuntimeError(
+        f"Pexels {label} failed after {_MAX_RETRIES} attempts: {last_exc!r}"
+    ) from last_exc
 
 
 # ---------------------------------------------------------------------------
@@ -72,17 +110,23 @@ class _PexelsClient(StockProvider):
         min_duration: float,
         orientation: str = "landscape",
         max_results: int = 10,
+        page: int = 1,
     ) -> List[StockClip]:
         params = {
             "query": query,
             "per_page": max_results,
             "orientation": orientation,
             "size": "medium",  # >= HD; "large" forces 4K+ and starves results
+            "page": page,
         }
         url = f"{_SEARCH_URL}?{urllib.parse.urlencode(params)}"
-        response = requests.get(url, headers=self._headers, timeout=20)
-        response.raise_for_status()
-        data = response.json()
+
+        def _do_search():
+            response = requests.get(url, headers=self._headers, timeout=20)
+            response.raise_for_status()
+            return response.json()
+
+        data = _pexels_call_with_retry(_do_search, label=f"search p{page}")
 
         clips: List[StockClip] = []
         for video in data.get("videos", []):
@@ -103,11 +147,15 @@ class _PexelsClient(StockProvider):
 
     def download(self, clip: StockClip, output_path: str) -> str:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with requests.get(clip.download_url, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            with open(output_path, "wb") as f:
-                shutil.copyfileobj(r.raw, f)
-        return output_path
+
+        def _do_download():
+            with requests.get(clip.download_url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(output_path, "wb") as f:
+                    shutil.copyfileobj(r.raw, f)
+            return output_path
+
+        return _pexels_call_with_retry(_do_download, label=f"download {clip.id}")
 
 
 def _pick_video_file(files: list) -> dict | None:
@@ -177,15 +225,98 @@ class PexelsVisualProvider(VisualProvider):
         if not query:
             raise ValueError(f"Scene {sid} has no visual_description to search with")
 
-        candidates = self._client.search(query, min_duration=scene["duration"])
-        if not candidates:
-            raise RuntimeError(
-                f"No {self._client.name} footage found for scene {sid} (query={query!r})"
+        # Clean up any stale AI-image .png for this scene id so a mode-flip
+        # (ai_image -> stock_video) doesn't leave both a .png and .mp4.
+        clean_other_mode_files(footage_dir, sid, keep_ext=".mp4")
+
+        best, rerank_pool = self._search_and_rank(scene, query, project_name, page=1)
+
+        # De-dup walk: prefer the rerank winner; if it's taken, try the next
+        # unused clip in rank order across the full pool. If everything in
+        # page-1 is taken, fetch page 2 and rerank again. Only then accept a
+        # duplicate WITH WARN — a duplicated clip beats a missing scene.
+        with self._used_lock:
+            chosen = self._pick_unused_from_pool(best, rerank_pool)
+            if chosen is None:
+                print(
+                    f"  [scene {sid}] all page-1 candidates already used; "
+                    f"fetching page 2",
+                    flush=True,
+                )
+                # Release lock for the network call.
+                pass
+        if chosen is None:
+            try:
+                best2, rerank_pool2 = self._search_and_rank(
+                    scene, query, project_name, page=2
+                )
+            except Exception as exc:
+                print(
+                    f"  [scene {sid}] page 2 search failed ({exc!r}); "
+                    f"accepting duplicate from page 1",
+                    flush=True,
+                )
+                best2, rerank_pool2 = best, []
+            with self._used_lock:
+                chosen = self._pick_unused_from_pool(best2, rerank_pool2)
+                if chosen is None:
+                    print(
+                        f"  [scene {sid}] WARNING: all candidates across two "
+                        f"pages already used, accepting duplicate {best.id}",
+                        flush=True,
+                    )
+                    chosen = best
+                self._used_clip_ids.add(str(chosen.id))
+        else:
+            with self._used_lock:
+                # Re-check under lock — another worker may have grabbed it
+                # while we held no lock. If so, walk again.
+                if str(chosen.id) in self._used_clip_ids:
+                    walked = self._pick_unused_from_pool(best, rerank_pool)
+                    if walked is not None:
+                        chosen = walked
+                    else:
+                        print(
+                            f"  [scene {sid}] WARNING: pool exhausted "
+                            f"under contention, accepting duplicate {chosen.id}",
+                            flush=True,
+                        )
+                self._used_clip_ids.add(str(chosen.id))
+
+        if chosen.id != best.id:
+            print(
+                f"  [scene {sid}] avoiding duplicate of clip {best.id}, "
+                f"using {chosen.id}",
+                flush=True,
             )
 
-        # Filter to candidates that meet duration first, then LLM-rerank by
-        # visual fit. Falls through to pick_best heuristics if rerank has nothing
-        # to pick from (single candidate, missing previews, or API failure).
+        print(
+            f"  [scene {sid}] {self._client.name} {chosen.id}  "
+            f"{chosen.width}x{chosen.height}  {chosen.duration:.1f}s  -> {output}",
+            flush=True,
+        )
+        self._client.download(chosen, str(output))
+        # Sidecar written AFTER the download finishes so a partial file never
+        # gets mistaken for a cache hit.
+        write_cache(output, {"visual_description": query, "stock_id": chosen.id})
+        return output
+
+    def _search_and_rank(
+        self, scene: dict, query: str, project_name: str, page: int
+    ) -> tuple[StockClip, list[StockClip]]:
+        """Search Pexels for ``query`` at ``page``, filter by duration, and
+        rerank. Returns (best, rerank_pool). Raises if the page yields no
+        usable candidates (caller decides whether to fall back to a duplicate).
+        """
+        sid = scene["id"]
+        candidates = self._client.search(
+            query, min_duration=scene["duration"], page=page
+        )
+        if not candidates:
+            raise RuntimeError(
+                f"No {self._client.name} footage found for scene {sid} "
+                f"(query={query!r}, page={page})"
+            )
         qualifying = [c for c in candidates if c.duration >= scene["duration"]]
         rerank_pool = qualifying or candidates
         best = rerank_candidates(
@@ -198,41 +329,19 @@ class PexelsVisualProvider(VisualProvider):
             best = pick_best(candidates, scene["duration"])
         if best is None:
             raise RuntimeError(
-                f"No usable candidate for scene {sid} (query={query!r})"
+                f"No usable candidate for scene {sid} "
+                f"(query={query!r}, page={page})"
             )
+        return best, rerank_pool
 
-        # Avoid duplicate clip IDs across scenes. Critical section is tiny
-        # (set ops over <=10 candidates); slow I/O — search, rerank, download —
-        # runs OUTSIDE the lock. Fallback "accept duplicate if every candidate
-        # is already used" prevents deadlock when the pool is exhausted.
-        with self._used_lock:
-            if str(best.id) in self._used_clip_ids:
-                alt = next(
-                    (c for c in rerank_pool if str(c.id) not in self._used_clip_ids),
-                    None,
-                )
-                if alt is not None:
-                    print(
-                        f"  [scene {sid}] avoiding duplicate of clip "
-                        f"{best.id}, using {alt.id}",
-                        flush=True,
-                    )
-                    best = alt
-                else:
-                    print(
-                        f"  [scene {sid}] WARNING: all candidates already "
-                        f"used, accepting duplicate {best.id}",
-                        flush=True,
-                    )
-            self._used_clip_ids.add(str(best.id))
-
-        print(
-            f"  [scene {sid}] {self._client.name} {best.id}  "
-            f"{best.width}x{best.height}  {best.duration:.1f}s  -> {output}",
-            flush=True,
-        )
-        self._client.download(best, str(output))
-        # Sidecar written AFTER the download finishes so a partial file never
-        # gets mistaken for a cache hit.
-        write_cache(output, {"visual_description": query, "stock_id": best.id})
-        return output
+    def _pick_unused_from_pool(
+        self, best: StockClip, pool: list[StockClip]
+    ) -> StockClip | None:
+        """Caller must hold ``self._used_lock``. Returns ``best`` if unused;
+        otherwise the next unused clip in pool order; otherwise None."""
+        if str(best.id) not in self._used_clip_ids:
+            return best
+        for c in pool:
+            if str(c.id) not in self._used_clip_ids:
+                return c
+        return None

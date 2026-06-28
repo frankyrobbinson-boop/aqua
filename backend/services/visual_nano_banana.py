@@ -22,9 +22,11 @@ concurrency to Google.
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import threading
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -32,6 +34,7 @@ from dotenv import load_dotenv
 from services import cost_ledger
 from services.visual_provider import (
     VisualProvider,
+    clean_other_mode_files,
     footage_dir_for,
     is_cache_valid,
     write_cache,
@@ -47,12 +50,22 @@ _GEMINI_CONCURRENCY = int(os.getenv("GEMINI_CONCURRENCY", "8"))
 # existing images without manual file deletion.
 _ASPECT_RATIO = "16:9"
 
+# 16:9 = 1.7778. Tolerance band catches the actual ratios Gemini returns
+# (sometimes 1290x720 = 1.7917, sometimes 1280x720 = 1.7778) while still
+# rejecting a stray 1:1 (1.0) or 4:3 (1.333) silently-square return.
+_ASPECT_RATIO_MIN = 1.760
+_ASPECT_RATIO_MAX = 1.796
+
+# Retry policy for transient Gemini failures (rate limit / 5xx / network).
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 2.0  # seconds; exponential backoff: 2, 4, 8
+
 # Baseline image-direction prefix prepended to every scene's visual_description.
 # Kept short and generic for Phase 1 — better per-channel prompt engineering is
 # a future-phase task (see project_visuals_future memory).
 _BASELINE_PREFIX = (
-    "16:9 cinematic photograph, professional quality, natural lighting, "
-    "no text, no watermarks, no logos. Subject: "
+    "16:9 widescreen cinematic photograph, professional quality, natural "
+    "lighting, no text, no watermarks, no logos. Subject: "
 )
 
 
@@ -144,16 +157,10 @@ class NanoBananaProvider(VisualProvider):
             print(f"  [scene {sid}] nano_banana cached -> {output}", flush=True)
             return output
 
-        # Also clean up any stale Pexels .mp4 for this scene id so a mode-flip
-        # (stock_video -> ai_image) doesn't leave both an .mp4 and .png that
-        # render's path-scan picks unpredictably. The sidecar is removed too.
-        stale_mp4 = footage_dir / f"scene_{sid:03d}.mp4"
-        for path in (stale_mp4, footage_dir / f"scene_{sid:03d}.mp4.cache.json"):
-            if path.exists():
-                try:
-                    path.unlink()
-                except OSError:
-                    pass
+        # Clean up any stale stock-video artifact for this scene id so a
+        # mode-flip (stock_video -> ai_image) doesn't leave both an .mp4 and
+        # .png that render's path-scan picks unpredictably.
+        clean_other_mode_files(footage_dir, sid, keep_ext=".png")
 
         with self._gemini_semaphore:
             print(
@@ -161,6 +168,11 @@ class NanoBananaProvider(VisualProvider):
                 flush=True,
             )
             image_bytes = self._generate(prompt, sid)
+
+        # 16:9 post-decode assertion: Gemini sometimes silently returns 1:1
+        # despite a prompt request. Verify dimensions BEFORE writing to disk —
+        # a square PNG written here would either letterbox or skew at render.
+        _assert_aspect_16_9(image_bytes, sid)
 
         with open(output, "wb") as f:
             f.write(image_bytes)
@@ -214,18 +226,18 @@ class NanoBananaProvider(VisualProvider):
         return None
 
     def _generate(self, prompt: str, scene_id: int) -> bytes:
-        """One Gemini image generation call. Surfaces the API error verbatim
-        with the scene id attached — per spec, do not swallow."""
+        """One Gemini image generation call with retry on transient errors.
+        Surfaces the final API error verbatim with the scene id attached."""
         client = self._get_client()
-        try:
-            response = client.generate_content(
-                prompt,
-                generation_config={"image_config": {"aspect_ratio": _ASPECT_RATIO}},
-            )
-        except Exception as exc:
-            raise RuntimeError(
-                f"Gemini image generation failed for scene {scene_id}: {exc!r}"
-            ) from exc
+        # WHY no generation_config={"image_config": {"aspect_ratio": ...}}:
+        # google-generativeai 0.8.x rejects unknown generation_config keys with
+        # a hard error from the underlying proto. The aspect ratio is requested
+        # in the prompt itself (_BASELINE_PREFIX) and verified by
+        # _assert_aspect_16_9 post-decode. Do NOT re-add this kwarg.
+        response = _call_with_retry(
+            lambda: client.generate_content(prompt),
+            scene_id=scene_id,
+        )
 
         # The 2.5 Flash Image response embeds the PNG bytes in an inline_data
         # part on the first candidate. Defensive against schema drift: walk
@@ -241,3 +253,77 @@ class NanoBananaProvider(VisualProvider):
             f"Gemini returned no inline_data for scene {scene_id}; "
             f"response.text={getattr(response, 'text', None)!r}"
         )
+
+
+def _assert_aspect_16_9(image_bytes: bytes, scene_id: int) -> None:
+    """Decode the PNG header and raise if width/height isn't within the
+    accepted 16:9 tolerance band. Called BEFORE writing to disk so a
+    miss leaves no garbage file behind."""
+    from PIL import Image  # Pillow is in requirements.txt; import inline keeps
+    # module import cheap for the registry verifier.
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            w, h = img.size
+    except Exception as exc:
+        raise RuntimeError(
+            f"Scene {scene_id}: could not decode Gemini PNG to verify aspect "
+            f"ratio: {exc!r}"
+        ) from exc
+
+    if h <= 0:
+        raise RuntimeError(
+            f"Scene {scene_id}: Gemini returned image with non-positive height "
+            f"({w}x{h})"
+        )
+    ratio = w / h
+    if not (_ASPECT_RATIO_MIN <= ratio <= _ASPECT_RATIO_MAX):
+        raise RuntimeError(
+            f"Scene {scene_id}: Gemini returned non-16:9 image "
+            f"({w}x{h}, ratio={ratio:.4f}); expected ratio in "
+            f"[{_ASPECT_RATIO_MIN}, {_ASPECT_RATIO_MAX}]. Re-run to retry; "
+            f"the model occasionally ignores the 16:9 prompt request."
+        )
+
+
+def _call_with_retry(fn, scene_id: int):
+    """Call ``fn`` with exponential backoff on transient Google API errors.
+    Catches by EXCEPTION TYPE (ResourceExhausted = 429, ServiceUnavailable =
+    503, DeadlineExceeded = 504, InternalServerError = 500); permanent errors
+    (bad request, auth, etc.) propagate immediately."""
+    # Import inline so module load doesn't require google packages installed
+    # for callers that never touch this provider.
+    from google.api_core import exceptions as gax
+
+    transient = (
+        gax.ResourceExhausted,
+        gax.ServiceUnavailable,
+        gax.DeadlineExceeded,
+        gax.InternalServerError,
+    )
+
+    last_exc: Exception | None = None
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            return fn()
+        except transient as exc:
+            last_exc = exc
+            if attempt == _MAX_RETRIES:
+                break
+            delay = _RETRY_BASE_DELAY * (2 ** (attempt - 1))
+            print(
+                f"  [scene {scene_id}] nano_banana transient error "
+                f"({type(exc).__name__}); retry {attempt}/{_MAX_RETRIES - 1} "
+                f"in {delay:.1f}s",
+                flush=True,
+            )
+            time.sleep(delay)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Gemini image generation failed for scene {scene_id}: {exc!r}"
+            ) from exc
+
+    raise RuntimeError(
+        f"Gemini image generation failed for scene {scene_id} after "
+        f"{_MAX_RETRIES} attempts: {last_exc!r}"
+    ) from last_exc

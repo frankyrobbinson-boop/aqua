@@ -36,6 +36,11 @@ load_dotenv()
 _PROMPTS_DIR = Path("prompts")
 _ENHANCER_PROMPT_PATH = _PROMPTS_DIR / "visual_prompt_enhancement.md"
 
+# Bump this when compute_cache_key's payload shape changes. Folded into the
+# hash so a version bump invalidates every existing visual_prompts.json
+# cleanly — no need to ship a backwards-compat migration.
+_VISUAL_PROMPT_CACHE_VERSION = 2
+
 # Used only in passthrough mode. The enhancer prompt incorporates this
 # language directly when an LLM call is made.
 _BASELINE_PREFIX = (
@@ -123,11 +128,28 @@ def save_visual_prompts(project_name: str, payload: dict) -> Path:
     return p
 
 
+def _enhancer_template_sha1() -> str:
+    """SHA-1 of the on-disk enhancer prompt template. Editing the template
+    invalidates every cached visual_prompts.json — the prompt IS the model's
+    instruction set, so a change should bust the cache."""
+    try:
+        with _ENHANCER_PROMPT_PATH.open("rb") as f:
+            return hashlib.sha1(f.read()).hexdigest()
+    except OSError:
+        return ""
+
+
 def compute_cache_key(channel_visuals: dict, scenes: list[dict]) -> str:
-    """SHA-1 over the channel visuals block + a minimal scene projection
-    (id, segment_id, visual_description, narration, emotional_purpose). Edits
-    to scene_plan fields the enhancer doesn't see don't bust the cache."""
+    """SHA-1 over the enhancer inputs that should invalidate the cache:
+    cache-format version + enhancer template hash + model id + channel visuals
+    block + a minimal scene projection (id, segment_id, visual_description,
+    narration, emotional_purpose). Edits to scene_plan fields the enhancer
+    doesn't see don't bust the cache."""
+    model = channel_visuals.get("prompt_enhancement_model") or "claude-haiku-4-5-20251001"
     payload = {
+        "_version": _VISUAL_PROMPT_CACHE_VERSION,
+        "enhancer_template_sha1": _enhancer_template_sha1(),
+        "model": model,
         "channel_visuals": channel_visuals,
         "scenes": [
             {
