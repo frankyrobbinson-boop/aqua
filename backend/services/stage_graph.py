@@ -58,10 +58,12 @@ STAGES: tuple[Stage, ...] = (
     Stage(
         # Per-scene render decisions (transition, ken_burns, text overlays).
         # Sits between visuals and render so the cascade properly invalidates
-        # edl.json when scene_plan or outline changes — deleting scene_plan
-        # invalidates edl which then invalidates final.mp4.
+        # edl.json when scene_plan or script_draft changes — deleting
+        # scene_plan invalidates edl which then invalidates final.mp4.
+        # Overlay text now keys off script_draft.segments[i].title (not the
+        # outline) so outline-only edits no longer needlessly invalidate the EDL.
         name="edit",
-        inputs=("scene_windows.json", "scene_plan.json", "outline.json"),
+        inputs=("scene_windows.json", "scene_plan.json", "script_draft.json"),
         outputs=("edl.json",),
     ),
     Stage(

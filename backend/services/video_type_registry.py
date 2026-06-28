@@ -114,6 +114,8 @@ def compose_script_prompt(
     target_minutes: int,
     total_word_target: int,
     words_per_segment: int,
+    hook_word_target: int,
+    conclusion_word_target: int,
     hook_archetype_block: str,
     additional_instructions: str | None = None,
     sample_script: str | None = None,
@@ -129,6 +131,8 @@ def compose_script_prompt(
         .replace("{target_minutes}", str(target_minutes))
         .replace("{total_word_target}", str(total_word_target))
         .replace("{words_per_segment}", str(words_per_segment))
+        .replace("{hook_word_target}", str(hook_word_target))
+        .replace("{conclusion_word_target}", str(conclusion_word_target))
     )
     text = text.replace(SAMPLE_SCRIPT_SLOT, _sample_block(sample_script))
     text = text.replace(
@@ -189,5 +193,8 @@ def verify_base_slots() -> None:
     for slot in (CHANNEL_SLOT, STRUCTURE_SLOT, SAMPLE_SCRIPT_SLOT, ADDITIONAL_INSTRUCTIONS_SLOT):
         if slot not in script_base:
             problems.append(f"script_base.md missing {slot}")
+    for token in ("{hook_word_target}", "{conclusion_word_target}"):
+        if token not in script_base:
+            problems.append(f"script_base.md missing {token}")
     if problems:
         raise RuntimeError("\n".join(problems))

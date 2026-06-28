@@ -48,7 +48,6 @@ def _print_script_summary(script: dict, target_minutes: int):
     print(f"\nCONCLUSION  ({_word_count(conc)} words)")
     print("-" * 70)
     print(conc)
-    print(f"\nCTA: {script['conclusion'].get('cta', '')}")
 
     target_words = target_minutes * 150
     print("\n" + "=" * 70)
@@ -106,7 +105,12 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
         else:
             print(f"\n[1/3] Research...  (topic: {topic!r}, {target_minutes}-min target)")
 
-        research = generate_research(topic, pre_research=pre_research, channel=channel)
+        research = generate_research(
+            topic,
+            pre_research=pre_research,
+            channel=channel,
+            project_name=project_name,
+        )
         save_research(project_name, {"topic": topic, "research": research})
         print("      research saved")
 

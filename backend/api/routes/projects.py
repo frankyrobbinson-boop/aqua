@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict
 
+from services import cost_ledger
 from services.stage_graph import invalidate_dependents
 
 
@@ -113,6 +114,13 @@ def delete_project(slug: str) -> dict:
     p = _project_dir(slug)
     shutil.rmtree(p)
     return {"slug": slug, "deleted": True}
+
+
+@router.get("/{slug}/cost")
+def get_project_cost(slug: str) -> dict:
+    # _project_dir validates existence; cost_ledger.total handles missing file.
+    _project_dir(slug)
+    return cost_ledger.total(slug)
 
 
 # Cascade-invalidation is delegated to services.stage_graph. The graph knows

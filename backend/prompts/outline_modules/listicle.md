@@ -1,10 +1,12 @@
-Listicle structure. The title promises a countable set of things; deliver exactly those things.
+Listicle structure (outline stage). The title promises a countable set of things; deliver exactly those, each as a turn.
 
-- **Plan exactly {item_count} sections — one per item.**
-- **The hook's "Withheld promise" element must NOT name any of the items.** Listing items in the hook concept will leak into the script's hook. The hook installs stakes + villain; each item's reveal belongs to its own section.
-- **One item = one section.** Never combine multiple items into a single section. 
-- **No preamble section and no summary/"playbook" section.** Section 1 is item 1. The last section is the last item. Do not bolt a recap, a theory section, or a "playbook" onto either end.
-- Each item is a **character with a secret**, not a catalog entry. For each section plan: the counterintuitive truth about this item, the mechanism that makes it work, and the common mistake that ruins it.
-- Items are **parallel** — Order for retention: open with a strong item, put your single best item second, bury the weakest in the middle, and close on a strong one.
-- Each section's `purpose` includes a `stakes_rank` of "baseline" or "escalation" — at least two sections must be marked "escalation" (the ones the script will flag as "the big one").
-- Mark at most two sections as **peak** in `purpose` — the one or two highest-leverage sections. The hook's numbered bookmark must point to a peak/escalation section.
+- **Plan exactly {item_count} sections - one per item.** One item = one section. Never combine items.
+- **No preamble section and no summary/playbook section.** Section 1 is item 1; the last section is the last item. Don't bolt a recap or theory section onto either end.
+- **Each item is a turn, not an entry.** For each section plan all four beats: the belief or failure it opens on (NOT the item name), the counterintuitive turn + its one-phrase mechanism, the payoff, and the single FEELING it delivers. Name the feeling in `purpose`. No two adjacent sections should deliver the same feeling.
+- **Find each item's one feeling.** This is the work. The same fact dressed as a spec is dead ("blooms midsummer to fall, 24-36 inches"); dressed as a feeling it's a section ("you get goldfinches working the seedheads all winter, for the crime of being too lazy to deadhead"). Every item has one. Find it or cut the item.
+- **Order for retention.** Open with a strong item. Put your single best item - the highest feeling - second. Bury the weakest in the middle. Close on a strong one.
+- **Mark the peak.** In `purpose`, mark the one or two highest-feeling sections as "peak." At least two sections should be flagged as escalation - the ones the script signals as the big ones. The hook's numbered bookmark must point at a peak.
+- **Teach repeated procedure once.** If an install/care step repeats across every item, name in `key_material` which single section teaches it in full. Every other section only touches the refrain (echo_phrase). Do not plan the full procedure into all {item_count} sections.
+- **Hook names no items.** The hook promises the count and the stakes and points its bookmark at a peak - it never lists the items. Each reveal belongs to its own section.
+
+- **`section.title` is the literal item name, nothing else.** Plain item identifier — the plant, the tool, the rule, the mistake. No micro-thesis, no teaser, no feeling-in-the-title (the outline_base.md "micro-thesis" rule is overridden for listicles; for a listicle the section's surprise lives in `purpose` and the script opening, not the title). This is so the script, the visuals stage, and the assembler can all key off the same string. The general "micro-thesis title" guidance from outline_base.md applies to non-listicle structures.

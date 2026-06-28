@@ -192,6 +192,7 @@ class PexelsVisualProvider(VisualProvider):
             narration=scene.get("narration", ""),
             visual_description=query,
             candidates=rerank_pool,
+            project_name=project_name,
         )
         if best is None:
             best = pick_best(candidates, scene["duration"])

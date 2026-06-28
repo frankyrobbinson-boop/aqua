@@ -6,6 +6,8 @@ from pathlib import Path
 
 from openai import OpenAI
 
+from services import cost_ledger
+
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -50,7 +52,12 @@ def verify_research_slot() -> None:
         raise RuntimeError(f"research.md missing {AUDIENCE_SLOT}")
 
 
-def generate_research(topic: str, pre_research: str | None = None, channel: str | None = None) -> dict:
+def generate_research(
+    topic: str,
+    pre_research: str | None = None,
+    channel: str | None = None,
+    project_name: str | None = None,
+) -> dict:
     """Structured research for `topic`. Returns the parsed JSON described in
     prompts/research.md (summary, key_facts, statistics, interesting_angles,
     controversies, open_questions)."""
@@ -68,6 +75,19 @@ def generate_research(topic: str, pre_research: str | None = None, channel: str 
         instructions=instructions,
         input=user_input,
     )
+
+    if project_name:
+        usage = getattr(response, "usage", None)
+        in_tok = getattr(usage, "input_tokens", 0) if usage else 0
+        out_tok = getattr(usage, "output_tokens", 0) if usage else 0
+        cost_ledger.record(
+            project_name,
+            stage="research",
+            provider="openai",
+            model="gpt-5",
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+        )
 
     text = response.output_text.strip()
     # Strip markdown code fences that models sometimes wrap around JSON output.

@@ -28,6 +28,7 @@ from pathlib import Path
 import anthropic
 from dotenv import load_dotenv
 
+from services import cost_ledger
 from services.channel_registry import default_channel_id, resolve_channel_visuals
 
 load_dotenv()
@@ -212,6 +213,7 @@ def _call_enhancer(
     model: str,
     system_prompt: str,
     scenes_chunk: list[dict],
+    project_name: str | None = None,
 ) -> list[dict]:
     """One structured-output Anthropic call. Surfaces stop_reason + partial
     text on parse failure (mirrors script_draft_service)."""
@@ -226,6 +228,20 @@ def _call_enhancer(
         }],
     ) as stream:
         response = stream.get_final_message()
+
+    if project_name:
+        usage = getattr(response, "usage", None)
+        in_tok = getattr(usage, "input_tokens", 0) if usage else 0
+        out_tok = getattr(usage, "output_tokens", 0) if usage else 0
+        cost_ledger.record(
+            project_name,
+            stage="visuals",
+            provider="anthropic",
+            model=model,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            extra={"step": "prompt_enhancement"},
+        )
 
     text = next((b.text for b in response.content if b.type == "text"), None)
     if text is None:
@@ -280,7 +296,7 @@ def generate_visual_prompts(project_name: str) -> dict:
     # passthrough so every scene id is present in the output.
     enhanced_by_id: dict[int, dict] = {}
     for chunk in chunks:
-        for entry in _call_enhancer(client, model, system_prompt, chunk):
+        for entry in _call_enhancer(client, model, system_prompt, chunk, project_name):
             enhanced_by_id[int(entry["id"])] = entry
 
     out_scenes: list[dict] = []

@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProject, getScenes, type SceneInfo } from "@/lib/api";
+import {
+  getProject,
+  getProjectCost,
+  getScenes,
+  type ProjectCost,
+  type SceneInfo,
+} from "@/lib/api";
 import { ProjectView } from "@/components/ProjectView";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DeleteProjectButton } from "@/components/DeleteProjectButton";
@@ -16,9 +22,11 @@ export default async function ProjectPage({ params }: Props) {
 
   let project;
   let scenes: SceneInfo[] = [];
+  let cost: ProjectCost | null = null;
   try {
     project = await getProject(slug);
     scenes = await getScenes(slug);
+    cost = await getProjectCost(slug);
   } catch {
     notFound();
   }
@@ -38,6 +46,9 @@ export default async function ProjectPage({ params }: Props) {
             {project.has_script ? project.title : "Untitled draft"}
           </h1>
           <p className="mt-1 font-mono text-xs text-muted">{slug}</p>
+          <p className="mt-1 font-mono text-xs text-muted">
+            ${(cost?.total_usd ?? 0).toFixed(2)}
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex flex-wrap gap-1.5">

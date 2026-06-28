@@ -62,7 +62,9 @@ These are the moves that make a viewer feel good and stay. Reach for them where 
 
 # Structure
 
-**Hook (~120-180 words).** Open on the click-justifying claim. Name the exact failure they've lived, with the physical image of it. Take the blame off them - the advice is what's broken. One numbered bookmark is allowed ("watch for number two") and must point at your strongest-feeling section, the emotional peak. End the hook by rolling straight into section 1. Every sentence either names a recognized failure or reveals something - no warmup, no filler. Keep it short; the value starts fast.
+**Hook (~{hook_word_target} words).** Open on the click-justifying claim. Name the exact failure they've lived, with the physical image of it. Take the blame off them - the advice is what's broken. One numbered bookmark is allowed ("watch for number two") and must point at your strongest-feeling section, the emotional peak. End the hook by rolling straight into section 1. Every sentence either names a recognized failure or reveals something - no warmup, no filler. Keep it short; the value starts fast.
+
+**The outline already designed your hook.** Read `outline.hook` and build your narration directly from its fields - the `click_justifying_claim` is your opening line, the `private_failure` and `felt_pain_image` are the failure-naming sentence, the `external_villain` is who you take the blame off and put it on, the `end_state` is the implicit promise you're carrying through the runtime, and the `tension_into_section_1` is how you hand off. If `numbered_bookmark` is set, drop the bookmark phrase verbatim or close to it - that section is your peak. Don't re-invent these; the outline picked them on purpose. Your job is voice and rhythm.
 
 {{HOOK_ARCHETYPE_BLOCK}}
 
@@ -72,7 +74,7 @@ These are the moves that make a viewer feel good and stay. Reach for them where 
 
 **Skeptic check.** Once or twice in the whole script, answer the obvious doubt inline ("you might be wondering if X - here's the honest truth"). Sparingly.
 
-**Conclusion (~120-180 words).** Run the points past the viewer in tight short sentences - don't number them, just let them go by. Hand them ONE thing to do this week, with materials they likely have. Bring back the felt-pain image from the hook and let it dissolve - the dead twigs, gone - without saying "remember when I said." Land the last line on who they get to be now that they know this: a warm sentence pointed back at their life. The refrain (echo_phrase) can return here as a compressed callback. You may add one genuine final image or factlet after the identity beat to beat the swipe-on-recap reflex, only if the topic has a real one. End the narration itself with a single soft ask - one short sentence inviting them to stick around for the next one ("if this helped, stick around for the next one"). It's part of the prose, not a separate field; match the channel voice and don't perform it.
+**Conclusion (~{conclusion_word_target} words).** Run the points past the viewer in tight short sentences - don't number them, just let them go by. Hand them ONE thing to do this week, with materials they likely have. Bring back the felt-pain image from the hook and let it dissolve - the dead twigs, gone - without saying "remember when I said." Land the last line on who they get to be now that they know this: a warm sentence pointed back at their life. The refrain (echo_phrase) can return here as a compressed callback. You may add one genuine final image or factlet after the identity beat to beat the swipe-on-recap reflex, only if the topic has a real one. End the narration itself with a single soft ask - one short sentence inviting them to stick around for the next one ("if this helped, stick around for the next one"). It's part of the prose, not a separate field; match the channel voice and don't perform it.
 
 # A few things that always read as fake
 

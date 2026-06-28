@@ -288,6 +288,17 @@ export async function getProject(slug: string): Promise<ProjectDetail> {
   return getJSON<ProjectDetail>(`/projects/${encodeURIComponent(slug)}`);
 }
 
+export type ProjectCost = {
+  total_usd: number;
+  by_stage: Record<string, number>;
+  by_provider: Record<string, number>;
+  entries: Array<Record<string, unknown>>;
+};
+
+export async function getProjectCost(slug: string): Promise<ProjectCost> {
+  return getJSON<ProjectCost>(`/projects/${encodeURIComponent(slug)}/cost`);
+}
+
 export async function createScript(body: ScriptRequest): Promise<StartScriptResponse> {
   return getJSON<StartScriptResponse>("/scripts", {
     method: "POST",

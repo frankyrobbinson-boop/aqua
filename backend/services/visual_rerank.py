@@ -18,6 +18,7 @@ from typing import Optional
 import anthropic
 from dotenv import load_dotenv
 
+from services import cost_ledger
 from services.stock_provider import StockClip
 
 load_dotenv()
@@ -39,6 +40,7 @@ def rerank_candidates(
     narration: str,
     visual_description: str,
     candidates: list[StockClip],
+    project_name: str | None = None,
 ) -> StockClip:
     """Pick the best clip from candidates using a vision LLM. Returns the first
     candidate if anything goes wrong — never raises."""
@@ -55,7 +57,7 @@ def rerank_candidates(
     pool = rankable[:_MAX_CANDIDATES]
 
     try:
-        chosen_index = _ask_claude(narration, visual_description, pool)
+        chosen_index = _ask_claude(narration, visual_description, pool, project_name)
     except Exception as exc:
         print(f"  [rerank] WARNING: falling back to first candidate ({exc!r})")
         return candidates[0]
@@ -69,6 +71,7 @@ def _ask_claude(
     narration: str,
     visual_description: str,
     pool: list[StockClip],
+    project_name: str | None = None,
 ) -> int:
     """Returns the 0-indexed position of the chosen candidate in pool."""
     text_block = (
@@ -99,6 +102,20 @@ def _ask_claude(
         max_tokens=20,
         messages=[{"role": "user", "content": content}],
     )
+
+    if project_name:
+        usage = getattr(response, "usage", None)
+        in_tok = getattr(usage, "input_tokens", 0) if usage else 0
+        out_tok = getattr(usage, "output_tokens", 0) if usage else 0
+        cost_ledger.record(
+            project_name,
+            stage="visuals",
+            provider="anthropic",
+            model=_MODEL,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            extra={"step": "rerank"},
+        )
 
     text = ""
     for block in response.content:

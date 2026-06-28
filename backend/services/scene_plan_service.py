@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 import anthropic
 
+from services import cost_ledger
 from services.research_service import load_research
 from services.script_draft_service import load_script_draft
 
@@ -83,13 +84,38 @@ SCRIPT:
     ) as stream:
         response = stream.get_final_message()
 
+    usage = getattr(response, "usage", None)
+    in_tok = getattr(usage, "input_tokens", 0) if usage else 0
+    out_tok = getattr(usage, "output_tokens", 0) if usage else 0
+    cost_ledger.record(
+        project_name,
+        stage="scene_plan",
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+    )
+
     text = next((b.text for b in response.content if b.type == "text"), None)
     if text is None:
         raise RuntimeError(
             f"No text block in Claude response; block types present: "
             f"{[b.type for b in response.content]}"
         )
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        # Surface stop_reason + the text head/tail so truncation failures are
+        # debuggable (mirrors script_draft / tts_prep).
+        stop_reason = getattr(response, "stop_reason", "?")
+        head = text[:400]
+        tail = text[-400:] if len(text) > 800 else ""
+        raise RuntimeError(
+            f"Scene plan JSON did not parse (stop_reason={stop_reason}, "
+            f"text_len={len(text)}, error={e!r}).\n"
+            f"--- first 400 chars ---\n{head}\n"
+            f"--- last 400 chars ---\n{tail}"
+        ) from e
 
 
 def save_scene_plan(project_name, scene_plan):

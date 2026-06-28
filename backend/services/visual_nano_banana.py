@@ -29,6 +29,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from services import cost_ledger
 from services.visual_provider import (
     VisualProvider,
     footage_dir_for,
@@ -165,6 +166,16 @@ class NanoBananaProvider(VisualProvider):
             f.write(image_bytes)
 
         write_cache(output, cache_key)
+
+        cost_ledger.record(
+            project_name,
+            stage="visuals",
+            provider="gemini",
+            model=_MODEL_ID,
+            units=1,
+            extra={"scene_id": sid},
+        )
+
         return output
 
     # ------------------------------------------------------------------

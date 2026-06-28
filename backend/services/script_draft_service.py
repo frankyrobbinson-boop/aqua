@@ -1,11 +1,12 @@
-import copy
 import json
 import os
 from dotenv import load_dotenv
 import anthropic
 
+from services import cost_ledger
 from services.channel_registry import resolve_channel
 from services.outline_service import load_outline
+from services.research_filters import strip_research_sources
 from services.research_service import load_research
 from services.video_type_registry import (
     compose_script_prompt,
@@ -64,23 +65,6 @@ def _load_script_base() -> str:
         return f.read()
 
 
-def _strip_research_sources(research: dict) -> dict:
-    # The channel voice forbids citing institutions, agencies, studies, or
-    # researchers. But research.json's `key_facts` and `statistics` entries
-    # carry `source` fields naming CDC / WHO / Rutgers / EPA / etc. — sitting
-    # in the user message verbatim. The model leaks those names into the
-    # narration despite the soft voice rule; deleting the data is more
-    # reliable than asking the model to ignore data sitting in front of it.
-    # In-memory copy only — research.json on disk is untouched.
-    stripped = copy.deepcopy(research)
-    inner = stripped.get("research", {})
-    for key in ("key_facts", "statistics"):
-        for entry in inner.get(key, []) or []:
-            if isinstance(entry, dict):
-                entry.pop("source", None)
-    return stripped
-
-
 def generate_script_draft(
     project_name,
     topic: str,
@@ -92,7 +76,7 @@ def generate_script_draft(
     sample_script: str | None = None,
 ):
     outline = load_outline(project_name)
-    research = _strip_research_sources(load_research(project_name))
+    research = strip_research_sources(load_research(project_name))
     base = _load_script_base()
     channel_content = resolve_channel(channel)
     _, script_module = resolve_modules(video_type)
@@ -102,8 +86,10 @@ def generate_script_draft(
 
     n_sections = max(1, len(outline.get("sections", [])))
     total_word_target = target_minutes * WORDS_PER_MINUTE
-    # Hook + conclusion ~75 words each; remainder split across sections.
-    words_per_segment = max(100, (total_word_target - 150) // n_sections)
+    hook_word_target = 150
+    conclusion_word_target = 150
+    remainder = max(n_sections * 80, total_word_target - hook_word_target - conclusion_word_target)
+    words_per_segment = remainder // n_sections
 
     prompt = compose_script_prompt(
         base,
@@ -113,6 +99,8 @@ def generate_script_draft(
         target_minutes=target_minutes,
         total_word_target=total_word_target,
         words_per_segment=words_per_segment,
+        hook_word_target=hook_word_target,
+        conclusion_word_target=conclusion_word_target,
         hook_archetype_block=hook_archetype_block,
         additional_instructions=additional_instructions,
         sample_script=sample_script,
@@ -159,6 +147,18 @@ RESEARCH:
         ]
     ) as stream:
         response = stream.get_final_message()
+
+    usage = getattr(response, "usage", None)
+    in_tok = getattr(usage, "input_tokens", 0) if usage else 0
+    out_tok = getattr(usage, "output_tokens", 0) if usage else 0
+    cost_ledger.record(
+        project_name,
+        stage="script_draft",
+        provider="anthropic",
+        model="claude-sonnet-4-6",
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+    )
 
     text = next((b.text for b in response.content if b.type == "text"), None)
     if text is None:

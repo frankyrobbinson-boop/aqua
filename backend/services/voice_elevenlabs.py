@@ -31,6 +31,7 @@ from dotenv import load_dotenv
 from elevenlabs import VoiceSettings
 from elevenlabs.client import ElevenLabs
 
+from services import cost_ledger
 from services.voice_provider import (
     VoiceProvider,
     audio_dir_for,
@@ -266,5 +267,16 @@ class ElevenLabsProvider(VoiceProvider):
         # Sidecar written AFTER the mp3 is fully on disk so a partial file
         # never gets mistaken for a cache hit.
         write_cache(filepath, result)
+
+        # Charge the ledger on cache MISS only — cache hits cost nothing.
+        # Units = characters of TTS source actually sent (post-SSML).
+        cost_ledger.record(
+            project_name,
+            stage="voiceover",
+            provider="elevenlabs",
+            model=model_id,
+            units=len(tts_text),
+            extra={"unit_id": unit["id"], "unit_type": unit["type"]},
+        )
 
         return result

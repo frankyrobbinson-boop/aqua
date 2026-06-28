@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 import anthropic
 
+from services import cost_ledger
 from services.script_draft_service import load_script_draft, SCRIPT_SCHEMA
 
 load_dotenv()
@@ -44,6 +45,18 @@ def generate_tts_prep(project_name: str) -> dict:
         }],
     ) as stream:
         response = stream.get_final_message()
+
+    usage = getattr(response, "usage", None)
+    in_tok = getattr(usage, "input_tokens", 0) if usage else 0
+    out_tok = getattr(usage, "output_tokens", 0) if usage else 0
+    cost_ledger.record(
+        project_name,
+        stage="tts_prep",
+        provider="anthropic",
+        model="claude-haiku-4-5-20251001",
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+    )
 
     text = next((b.text for b in response.content if b.type == "text"), None)
     if text is None:

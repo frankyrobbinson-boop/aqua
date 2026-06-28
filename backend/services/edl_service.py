@@ -99,15 +99,14 @@ def _load_json(path: Path) -> Any | None:
         return None
 
 
-def _listicle_segment_titles(outline: dict) -> dict[int, str]:
-    """Map body segment_id -> section title from outline.json.
+def _listicle_segment_titles(segments: list) -> dict[int, str]:
+    """Map body segment_id -> segment title from script_draft.json.
 
     Segment-id convention matches scene_plan: -1 hook, -2 conclusion,
-    0..N-1 body segments in order. ``outline["sections"]`` lists only the
+    0..N-1 body segments in order. ``script_draft["segments"]`` lists only the
     body segments (hook + conclusion live at the top level), so index in
     that list equals segment_id."""
-    sections = outline.get("sections", []) if outline else []
-    return {i: (s.get("title") or "").strip() for i, s in enumerate(sections)}
+    return {i: (s.get("title") or "").strip() for i, s in enumerate(segments or [])}
 
 
 def _is_listicle(script_config: dict | None) -> bool:
@@ -156,18 +155,32 @@ def generate_default_edl(
             )
         scene_windows = plan.get("scene_intent", [])
 
-    outline = _load_json(proj / "outline.json")
+    script_draft = _load_json(proj / "script_draft.json")
     script_config = _load_json(proj / "script_config.json")
 
     overlay_for_segment: dict[int, str] = {}
     if _is_listicle(script_config):
-        if outline is None:
-            print(
-                f"WARNING: edl_service: outline.json missing for "
-                f"{project_name!r}; generating EDL without overlay text."
-            )
+        segments: list | None = None
+        if script_draft is not None:
+            segments = script_draft.get("segments", [])
         else:
-            titles = _listicle_segment_titles(outline)
+            outline = _load_json(proj / "outline.json")
+            if outline is not None:
+                print(
+                    f"WARNING: edl_service: script_draft.json missing for "
+                    f"{project_name!r}; falling back to outline.json sections "
+                    f"for overlay text."
+                )
+                segments = outline.get("sections", [])
+            else:
+                print(
+                    f"WARNING: edl_service: neither script_draft.json nor "
+                    f"outline.json found for {project_name!r}; generating EDL "
+                    f"without overlay text."
+                )
+
+        if segments is not None:
+            titles = _listicle_segment_titles(segments)
             # Item segments are body segment_ids 0..N-1 (hook=-1, conclusion=-2
             # don't get item-number overlays). 1-indexed display.
             for seg_id, title in titles.items():
