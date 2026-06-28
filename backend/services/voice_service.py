@@ -73,6 +73,13 @@ def _head_sentences(unit: dict, n: int = 2) -> str:
     return ' '.join(sentences[:n]).strip()
 
 
+def _effective_speed(voice_speed: float, voice_config: dict) -> float:
+    """Per-call (UI) override wins; channel-preset default wins over 1.0."""
+    if voice_speed != 1.0:
+        return float(voice_speed)
+    return float(voice_config.get("speed", 1.0))
+
+
 def _resolve_voice_config(channel_id: str | None) -> dict:
     """Look up the channel's voiceover config. Falls back to ALL defaults
     (provider=elevenlabs) when the channel has no voiceover block yet —
@@ -113,11 +120,12 @@ def _generate_unit(
     project_name = _infer_project_name(audio_dir)
     provider = get_provider(default_provider_id())
     voice_config = _resolve_voice_config(None)
+    effective_speed = _effective_speed(voice_speed, voice_config)
     return provider.synth_unit(
         project_name=project_name,
         unit=unit,
         voice_config=voice_config,
-        voice_speed=voice_speed,
+        voice_speed=effective_speed,
         previous_text=previous_text,
         next_text=next_text,
         previous_request_id=previous_request_id,
@@ -168,6 +176,7 @@ def generate_audio(
     voice_config = _resolve_voice_config(channel_id)
     provider_id = voice_config.get("provider") or default_provider_id()
     provider = get_provider(provider_id)
+    effective_speed = _effective_speed(voice_speed, voice_config)
 
     # Pre-compute previous_text/next_text for every unit from global neighbors.
     # These are prosody HINTS only (not spoken), so segment boundaries can still
@@ -200,7 +209,7 @@ def generate_audio(
                 project_name=project_name,
                 unit=unit,
                 voice_config=voice_config,
-                voice_speed=voice_speed,
+                voice_speed=effective_speed,
                 previous_text=contexts[idx]["previous_text"],
                 next_text=contexts[idx]["next_text"],
                 previous_request_id=prev_request_id,

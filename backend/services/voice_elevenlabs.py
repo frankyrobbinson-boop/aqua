@@ -10,9 +10,10 @@ that used to live inline in ``voice_service``. Behavior matches the pre-refactor
   - Character-level alignment aggregated to word-level timestamps; SSML tag
     characters skipped
   - Cache sidecar at ``audio_<id:02d>_<type>.json`` keyed by tts_source +
-    seed + voice_speed (NO voice_id / model / settings in the key — those are
-    process-level and a change implies wanting a full re-run; matches today)
-  - afinfo trailing-silence tripwire kept (macOS-only, silent elsewhere)
+    seed + clamped voice_speed + voice_id + model_id + voice_settings
+    fingerprint, so any preset change that would change what ElevenLabs
+    returns invalidates the cache
+  - ffprobe trailing-silence tripwire (cross-platform, ffmpeg already required)
 
 The provider reads voice_id / model / settings primarily from ``voice_config``
 (the channel-preset-aware flat schema) and falls back to env vars when the
@@ -23,8 +24,10 @@ override path for ad-hoc tweaks.
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
+import subprocess
 from typing import Any
 
 from dotenv import load_dotenv
@@ -50,17 +53,27 @@ _DEFAULT_MODEL_ID = "eleven_multilingual_v2"
 # Fixed across every chunk so prosody stays consistent throughout the video.
 _SEED = 42
 
-# ElevenLabs `speed` accepts ~0.7–1.2; clamp to a safer 0.8–1.2 range and treat
-# anything else as 1.0 to avoid request rejections.
-_SPEED_MIN, _SPEED_MAX = 0.8, 1.2
+# ElevenLabs `speed` accepts ~0.7–1.2; clamp to that range.
+_SPEED_MIN, _SPEED_MAX = 0.7, 1.2
+
+
+def _clamp_speed(speed: float) -> float:
+    clamped = max(_SPEED_MIN, min(_SPEED_MAX, float(speed)))
+    if abs(clamped - float(speed)) > 1e-6:
+        print(f"  voice_speed clamped {speed} -> {clamped}")
+    return clamped
+
+
+def _settings_fingerprint(settings: dict | None) -> str:
+    blob = json.dumps(settings or {}, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha1(blob.encode()).hexdigest()[:16]
 
 
 def _build_voice_settings(speed: float, overrides: dict | None) -> VoiceSettings:
     """Build a VoiceSettings honoring channel-preset overrides where present
     and falling back to the legacy fixed values (stability 0.5,
     similarity_boost 0.75, style 0.0, use_speaker_boost True) otherwise.
-    Speed is clamped to ElevenLabs' supported range."""
-    speed = max(_SPEED_MIN, min(_SPEED_MAX, float(speed)))
+    Speed is expected to be already clamped to ElevenLabs' supported range."""
     overrides = overrides or {}
     return VoiceSettings(
         stability=float(overrides.get("stability", 0.5)),
@@ -171,30 +184,34 @@ class ElevenLabsProvider(VoiceProvider):
 
         tts_text = unit.get("ssml", unit["text"])
         seed = unit.get("seed", _SEED)
+        clamped_speed = _clamp_speed(voice_speed)
 
-        # Cache key: tts_source + seed + voice_speed (same as legacy). Voice id
-        # / model / settings changes intentionally do NOT invalidate per-unit
-        # cache here — a global re-render is the right response to that, and
-        # forcing it would auto-burn credits on every channel-preset tweak.
+        voice_id = self._resolve_voice_id(voice_config)
+        model_id = self._resolve_model_id(voice_config)
+        settings_overrides = voice_config.get("settings")
+        settings_fp = _settings_fingerprint(settings_overrides)
+
         expected = {
             "tts_source": tts_text,
             "seed": seed,
-            "voice_speed": voice_speed,
+            "voice_speed": clamped_speed,
+            "voice_id": voice_id,
+            "model_id": model_id,
+            "voice_settings_fp": settings_fp,
         }
         if is_cache_valid(filepath, expected):
             cached = read_cache(filepath)
             if cached is not None:
                 return cached
 
-        voice_id = self._resolve_voice_id(voice_config)
-        model_id = self._resolve_model_id(voice_config)
-        settings = _build_voice_settings(voice_speed, voice_config.get("settings"))
+        settings = _build_voice_settings(clamped_speed, settings_overrides)
 
         kwargs: dict[str, Any] = dict(
             voice_id=voice_id,
             text=tts_text,
             model_id=model_id,
-            output_format="mp3_44100_128",
+            # Matches assembly's 192k re-encode — no point paying ElevenLabs premium then re-encoding a 128k source.
+            output_format="mp3_44100_192",
             apply_text_normalization="off",
             previous_text=previous_text,
             next_text=next_text,
@@ -232,23 +249,21 @@ class ElevenLabsProvider(VoiceProvider):
 
         # Tripwire: warn if the file has more than 1s of trailing silence beyond the last spoken word.
         # Causes: bad break tags (e.g. time="zero.7s"), breaks at chunk edges, prompt regressions.
-        # Uses afinfo (macOS) for real VBR duration; skips silently on other platforms.
         speech_end = words[-1]["end"] if words else duration
         try:
-            import subprocess
-            import re as _re
             out = subprocess.check_output(
-                ["afinfo", str(filepath)],
+                ["ffprobe", "-v", "error",
+                 "-show_entries", "format=duration",
+                 "-of", "default=noprint_wrappers=1:nokey=1",
+                 str(filepath)],
                 stderr=subprocess.STDOUT,
-            ).decode()
-            m = _re.search(r"estimated duration: ([\d.]+)", out)
-            if m:
-                file_duration = float(m.group(1))
-                if file_duration - speech_end > 1.0:
-                    print(f"  WARNING [{unit['title']}]: {file_duration - speech_end:.1f}s trailing silence "
-                          f"(speech {speech_end:.1f}s, file {file_duration:.1f}s) — check break tags")
-        except Exception:
-            pass
+            ).decode().strip()
+            file_duration = float(out)
+            if file_duration - speech_end > 1.0:
+                print(f"  WARNING [{unit['title']}]: {file_duration - speech_end:.1f}s trailing silence "
+                      f"(speech {speech_end:.1f}s, file {file_duration:.1f}s) — check break tags")
+        except (subprocess.CalledProcessError, ValueError) as exc:
+            print(f"  trailing-silence check skipped for {unit['title']}: {exc}")
 
         result = {
             "segment_id": unit["id"],
@@ -260,7 +275,10 @@ class ElevenLabsProvider(VoiceProvider):
             "words": words,
             "tts_source": tts_text,
             "seed": seed,
-            "voice_speed": voice_speed,
+            "voice_speed": clamped_speed,
+            "voice_id": voice_id,
+            "model_id": model_id,
+            "voice_settings_fp": settings_fp,
             "request_id": request_id,
         }
 

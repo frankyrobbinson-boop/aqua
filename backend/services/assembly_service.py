@@ -214,8 +214,8 @@ def assemble_audio(project_name: str) -> str:
     # speech with no audible distortion from the equalization chain.
     #
     # MP3 bitrate bumped to 192k (libmp3lame default trends ~128k VBR);
-    # ElevenLabs source is mp3_44100_128 already, so re-encoding at a
-    # higher bitrate avoids compounding compression artifacts.
+    # ElevenLabs source is mp3_44100_192, matching this re-encode bitrate
+    # so we don't compound compression artifacts.
     cmd = [
         "ffmpeg", "-y",
         *input_args,

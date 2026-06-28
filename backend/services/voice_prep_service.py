@@ -6,7 +6,11 @@ from num2words import num2words
 from services.tts_prep_service import load_tts_prep
 
 
-_NUMBER_RE = re.compile(r'\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b|\b\d+(?:\.\d+)?\b')
+_NUMBER_RE = re.compile(
+    r'(?<![\$£€a-zA-Z\d])'
+    r'(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)'
+    r'(?![a-zA-Z%\d])'
+)
 
 
 def _convert_number(match: re.Match) -> str:
