@@ -19,6 +19,77 @@ _RESEARCH_PROMPT_PATH = Path("prompts/research.md")
 
 AUDIENCE_SLOT = "{{AUDIENCE_BLOCK}}"
 
+# JSON Schema handed to OpenAI structured outputs (strict json_schema) so GPT-5
+# is constrained to emit valid JSON matching prompts/research.md. Strict mode
+# requires every property to appear in "required" and "additionalProperties":
+# false on every object. This mirrors the schema-forced-JSON pattern used by
+# scene_plan_service / tts_prep_service (on Anthropic) — the goal is the same:
+# the model can't produce a strict-invalid token the json.loads below would choke
+# on. Nullable fields are typed as ["string", "null"].
+RESEARCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {"type": "string"},
+        "key_facts": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "fact": {"type": "string"},
+                    "confidence": {"type": "string", "enum": ["high", "medium"]},
+                    "source": {"type": ["string", "null"]},
+                    "notes": {"type": ["string", "null"]},
+                },
+                "required": ["fact", "confidence", "source", "notes"],
+                "additionalProperties": False,
+            },
+        },
+        "statistics": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "statistic": {"type": "string"},
+                    "value": {"type": "string"},
+                    "confidence": {"type": "string", "enum": ["high", "medium"]},
+                    "source": {"type": ["string", "null"]},
+                },
+                "required": ["statistic", "value", "confidence", "source"],
+                "additionalProperties": False,
+            },
+        },
+        "interesting_angles": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+        "controversies": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "claim": {"type": "string"},
+                    "why_contested": {"type": "string"},
+                },
+                "required": ["claim", "why_contested"],
+                "additionalProperties": False,
+            },
+        },
+        "open_questions": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+    "required": [
+        "summary",
+        "key_facts",
+        "statistics",
+        "interesting_angles",
+        "controversies",
+        "open_questions",
+    ],
+    "additionalProperties": False,
+}
+
 
 def _load_research_prompt() -> str:
     return _RESEARCH_PROMPT_PATH.read_text()
@@ -71,10 +142,22 @@ def generate_research(
             f"{pre_research.strip()}"
         )
 
+    # Force valid JSON via OpenAI structured outputs (strict json_schema),
+    # mirroring the scene_plan / tts_prep schema pattern. This guarantees GPT-5
+    # can't emit a strict-invalid token (e.g. a stray trailing comma) that would
+    # otherwise defeat the strict json.loads below.
     response = client.responses.create(
         model="gpt-5",
         instructions=instructions,
         input=user_input,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "research",
+                "schema": RESEARCH_SCHEMA,
+                "strict": True,
+            }
+        },
     )
 
     if project_name:
