@@ -28,7 +28,11 @@ SCENE_PLAN_SCHEMA = {
                     "narration": {"type": "string"},
                     "emotional_purpose": {"type": "string"},
                     "visual_description": {"type": "string"},
-                    "on_screen_text": {"type": "string"}
+                    "on_screen_text": {"type": "string"},
+                    "visual_mode": {
+                        "type": "string",
+                        "enum": ["stock_video", "ai_image"],
+                    }
                 },
                 "required": [
                     "id",
@@ -38,6 +42,7 @@ SCENE_PLAN_SCHEMA = {
                     "emotional_purpose",
                     "visual_description",
                     "on_screen_text",
+                    "visual_mode",
                 ],
                 "additionalProperties": False
             }

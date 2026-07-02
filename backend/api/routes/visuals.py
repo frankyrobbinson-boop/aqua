@@ -26,6 +26,7 @@ from api.routes.projects import _project_dir
 from api.routes.tasks import start_task
 from services.visual_config_service import (
     load_visual_config,
+    resolve_scene_provider_id,
     resolve_visual_config,
     save_visual_config,
 )
@@ -59,12 +60,24 @@ class VisualSegmentEntry(BaseModel):
     segment_id: int
     scene_count: Optional[int] = Field(default=None, ge=0)
     mode: str
-    provider: str
+    # Optional: a "mixed" segment routes per scene and has no single provider,
+    # so clients may omit it. Non-mixed segments still require a known provider
+    # (validated in update_visual_config).
+    provider: Optional[str] = None
 
 
 class VisualConfigPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
     segments: list[VisualSegmentEntry]
+    # Per-scene override map for "mixed" segments: {"<scene_id>": "stock_video"
+    # | "ai_image"}. Optional so a segments-only PUT still validates; included
+    # explicitly because extra="forbid" would otherwise reject it.
+    scene_overrides: Optional[dict[str, str]] = None
+
+
+class SceneVisualModePayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    visual_mode: str
 
 
 class GenerateVisualsResponse(BaseModel):
@@ -116,19 +129,52 @@ def update_visual_config(slug: str, payload: VisualConfigPayload) -> dict:
     known_provider_ids = {p["id"] for p in list_providers()}
     known_mode_ids = {m["id"] for m in list_modes()}
     for seg in payload.segments:
-        if seg.provider not in known_provider_ids:
-            raise HTTPException(
-                status_code=422,
-                detail=f"Unknown provider: {seg.provider!r}",
-            )
         if seg.mode not in known_mode_ids:
             raise HTTPException(
                 status_code=422,
                 detail=f"Unknown mode: {seg.mode!r}",
             )
+        # "mixed" segments route per scene and carry no required provider.
+        if seg.mode == "mixed":
+            continue
+        if seg.provider is None or seg.provider not in known_provider_ids:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown provider: {seg.provider!r}",
+            )
+    if payload.scene_overrides:
+        for sid, mode in payload.scene_overrides.items():
+            if mode not in ("stock_video", "ai_image"):
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Invalid scene_override for {sid!r}: {mode!r}",
+                )
 
     save_visual_config(slug, payload.model_dump(exclude_none=True))
     return {"ok": True, "config": resolve_visual_config(slug)}
+
+
+@router.post("/projects/{slug}/scenes/{sid}/visual-mode")
+def set_scene_visual_mode(slug: str, sid: int, payload: SceneVisualModePayload) -> dict:
+    """Override one scene's visual mode inside a ``mixed`` segment. Persisted as
+    a top-level ``scene_overrides`` entry in visual_config.json via an atomic
+    read-modify-write. Kept separate from the segment-level PUT so a per-scene
+    toggle doesn't race the UI's debounced segment autosave. Returns the
+    effective (stored) mode for the scene."""
+    _project_dir(slug)
+    mode = payload.visual_mode
+    if mode not in ("stock_video", "ai_image"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid visual_mode: {mode!r} (expected 'stock_video' or 'ai_image')",
+        )
+    saved = load_visual_config(slug)
+    config = saved if saved is not None else {}
+    overrides = dict(config.get("scene_overrides") or {})
+    overrides[str(sid)] = mode
+    config["scene_overrides"] = overrides
+    save_visual_config(slug, config)
+    return {"scene_id": sid, "visual_mode": mode}
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +188,33 @@ async def start_visuals_generate(slug: str) -> GenerateVisualsResponse:
     tasks-SSE plumbing works unchanged."""
     _project_dir(slug)
     cmd = [sys.executable, "run_visuals.py", slug]
+    task = start_task(
+        cmd=cmd,
+        cwd=BACKEND_DIR,
+        metadata={"kind": "visuals", "project_slug": slug},
+        kind="visuals",
+        project_slug=slug,
+    )
+    return GenerateVisualsResponse(task_id=task.id, project_slug=slug)
+
+
+@router.post(
+    "/projects/{slug}/visuals/footage/generate",
+    response_model=GenerateVisualsResponse,
+)
+async def start_footage_generate(slug: str) -> GenerateVisualsResponse:
+    """Trigger run_footage.py — a footage-only re-fetch on the existing scene
+    plan. Reuses scene_windows/visual_prompts/visual_config as-is (no re-plan,
+    no windows, no prompt regen): cached scenes skip, missing/failed scenes and
+    mode-changed segments re-fetch. Mirrors start_visuals_generate's task shape.
+
+    Uses ``kind="visuals"`` (not a distinct "footage" kind): start_task's
+    ``kind`` is only a per-(slug, kind) concurrency reservation key — it does
+    NOT trigger any stage invalidation — and sharing the "visuals" key keeps a
+    footage refetch and a full visuals run from racing on the same project's
+    footage/ directory."""
+    _project_dir(slug)
+    cmd = [sys.executable, "run_footage.py", slug]
     task = start_task(
         cmd=cmd,
         cwd=BACKEND_DIR,
@@ -261,12 +334,18 @@ def regenerate_scene_footage(slug: str, sid: int) -> dict:
                 except OSError:
                     pass
 
-    provider = get_provider(entry["provider"])
+    # Mixed segments route each scene to the right default provider for its
+    # effective per-scene mode; non-mixed segments use the segment provider.
+    if entry.get("mode") == "mixed":
+        provider_id = resolve_scene_provider_id(visual_config, scene)
+    else:
+        provider_id = entry["provider"]
+    provider = get_provider(provider_id)
     try:
         output_path = provider.fetch_for_scene(slug, scene)
     except Exception as exc:
         raise HTTPException(
-            status_code=502, detail=f"Provider {entry['provider']!r} failed: {exc!r}"
+            status_code=502, detail=f"Provider {provider_id!r} failed: {exc!r}"
         )
 
     ext = Path(str(output_path)).suffix

@@ -24,7 +24,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from services.paths import PROJECTS_ROOT
-from services.visual_config_service import resolve_visual_config
+from services.visual_config_service import (
+    resolve_scene_provider_id,
+    resolve_visual_config,
+)
 from services.visual_provider import VisualProvider
 from services.visual_provider_registry import get_provider
 
@@ -109,7 +112,10 @@ def fetch_all_scene_footage(
                 f"visual_config. Resolve config first or delete the project's "
                 f"visual_config.json to fall back to defaults."
             )
-        provider_id = entry["provider"]
+        # Route per scene: non-mixed segments resolve to the segment provider
+        # (byte-for-byte unchanged); mixed segments resolve each scene to the
+        # right default provider for its effective per-scene mode.
+        provider_id = resolve_scene_provider_id(config, scene)
         provider = get_provider(provider_id)
         scene_provider.append((scene, provider, provider_id))
 

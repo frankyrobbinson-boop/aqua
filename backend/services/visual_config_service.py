@@ -46,6 +46,10 @@ def _scene_plan_path(project_name: str) -> Path:
     return PROJECTS_ROOT / project_name / "scene_plan.json"
 
 
+def _script_draft_path(project_name: str) -> Path:
+    return PROJECTS_ROOT / project_name / "script_draft.json"
+
+
 # ---------------------------------------------------------------------------
 # Load / save
 # ---------------------------------------------------------------------------
@@ -97,6 +101,42 @@ def _load_scene_plan(project_name: str) -> dict | None:
         return json.load(f)
 
 
+def _load_script_draft(project_name: str) -> dict | None:
+    p = _script_draft_path(project_name)
+    if not p.exists():
+        return None
+    with p.open() as f:
+        return json.load(f)
+
+
+def _script_segment_skeleton(script: dict) -> list[dict]:
+    """Build the ordered segment skeleton from a script draft, before any
+    scene_plan exists. Uses the scene_plan id convention: -1 = hook (always
+    present), 0..N-1 = body segments (one per script["segments"], in order),
+    -2 = conclusion (always present). ``scene_count`` is None pre-plan; the
+    actual per-segment scene count is only known once scenes are generated."""
+    default_md = default_mode()
+    try:
+        default_pv = default_provider_for_mode(default_md)
+    except ValueError:
+        default_pv = default_provider_id()
+
+    def _entry(seg_id: int) -> dict:
+        return {
+            "segment_id": seg_id,
+            "scene_count": None,
+            "mode": default_md,
+            "provider": default_pv,
+        }
+
+    segments: list[dict] = [_entry(-1)]
+    body = script.get("segments") or []
+    for i in range(len(body)):
+        segments.append(_entry(i))
+    segments.append(_entry(-2))
+    return segments
+
+
 def _segment_scene_counts(scene_plan: dict) -> "OrderedDict[int, int]":
     """{segment_id: count} preserving first-seen order from scene_plan. Order
     matters because the UI renders segments top-to-bottom matching narrative
@@ -112,10 +152,12 @@ def default_visual_config(project_name: str) -> dict:
     """Build a default config from scene_plan. Defaults preserve today's
     behavior: every segment uses ``stock_video`` / ``pexels``.
 
-    If scene_plan.json doesn't exist yet (e.g. user is editing config before
-    the visuals stage has produced one), returns an empty segments list rather
-    than raising — the UI can render with no rows and the user re-opens after
-    the script stage."""
+    If scene_plan.json doesn't exist yet, fall back to the script draft so the
+    UI can show and set per-segment modes before the visuals stage runs: the
+    segment skeleton (hook, one row per body segment, conclusion) is derived
+    from script_draft.json with ``scene_count`` None until scenes are planned.
+    If neither scene_plan nor script_draft exists, returns an empty segments
+    list rather than raising — the UI renders with no rows."""
     default_md = default_mode()
     try:
         default_pv = default_provider_for_mode(default_md)
@@ -124,6 +166,9 @@ def default_visual_config(project_name: str) -> dict:
 
     plan = _load_scene_plan(project_name)
     if not plan:
+        script = _load_script_draft(project_name)
+        if script:
+            return {"segments": _script_segment_skeleton(script)}
         return {"segments": []}
 
     counts = _segment_scene_counts(plan)
@@ -151,13 +196,41 @@ def resolve_visual_config(project_name: str) -> dict:
     """
     plan = _load_scene_plan(project_name)
     saved = load_visual_config(project_name)
+    # Per-scene overrides (for "mixed" segments) live at the top level and are
+    # passed through untouched. Default {} so callers can index it safely.
+    scene_overrides: dict = (saved.get("scene_overrides") if saved else None) or {}
     if not plan:
-        # No plan yet: trust the saved file if it exists, otherwise empty.
-        return saved or {"segments": []}
+        # No plan yet: derive the segment skeleton from the script draft (empty
+        # if there's no script either), then merge any saved mode/provider
+        # choices on top so the user's pre-plan selections persist and carry
+        # over to matching segment_ids once scenes are generated.
+        skeleton = default_visual_config(project_name)
+        if not saved:
+            return {
+                "segments": skeleton["segments"],
+                "scene_overrides": scene_overrides,
+            }
+        saved_by_id: dict[int, dict] = {
+            int(s["segment_id"]): s for s in saved.get("segments", [])
+        }
+        merged: list[dict] = []
+        for entry in skeleton["segments"]:
+            seg_id = entry["segment_id"]
+            override = saved_by_id.get(seg_id)
+            if override:
+                merged.append({
+                    "segment_id": seg_id,
+                    "scene_count": entry["scene_count"],  # None pre-plan
+                    "mode": override.get("mode", entry["mode"]),
+                    "provider": override.get("provider", entry["provider"]),
+                })
+            else:
+                merged.append(entry)
+        return {"segments": merged, "scene_overrides": scene_overrides}
 
     skeleton = default_visual_config(project_name)
     if not saved:
-        return skeleton
+        return {"segments": skeleton["segments"], "scene_overrides": {}}
 
     saved_by_id: dict[int, dict] = {
         int(s["segment_id"]): s for s in saved.get("segments", [])
@@ -167,6 +240,8 @@ def resolve_visual_config(project_name: str) -> dict:
         seg_id = entry["segment_id"]
         override = saved_by_id.get(seg_id)
         if override:
+            # When the saved segment is "mixed" we keep mode "mixed" and pass
+            # provider through as-is (it's dormant — routing is per-scene).
             merged.append({
                 "segment_id": seg_id,
                 "scene_count": entry["scene_count"],  # always from live plan
@@ -175,4 +250,36 @@ def resolve_visual_config(project_name: str) -> dict:
             })
         else:
             merged.append(entry)
-    return {"segments": merged}
+    return {"segments": merged, "scene_overrides": scene_overrides}
+
+
+def resolve_scene_provider_id(config: dict, scene: dict) -> str:
+    """Return the provider id that should handle a single scene.
+
+    For a segment whose mode is anything other than ``"mixed"``, every scene
+    uses the segment's configured provider. For a ``"mixed"`` segment, the
+    effective per-scene mode is resolved as:
+
+        scene_overrides[str(scene_id)] -> scene["visual_mode"] -> "stock_video"
+
+    and mapped to that mode's default provider. GUARD: ``default_provider_for_mode``
+    is never called with ``"mixed"`` — any invalid/missing tag falls back to
+    ``"stock_video"`` so a bad scene-plan tag can never error the run.
+    """
+    seg_id = int(scene["segment_id"])
+    entry = next(
+        (s for s in config.get("segments", []) if int(s["segment_id"]) == seg_id),
+        None,
+    )
+    if entry is None:
+        # Caller normally guards this; fall back to the global default rather
+        # than raising so a single orphaned scene can't abort the batch.
+        return default_provider_for_mode(default_mode())
+    if entry.get("mode") != "mixed":
+        return entry["provider"]
+
+    overrides = config.get("scene_overrides") or {}
+    effective = overrides.get(str(scene["id"])) or scene.get("visual_mode")
+    if effective not in ("stock_video", "ai_image"):
+        effective = "stock_video"
+    return default_provider_for_mode(effective)

@@ -42,12 +42,21 @@ export function SegmentVisualRow({
       ? timeRange.end - timeRange.start
       : null;
   const avg =
-    duration && segment.scene_count > 0
+    duration && segment.scene_count != null && segment.scene_count > 0
       ? duration / segment.scene_count
       : null;
 
+  const isMixed = segment.mode === "mixed";
+
   function handleModeChange(nextMode: string) {
     if (nextMode === segment.mode) return;
+    // "mixed" has no provider of its own (routing is per scene). Keep the
+    // existing provider value dormant rather than snapping to a non-existent
+    // mixed provider, which would blank the field.
+    if (nextMode === "mixed") {
+      onChange({ ...segment, mode: nextMode });
+      return;
+    }
     // When the user switches mode, the existing provider may not handle the
     // new mode. Snap to the first available provider for the new mode; fall
     // back to the first listed (even if unavailable) so the select isn't
@@ -94,38 +103,44 @@ export function SegmentVisualRow({
         {/* Scene count */}
         <div>
           <label className="mb-1 block text-xs text-muted">Scenes</label>
-          <div className="flex items-center gap-1.5">
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="h-3.5 w-3.5 text-muted"
-            >
-              <circle cx="8" cy="8" r="6" />
-              <path d="M8 5v3.5l2 1.5" strokeLinecap="round" />
-            </svg>
-            <input
-              type="number"
-              min={1}
-              max={50}
-              value={segment.scene_count}
-              disabled={disabled}
-              onChange={(e) => {
-                const n = Math.max(
-                  1,
-                  Math.min(50, Number(e.target.value) || 1),
-                );
-                onChange({ ...segment, scene_count: n });
-              }}
-              className="w-16 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
-            />
-          </div>
-          <p className="mt-1 text-[10px] text-muted">
-            {avg
-              ? `every ${avg.toFixed(1)}s · max ${Math.ceil(avg * 1.5)}s`
-              : "—"}
-          </p>
+          {segment.scene_count != null ? (
+            <>
+              <div className="flex items-center gap-1.5">
+                <svg
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  className="h-3.5 w-3.5 text-muted"
+                >
+                  <circle cx="8" cy="8" r="6" />
+                  <path d="M8 5v3.5l2 1.5" strokeLinecap="round" />
+                </svg>
+                <input
+                  type="number"
+                  min={1}
+                  max={50}
+                  value={segment.scene_count}
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const n = Math.max(
+                      1,
+                      Math.min(50, Number(e.target.value) || 1),
+                    );
+                    onChange({ ...segment, scene_count: n });
+                  }}
+                  className="w-16 rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-foreground outline-none focus:border-accent"
+                />
+              </div>
+              <p className="mt-1 text-[10px] text-muted">
+                {avg
+                  ? `every ${avg.toFixed(1)}s · max ${Math.ceil(avg * 1.5)}s`
+                  : "—"}
+              </p>
+            </>
+          ) : (
+            <p className="text-[10px] text-muted">set when you generate</p>
+          )}
         </div>
 
         {/* Mode buttons */}
@@ -144,13 +159,19 @@ export function SegmentVisualRow({
         <div className="relative">
           <label className="mb-1 block text-xs text-muted">Provider</label>
           <div className="flex items-center gap-2">
-            <ProviderDropdown
-              providers={providers}
-              mode={segment.mode}
-              value={segment.provider}
-              onChange={(p) => onChange({ ...segment, provider: p })}
-              disabled={disabled}
-            />
+            {isMixed ? (
+              <span className="rounded-md border border-border bg-surface px-2 py-1.5 text-xs text-muted">
+                Routed per scene
+              </span>
+            ) : (
+              <ProviderDropdown
+                providers={providers}
+                mode={segment.mode}
+                value={segment.provider}
+                onChange={(p) => onChange({ ...segment, provider: p })}
+                disabled={disabled}
+              />
+            )}
             <button
               type="button"
               aria-label="Per-segment style settings"

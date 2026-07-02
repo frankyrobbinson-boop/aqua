@@ -170,10 +170,10 @@ class NanoBananaProvider(VisualProvider):
             )
             image_bytes = self._generate(prompt, sid)
 
-        # 16:9 post-decode assertion: Gemini sometimes silently returns 1:1
-        # despite a prompt request. Verify dimensions BEFORE writing to disk —
-        # a square PNG written here would either letterbox or skew at render.
-        _assert_aspect_16_9(image_bytes, sid)
+        # 16:9 conform: Gemini sometimes silently returns 1:1 despite a prompt
+        # request. Center-crop to 16:9 BEFORE writing to disk so the AI scene
+        # always produces a usable widescreen image instead of failing.
+        image_bytes = _conform_to_16_9(image_bytes, sid)
 
         with open(output, "wb") as f:
             f.write(image_bytes)
@@ -233,8 +233,8 @@ class NanoBananaProvider(VisualProvider):
         # WHY no generation_config={"image_config": {"aspect_ratio": ...}}:
         # google-generativeai 0.8.x rejects unknown generation_config keys with
         # a hard error from the underlying proto. The aspect ratio is requested
-        # in the prompt itself (_BASELINE_PREFIX) and verified by
-        # _assert_aspect_16_9 post-decode. Do NOT re-add this kwarg.
+        # in the prompt itself (_BASELINE_PREFIX) and conformed post-decode by
+        # _conform_to_16_9. Do NOT re-add this kwarg.
         response = _call_with_retry(
             lambda: client.generate_content(prompt),
             scene_id=scene_id,
@@ -256,19 +256,43 @@ class NanoBananaProvider(VisualProvider):
         )
 
 
-def _assert_aspect_16_9(image_bytes: bytes, scene_id: int) -> None:
-    """Decode the PNG header and raise if width/height isn't within the
-    accepted 16:9 tolerance band. Called BEFORE writing to disk so a
-    miss leaves no garbage file behind."""
+def _conform_to_16_9(image_bytes: bytes, scene_id: int) -> bytes:
+    """Return ``image_bytes`` conformed to 16:9. Gemini sometimes returns a
+    square (1:1) image despite the prompt request; rather than fail the scene
+    we center-crop to exactly 16:9 so the AI scene always yields a usable
+    widescreen image.
+
+    If the decoded ratio is already within the accepted tolerance band the
+    ORIGINAL bytes are returned unchanged (no re-encode — avoids needless
+    recompression). A totally undecodable image is still a real failure and
+    raises, mirroring the prior assertion."""
     from PIL import Image  # Pillow is in requirements.txt; import inline keeps
     # module import cheap for the registry verifier.
 
     try:
         with Image.open(io.BytesIO(image_bytes)) as img:
+            img.load()
             w, h = img.size
+            mode = img.mode
+            cropped = None
+            if h > 0:
+                ratio = w / h
+                if not (_ASPECT_RATIO_MIN <= ratio <= _ASPECT_RATIO_MAX):
+                    target = 16 / 9
+                    if ratio < target:
+                        # Too tall (e.g. square): keep full width, crop height.
+                        new_h = round(w * 9 / 16)
+                        top = (h - new_h) // 2
+                        box = (0, top, w, top + new_h)
+                    else:
+                        # Too wide: keep full height, crop width.
+                        new_w = round(h * 16 / 9)
+                        left = (w - new_w) // 2
+                        box = (left, 0, left + new_w, h)
+                    cropped = img.crop(box)
     except Exception as exc:
         raise RuntimeError(
-            f"Scene {scene_id}: could not decode Gemini PNG to verify aspect "
+            f"Scene {scene_id}: could not decode Gemini PNG to conform aspect "
             f"ratio: {exc!r}"
         ) from exc
 
@@ -277,14 +301,26 @@ def _assert_aspect_16_9(image_bytes: bytes, scene_id: int) -> None:
             f"Scene {scene_id}: Gemini returned image with non-positive height "
             f"({w}x{h})"
         )
-    ratio = w / h
-    if not (_ASPECT_RATIO_MIN <= ratio <= _ASPECT_RATIO_MAX):
-        raise RuntimeError(
-            f"Scene {scene_id}: Gemini returned non-16:9 image "
-            f"({w}x{h}, ratio={ratio:.4f}); expected ratio in "
-            f"[{_ASPECT_RATIO_MIN}, {_ASPECT_RATIO_MAX}]. Re-run to retry; "
-            f"the model occasionally ignores the 16:9 prompt request."
-        )
+
+    if cropped is None:
+        # Already within tolerance — return the original bytes untouched.
+        return image_bytes
+
+    cw, ch = cropped.size
+    print(
+        f"  [scene {scene_id}] nano_banana image was {w}x{h}, "
+        f"cropped to 16:9 ({cw}x{ch})",
+        flush=True,
+    )
+
+    # PNG can't cleanly save every PIL mode (e.g. some palette/alpha combos);
+    # fall back to RGB for anything outside the modes PNG handles directly.
+    if mode not in ("1", "L", "LA", "I", "P", "RGB", "RGBA"):
+        cropped = cropped.convert("RGB")
+
+    buf = io.BytesIO()
+    cropped.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def _call_with_retry(fn, scene_id: int):

@@ -13,6 +13,7 @@ import {
   getProject,
   getScenes,
   getVisualConfig,
+  getVisualProviders,
   listProjects,
 } from "./api";
 
@@ -23,6 +24,7 @@ export const projectKeys = {
   scenes: (slug: string) => [...projectKeys.all, "scenes", slug] as const,
   visualConfig: (slug: string) =>
     [...projectKeys.all, "visualConfig", slug] as const,
+  visualProviders: () => [...projectKeys.all, "visualProviders"] as const,
 };
 
 export const channelKeys = {
@@ -60,6 +62,13 @@ export function useVisualConfigQuery(slug: string) {
     queryKey: projectKeys.visualConfig(slug),
     queryFn: () => getVisualConfig(slug),
     enabled: Boolean(slug),
+  });
+}
+
+export function useVisualProvidersQuery() {
+  return useQuery({
+    queryKey: projectKeys.visualProviders(),
+    queryFn: () => getVisualProviders(),
   });
 }
 

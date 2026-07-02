@@ -5,7 +5,8 @@
     {"id": "ai_image", "label": "AI image"},
     {"id": "ai_video", "label": "AI video"},
     {"id": "stock_image", "label": "Stock image"},
-    {"id": "stock_video", "label": "Stock video"}
+    {"id": "stock_video", "label": "Stock video"},
+    {"id": "mixed", "label": "Mixed (stock + AI)"}
   ],
   "providers": [
     {"id": "pexels", "label": "Pexels", "mode": "stock_video", "available": true},

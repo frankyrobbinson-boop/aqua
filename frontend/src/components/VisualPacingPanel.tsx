@@ -5,17 +5,23 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { invalidateForProject } from "@/lib/invalidation";
 import { SegmentVisualRow } from "./SegmentVisualRow";
+import { ScenePreview } from "./ScenePreview";
 import {
   VisualTimelineBar,
   type TimelineSegment,
 } from "./VisualTimelineBar";
 import {
+  API_URL,
   getVisualPromptStatus,
+  regenerateScene,
   regenerateVisualPrompts,
+  setSceneVisualMode,
+  startFootageRefetch,
   startVisualsGenerate,
   streamTaskLogs,
   updateVisualConfig,
   type SceneInfo,
+  type SceneOverrides,
   type TaskStatus,
   type VisualConfigResponse,
   type VisualPromptStatus,
@@ -57,6 +63,18 @@ export function VisualPacingPanel({
   const [segments, setSegments] = useState<VisualSegmentConfig[]>(
     initialConfig.config.segments,
   );
+  // Per-scene overrides for "mixed" segments. Persisted via its own endpoint on
+  // toggle, but also round-tripped through the segment PUT so the debounced
+  // segment autosave (which rewrites the whole file) can't wipe them. A ref
+  // mirrors the state so the autosave effect reads the latest without taking a
+  // dependency on it (which would otherwise fire a PUT on every toggle).
+  const [sceneOverrides, setSceneOverrides] = useState<SceneOverrides>(
+    initialConfig.config.scene_overrides ?? {},
+  );
+  const sceneOverridesRef = useRef(sceneOverrides);
+  useEffect(() => {
+    sceneOverridesRef.current = sceneOverrides;
+  }, [sceneOverrides]);
   const [advanced, setAdvanced] = useState(true);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [run, setRun] = useState<RunState | null>(null);
@@ -96,9 +114,11 @@ export function VisualPacingPanel({
       return;
     }
     const handle = setTimeout(() => {
-      updateVisualConfig(slug, segments).catch((err) => {
-        setSaveError(err instanceof Error ? err.message : String(err));
-      });
+      updateVisualConfig(slug, segments, sceneOverridesRef.current).catch(
+        (err) => {
+          setSaveError(err instanceof Error ? err.message : String(err));
+        },
+      );
     }, 600);
     return () => clearTimeout(handle);
   }, [segments, slug]);
@@ -117,9 +137,8 @@ export function VisualPacingPanel({
     [scenes, segments],
   );
 
-  const totalScenes = segments.reduce((sum, s) => sum + s.scene_count, 0);
-  const canGenerate =
-    segments.length > 0 && !submitting && run?.status !== "running";
+  const totalScenes = segments.reduce((sum, s) => sum + (s.scene_count ?? 0), 0);
+  const canGenerate = !submitting && run?.status !== "running";
 
   async function onRegeneratePrompts() {
     promptCleanupRef.current?.();
@@ -145,7 +164,10 @@ export function VisualPacingPanel({
     }
   }
 
-  async function onGenerate() {
+  // Shared run dispatch: flush pending config edits, kick off whichever runner
+  // ``starter`` names (full visuals re-plan vs. footage-only refetch), then
+  // stream its logs. Both paths hit the same task SSE plumbing.
+  async function startRun(starter: () => Promise<{ task_id: string }>) {
     if (!canGenerate) return;
     setSaveError(null);
     setSubmitting(true);
@@ -153,8 +175,8 @@ export function VisualPacingPanel({
     try {
       // Flush any pending edits before kicking off the run so the worker sees
       // the latest config.
-      await updateVisualConfig(slug, segments);
-      const { task_id } = await startVisualsGenerate(slug);
+      await updateVisualConfig(slug, segments, sceneOverridesRef.current);
+      const { task_id } = await starter();
       setRun({ taskId: task_id, logs: [], status: "running" });
       cleanupRef.current = streamTaskLogs(
         task_id,
@@ -176,6 +198,12 @@ export function VisualPacingPanel({
     }
   }
 
+  // Full pipeline: re-plans scenes from the script (costs an LLM call), then
+  // recomputes windows/prompts and re-fetches all footage.
+  const onGenerate = () => startRun(() => startVisualsGenerate(slug));
+  // Footage-only: keeps the existing scene plan, fills missing/changed clips.
+  const onRefetch = () => startRun(() => startFootageRefetch(slug));
+
   const timelineSegments: TimelineSegment[] = segments
     .map((seg, i) => {
       const t = segmentTimings[i];
@@ -192,14 +220,9 @@ export function VisualPacingPanel({
   return (
     <section className="rounded-xl border border-border bg-surface p-5">
       <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-medium text-foreground">
-            Step 3: Visual Pacing
-          </h2>
-          <p className="mt-0.5 text-xs text-muted">
-            Per-segment mode and provider. Edits save automatically.
-          </p>
-        </div>
+        <p className="text-xs text-muted">
+          Per-segment mode and provider. Edits save automatically.
+        </p>
         <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
           <span>Advanced</span>
           <button
@@ -237,7 +260,9 @@ export function VisualPacingPanel({
               disabled={promptRun?.status === "running"}
               className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground hover:bg-surface-2 disabled:cursor-not-allowed disabled:text-muted"
             >
-              {promptRun?.status === "running" ? "Regenerating..." : "Regenerate"}
+              {promptRun?.status === "running"
+                ? "Regenerating prompts..."
+                : "Regenerate prompts"}
             </button>
           )}
         </div>
@@ -275,8 +300,9 @@ export function VisualPacingPanel({
 
       {segments.length === 0 ? (
         <div className="rounded-md border border-dashed border-border bg-surface/40 p-6 text-center text-sm text-muted">
-          No scene plan yet. Generate a script first, then return here to
-          configure visuals.
+          No scenes yet — click Generate to plan scenes from your script and
+          fetch footage. You can fine-tune per-segment modes and providers after
+          this first run.
         </div>
       ) : (
         <div className="space-y-3">
@@ -305,18 +331,50 @@ export function VisualPacingPanel({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onGenerate}
-        disabled={!canGenerate}
-        className="mt-5 w-full rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-muted"
-      >
-        {submitting
-          ? "Starting..."
-          : run?.status === "running"
-            ? "Generating visuals..."
-            : `Generate ${totalScenes} Scene${totalScenes === 1 ? "" : "s"}`}
-      </button>
+      {scenes.length === 0 ? (
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={!canGenerate}
+          className="mt-5 w-full rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-muted"
+        >
+          {submitting
+            ? "Starting..."
+            : run?.status === "running"
+              ? "Generating visuals..."
+              : totalScenes > 0
+                ? `Generate ${totalScenes} Scene${totalScenes === 1 ? "" : "s"}`
+                : "Generate Scenes"}
+        </button>
+      ) : (
+        <div className="mt-5 space-y-2">
+          <button
+            type="button"
+            onClick={onRefetch}
+            disabled={!canGenerate}
+            className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-muted"
+          >
+            {submitting
+              ? "Starting..."
+              : run?.status === "running"
+                ? "Generating visuals..."
+                : "Refetch footage"}
+          </button>
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={!canGenerate}
+            className="w-full rounded-md border border-border bg-surface px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:text-muted"
+          >
+            Re-plan from script
+          </button>
+          <p className="text-[10px] text-muted">
+            Refetch keeps your scene plan and fills missing/changed clips.
+            Re-plan regenerates the scene plan from the script (costs an LLM
+            call).
+          </p>
+        </div>
+      )}
 
       {run && (
         <div className="mt-4 overflow-hidden rounded-lg border border-border bg-background">
@@ -345,7 +403,190 @@ export function VisualPacingPanel({
           </pre>
         </div>
       )}
+
+      {scenes.length > 0 && (
+        <div className="mt-8 space-y-5 border-t border-border pt-6">
+          <h3 className="text-sm font-medium text-foreground">Scene previews</h3>
+          {segments.map((seg, i) => {
+            const segScenes = scenes.filter(
+              (s) => s.segment_id === seg.segment_id,
+            );
+            if (segScenes.length === 0) return null;
+            const mixed = seg.mode === "mixed";
+            const aiCount = mixed
+              ? segScenes.filter(
+                  (s) => effectiveMode(s, sceneOverrides) === "ai_image",
+                ).length
+              : 0;
+            return (
+              <div key={seg.segment_id}>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium text-muted">
+                    {segmentLabel(seg.segment_id, i, segments.length)}
+                  </p>
+                  {mixed && (
+                    <p className="text-[10px] text-muted">
+                      {aiCount} AI image{aiCount === 1 ? "" : "s"} · ~$
+                      {(aiCount * 0.039).toFixed(2)} (Nano Banana, $0.039/image)
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                  {segScenes.map((s) => (
+                    <ScenePreviewTile
+                      key={s.id}
+                      slug={slug}
+                      scene={s}
+                      mixed={mixed}
+                      effective={effectiveMode(s, sceneOverrides)}
+                      onModeChange={(mode) =>
+                        setSceneOverrides((prev) => ({
+                          ...prev,
+                          [String(s.id)]: mode,
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </section>
+  );
+}
+
+/** Effective per-scene mode for the wizard's local view: a local/persisted
+ *  override wins, then the backend-computed scene mode, then stock_video. */
+function effectiveMode(
+  scene: SceneInfo,
+  overrides: SceneOverrides,
+): "stock_video" | "ai_image" {
+  const o = overrides[String(scene.id)];
+  if (o === "stock_video" || o === "ai_image") return o;
+  if (scene.visual_mode === "ai_image") return "ai_image";
+  return "stock_video";
+}
+
+/** One scene tile in the wizard preview grid. For a mixed segment it shows a
+ *  Stock/AI toggle that persists the override then regenerates the footage in
+ *  place (the backend pre-deletes the old .png/.mp4 on a flip). */
+function ScenePreviewTile({
+  slug,
+  scene,
+  mixed,
+  effective,
+  onModeChange,
+}: {
+  slug: string;
+  scene: SceneInfo;
+  mixed: boolean;
+  effective: "stock_video" | "ai_image";
+  onModeChange: (mode: "stock_video" | "ai_image") => void;
+}) {
+  const [bust, setBust] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const baseUrl = scene.footage_url ? `${API_URL}${scene.footage_url}` : null;
+  const url = baseUrl && bust > 0 ? `${baseUrl}?v=${bust}` : baseUrl;
+
+  async function choose(mode: "stock_video" | "ai_image") {
+    if (busy || mode === effective) return;
+    setErr(null);
+    setBusy(true);
+    try {
+      await setSceneVisualMode(slug, scene.id, mode);
+      onModeChange(mode);
+      await regenerateScene(slug, scene.id);
+      setBust((n) => n + 1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function regenerate() {
+    if (busy) return;
+    setErr(null);
+    setBusy(true);
+    try {
+      await regenerateScene(slug, scene.id);
+      setBust((n) => n + 1);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border bg-surface">
+      <div className="relative aspect-video bg-background">
+        <ScenePreview
+          url={url}
+          alt={scene.visual_description || `Scene ${scene.id}`}
+        />
+        <span className="absolute left-2 top-2 rounded bg-background/80 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+          #{scene.id}
+        </span>
+        {mixed ? (
+          <div className="absolute bottom-2 left-2 flex gap-1">
+            {(["stock_video", "ai_image"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                disabled={busy}
+                onClick={() => choose(m)}
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
+                  effective === m
+                    ? "bg-accent text-white"
+                    : "bg-background/80 text-muted hover:text-foreground"
+                } ${busy ? "cursor-not-allowed opacity-60" : ""}`}
+              >
+                {m === "stock_video" ? "Stock" : "AI"}
+              </button>
+            ))}
+            {/* Re-fetch this scene on its current mode — lets a failed clip
+                (already on the right mode) be retried without flipping. */}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={regenerate}
+              className={`rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-muted transition-colors hover:text-foreground ${
+                busy ? "cursor-not-allowed opacity-60" : ""
+              }`}
+            >
+              Regenerate
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={regenerate}
+            className={`absolute bottom-2 left-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-muted transition-colors hover:text-foreground ${
+              busy ? "cursor-not-allowed opacity-60" : ""
+            }`}
+          >
+            Regenerate
+          </button>
+        )}
+        {busy && (
+          <span className="absolute bottom-2 right-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] text-muted">
+            Working…
+          </span>
+        )}
+      </div>
+      <div className="p-2">
+        <p className="line-clamp-1 text-[11px] text-foreground">
+          {scene.visual_description || "(no query)"}
+        </p>
+        {err && <p className="mt-0.5 text-[10px] text-danger">{err}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -397,7 +638,7 @@ function deriveSegmentTimings(
   }
   let cursor = 0;
   for (const seg of segments) {
-    const take = Math.min(seg.scene_count, scenes.length - cursor);
+    const take = Math.min(seg.scene_count ?? 0, scenes.length - cursor);
     if (take <= 0) {
       result.push(null);
       continue;

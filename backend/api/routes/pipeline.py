@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from api.routes.tasks import start_task
 from services.paths import PROJECTS_ROOT
+from services.visual_config_service import resolve_visual_config
 
 
 router = APIRouter(tags=["pipeline"])
@@ -129,8 +130,12 @@ async def start_render(req: RenderRequest) -> StageResponse:
 
 class SceneInfo(BaseModel):
     id: int
+    segment_id: int
     narration: str
     visual_description: str
+    # Effective per-scene visual mode: a per-scene override (mixed segments)
+    # wins, then the scene-plan tag, then falls back to the segment's mode.
+    visual_mode: Optional[str] = None
     start_time: Optional[float] = None
     end_time: Optional[float] = None
     duration: Optional[float] = None
@@ -156,6 +161,29 @@ def get_scenes(slug: str) -> list[SceneInfo]:
         with sp_path.open() as f:
             scenes_data = json.load(f).get("scene_intent", [])
 
+    # Resolve config once to compute each scene's EFFECTIVE visual mode. For a
+    # "mixed" segment that's override -> scene tag -> "stock_video"; for any
+    # other segment it's just the segment mode. Best-effort: if config can't be
+    # resolved (no scene_plan yet) fall back to the raw scene tag.
+    try:
+        config = resolve_visual_config(slug)
+    except Exception:
+        config = {"segments": [], "scene_overrides": {}}
+    config_by_seg = {
+        int(s["segment_id"]): s for s in config.get("segments", [])
+    }
+    scene_overrides = config.get("scene_overrides") or {}
+
+    def _effective_mode(scene: dict) -> Optional[str]:
+        seg = scene.get("segment_id")
+        entry = config_by_seg.get(int(seg)) if seg is not None else None
+        if entry is None:
+            return scene.get("visual_mode")
+        if entry.get("mode") != "mixed":
+            return entry.get("mode")
+        eff = scene_overrides.get(str(scene.get("id"))) or scene.get("visual_mode")
+        return eff if eff in ("stock_video", "ai_image") else "stock_video"
+
     footage_dir = p / "footage"
     result: list[SceneInfo] = []
     for scene in scenes_data:
@@ -173,8 +201,10 @@ def get_scenes(slug: str) -> list[SceneInfo]:
         result.append(
             SceneInfo(
                 id=sid,
+                segment_id=int(scene.get("segment_id", 0)),
                 narration=scene.get("narration", ""),
                 visual_description=scene.get("visual_description", ""),
+                visual_mode=_effective_mode(scene),
                 start_time=scene.get("start_time"),
                 end_time=scene.get("end_time"),
                 duration=scene.get("duration"),

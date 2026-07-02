@@ -2,21 +2,18 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { ScriptCreationForm } from "./ScriptCreationForm";
 import { StageRunner } from "./StageRunner";
 import { Stepper, type Step } from "./Stepper";
 import { CopyPathButton } from "./CopyPathButton";
-import { projectKeys } from "@/lib/queries";
+import { VisualPacingPanel } from "./VisualPacingPanel";
+import { useVisualConfigQuery, useVisualProvidersQuery } from "@/lib/queries";
 import {
-  API_URL,
   projectFileUrl,
-  regenerateScene,
   updateScript,
   type ProjectDetail,
   type SceneInfo,
   type ScriptDraft,
-  type TaskStatus,
 } from "@/lib/api";
 
 type Props = {
@@ -492,7 +489,9 @@ function VisualsTab({ slug, scenes }: { slug: string; scenes: SceneInfo[] }) {
   const total = scenes.length;
   const withFootage = scenes.filter((s) => s.has_footage).length;
   const hasScenes = total > 0;
-  const fullyCovered = hasScenes && withFootage === total;
+
+  const providersQuery = useVisualProvidersQuery();
+  const visualConfigQuery = useVisualConfigQuery(slug);
 
   return (
     <div className="space-y-6">
@@ -513,164 +512,27 @@ function VisualsTab({ slug, scenes }: { slug: string; scenes: SceneInfo[] }) {
         </section>
       )}
 
-      <section className="rounded-xl border border-accent/30 bg-accent/5 p-5">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-medium text-foreground">
-              Configure visuals per segment
-            </h2>
-            <p className="mt-0.5 text-xs text-muted">
-              Pick the mode and provider for each segment, then dispatch.
-            </p>
-          </div>
-          <a
-            href={`/projects/${slug}/visuals`}
-            className="rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-hover"
-          >
-            Generate Visuals →
-          </a>
+      {visualConfigQuery.isError ? (
+        <EmptyTab>
+          Generate the script and voiceover first — the scene plan needs to
+          exist before you can configure visuals.
+        </EmptyTab>
+      ) : providersQuery.isPending ||
+        visualConfigQuery.isPending ||
+        providersQuery.isError ? (
+        <div className="rounded-xl border border-border bg-surface p-5 text-sm text-muted">
+          {providersQuery.isError
+            ? "Couldn't load visual providers — try refreshing."
+            : "Loading visual settings…"}
         </div>
-      </section>
-
-      <VisualsConfigPanel />
-
-      <section className="rounded-xl border border-border bg-surface p-5">
-        <h2 className="mb-3 text-sm font-medium text-foreground">
-          {!hasScenes
-            ? "Generate visuals"
-            : fullyCovered
-              ? "Refetch footage"
-              : "Fetch footage"}
-        </h2>
-        <p className="mb-4 text-xs text-muted">
-          {!hasScenes
-            ? "Plans the scenes from the script, computes their timing against the voiceover, then fetches Pexels footage for each one."
-            : "Pexels search per scene. Cached clips skip download."}
-        </p>
-        <StageRunner stage="visuals" slug={slug} />
-      </section>
-
-      {hasScenes && (
-        <section>
-          <h2 className="mb-4 text-sm font-medium text-foreground">Scenes</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {scenes.map((scene) => (
-              <SceneCard key={scene.id} slug={slug} scene={scene} />
-            ))}
-          </div>
-        </section>
+      ) : (
+        <VisualPacingPanel
+          slug={slug}
+          scenes={scenes}
+          providers={providersQuery.data}
+          initialConfig={visualConfigQuery.data}
+        />
       )}
-    </div>
-  );
-}
-
-function VisualsConfigPanel() {
-  return (
-    <ConfigPanel title="Visual settings" badge="placeholders">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <ConfigRow label="Provider" hint="Stock only for now">
-          <select className="config-select" disabled value="pexels">
-            <option value="pexels">Pexels (stock)</option>
-          </select>
-        </ConfigRow>
-        <ConfigRow label="AI fallback" hint="Coming">
-          <select className="config-select" disabled value="none">
-            <option value="none">None — stock only</option>
-          </select>
-        </ConfigRow>
-      </div>
-      <ConfigRow label="Scene granularity" hint="8–15s default">
-        <select className="config-select" disabled value="default">
-          <option value="default">Default (40–60 scenes per 10 min)</option>
-        </select>
-      </ConfigRow>
-      <InfoBox>
-        <strong className="text-foreground">Already on:</strong> Claude Haiku
-        LLM rerank · respects Pexels relevance order · topic-anchored search
-        queries.
-      </InfoBox>
-    </ConfigPanel>
-  );
-}
-
-function SceneCard({ slug, scene }: { slug: string; scene: SceneInfo }) {
-  const queryClient = useQueryClient();
-  const [regenerating, setRegenerating] = useState(false);
-  const [regenError, setRegenError] = useState<string | null>(null);
-  // Bumped after a successful regenerate so the <img>/<video> reloads even if
-  // the URL string is unchanged.
-  const [bust, setBust] = useState(0);
-
-  const baseUrl = scene.footage_url ? `${API_URL}${scene.footage_url}` : null;
-  const url = baseUrl && bust > 0 ? `${baseUrl}?v=${bust}` : baseUrl;
-  const isImage = url ? /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url) : false;
-
-  async function onRegenerate() {
-    setRegenError(null);
-    setRegenerating(true);
-    try {
-      await regenerateScene(slug, scene.id);
-      setBust(Date.now());
-      queryClient.invalidateQueries({ queryKey: projectKeys.scenes(slug) });
-    } catch (err) {
-      setRegenError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setRegenerating(false);
-    }
-  }
-
-  return (
-    <div className="overflow-hidden rounded-lg border border-border bg-surface">
-      <div className="relative aspect-video bg-background">
-        {url ? (
-          isImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={url}
-              alt={scene.visual_description || `Scene ${scene.id}`}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <video
-              src={url}
-              muted
-              playsInline
-              preload="metadata"
-              controls
-              className="h-full w-full object-cover"
-            />
-          )
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs text-muted">
-            No footage
-          </div>
-        )}
-        <span className="absolute left-2 top-2 rounded bg-background/80 px-1.5 py-0.5 font-mono text-xs text-muted">
-          #{scene.id}
-        </span>
-        {scene.duration != null && (
-          <span className="absolute right-2 top-2 rounded bg-background/80 px-1.5 py-0.5 font-mono text-xs text-muted">
-            {scene.duration.toFixed(1)}s
-          </span>
-        )}
-        <button
-          type="button"
-          onClick={onRegenerate}
-          disabled={regenerating}
-          className="absolute bottom-2 right-2 rounded bg-background/80 px-2 py-1 text-xs font-medium text-foreground hover:bg-background disabled:opacity-50"
-        >
-          {regenerating ? "Regenerating..." : "Regenerate"}
-        </button>
-      </div>
-      <div className="p-3">
-        <p className="line-clamp-2 text-xs font-medium text-foreground">
-          {scene.visual_description || "(no query)"}
-        </p>
-        <p className="mt-1 line-clamp-2 text-xs text-muted">{scene.narration}</p>
-        {regenError && (
-          <p className="mt-1 text-xs text-danger">{regenError}</p>
-        )}
-      </div>
     </div>
   );
 }

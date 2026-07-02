@@ -34,6 +34,7 @@ If a scene's narration is a transitional or abstract sentence ("here's where it 
 - **emotional_purpose**: one short phrase — the feeling this moment should create (curiosity, urgency, satisfaction, surprise, calm, etc.).
 - **visual_description**: a **short, search-friendly phrase** (3–8 words) that names the literal subject of the footage as a stock library would index it. This is what we type into the search box.
 - **on_screen_text**: any text overlay needed (title card, statistic, lower third) — leave empty string if none.
+- **visual_mode**: which kind of source best fits this scene. Set `"stock_video"` for a generic shot you could find in a stock library (hands pruning, a watering can, a garden bed, rain on leaves). Set `"ai_image"` for a specific, unusual, or hard-to-find shot a stock library is unlikely to carry (a particular labeled diagram, a surreal or conceptual composite, a named rare specimen). When unsure, lean to `"stock_video"`.
 
 # Rules for visual_description
 
@@ -57,4 +58,4 @@ These rules exist because stock libraries index by literal subject, and broad qu
 Return JSON only. No markdown, no backticks, no preamble.
 
 Output fields:
-- `scene_intent`: an array of scene objects, each with `id`, `segment_id`, `segment_title`, `narration`, `emotional_purpose`, `visual_description`, and `on_screen_text`.
+- `scene_intent`: an array of scene objects, each with `id`, `segment_id`, `segment_title`, `narration`, `emotional_purpose`, `visual_description`, `on_screen_text`, and `visual_mode`.

@@ -28,9 +28,14 @@ export function ModeButtonGroup({
   return (
     <div className="flex gap-1">
       {modes.map((mode) => {
-        const hasAvailableProvider = providers.some(
-          (p) => p.mode === mode.id && p.available,
-        );
+        // "mixed" has no provider of its own — it routes per scene to a
+        // stock_video and an ai_image provider, so it's only enabled when BOTH
+        // are available. Every other mode needs one available provider.
+        const hasAvailableProvider =
+          mode.id === "mixed"
+            ? providers.some((p) => p.mode === "stock_video" && p.available) &&
+              providers.some((p) => p.mode === "ai_image" && p.available)
+            : providers.some((p) => p.mode === mode.id && p.available);
         const isActive = value === mode.id;
         const isDisabled = disabled || !hasAvailableProvider;
         return (
@@ -114,6 +119,23 @@ function ModeIcon({ mode }: { mode: string }) {
         >
           <rect x="2" y="3" width="10" height="10" rx="1.5" />
           <path d="M12 7l2.5-1.5v5L12 9z" strokeLinejoin="round" />
+        </svg>
+      );
+    case "mixed":
+      // Split square: left half = stock (video play wedge), right half = AI
+      // (sparkle), suggesting both sources combine per scene.
+      return (
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          className="h-3.5 w-3.5"
+        >
+          <rect x="2" y="2" width="12" height="12" rx="1.5" />
+          <path d="M8 2v12" />
+          <path d="M3.5 6.5l2-1v4l-2-1z" strokeLinejoin="round" />
+          <path d="M11 5l.8 1.2L13 7l-1.2.8L11 9l-.8-1.2L9 7l1.2-.8z" strokeLinejoin="round" />
         </svg>
       );
     default:

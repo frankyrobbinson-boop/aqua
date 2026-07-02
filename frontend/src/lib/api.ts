@@ -46,7 +46,7 @@ export type ScriptRequest = {
   project_slug?: string;
   /** Selects the outline/script structure module from video_types.json. */
   video_type?: string;
-  /** Number of items for the listicle video_type (3–12). Ignored by other types. */
+  /** Number of items per section-list (3–12). Applies to list video types. */
   item_count?: number;
   hook_archetype?: string;
   /** ElevenLabs voice speed (0.8–1.2). 1.0 = native rate. */
@@ -348,8 +348,11 @@ export async function updateScript(slug: string, script: ScriptDraft): Promise<v
 
 export type SceneInfo = {
   id: number;
+  segment_id: number;
   narration: string;
   visual_description: string;
+  /** Effective per-scene visual mode (override → scene tag → segment mode). */
+  visual_mode: string | null;
   start_time: number | null;
   end_time: number | null;
   duration: number | null;
@@ -359,6 +362,19 @@ export type SceneInfo = {
 
 export async function getScenes(slug: string): Promise<SceneInfo[]> {
   return getJSON<SceneInfo[]>(`/projects/${encodeURIComponent(slug)}/scenes`);
+}
+
+/** Override one scene's visual mode inside a "mixed" segment. Persisted to
+ *  visual_config.json scene_overrides; returns the stored effective mode. */
+export async function setSceneVisualMode(
+  slug: string,
+  sceneId: number,
+  visualMode: "stock_video" | "ai_image",
+): Promise<{ scene_id: number; visual_mode: string }> {
+  return getJSON<{ scene_id: number; visual_mode: string }>(
+    `/projects/${encodeURIComponent(slug)}/scenes/${sceneId}/visual-mode`,
+    { method: "POST", body: JSON.stringify({ visual_mode: visualMode }) },
+  );
 }
 
 export type StageResponse = { task_id: string; project_slug: string };
@@ -410,17 +426,24 @@ export type VisualProvidersResponse = {
 
 export type VisualSegmentConfig = {
   segment_id: number;
-  scene_count: number;
+  /** Null before scenes are planned (skeleton derived from the script draft);
+   *  the real count is filled in once the scene plan exists. */
+  scene_count: number | null;
   mode: string;
+  /** Dormant for "mixed" segments (routing is per scene). */
   provider: string;
 };
+
+/** Per-scene visual-mode override map for "mixed" segments, keyed by scene id
+ *  (as a string, matching the JSON object keys). */
+export type SceneOverrides = Record<string, "stock_video" | "ai_image">;
 
 /** Wire shape returned by GET /projects/{slug}/visual-config. The backend
  *  wraps the segments under `config` plus a `saved` flag indicating whether
  *  the user has ever written to this project's config explicitly. */
 export type VisualConfigResponse = {
   saved: boolean;
-  config: { segments: VisualSegmentConfig[] };
+  config: { segments: VisualSegmentConfig[]; scene_overrides?: SceneOverrides };
 };
 
 export async function getVisualProviders(): Promise<VisualProvidersResponse> {
@@ -438,13 +461,18 @@ export async function getVisualConfig(
 export async function updateVisualConfig(
   slug: string,
   segments: VisualSegmentConfig[],
+  sceneOverrides?: SceneOverrides,
 ): Promise<void> {
   const res = await fetch(
     `${API_URL}/projects/${encodeURIComponent(slug)}/visual-config`,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ segments }),
+      body: JSON.stringify(
+        sceneOverrides && Object.keys(sceneOverrides).length > 0
+          ? { segments, scene_overrides: sceneOverrides }
+          : { segments },
+      ),
     },
   );
   if (!res.ok) {
@@ -460,6 +488,18 @@ export async function startVisualsGenerate(
 ): Promise<StageResponse> {
   return getJSON<StageResponse>(
     `/projects/${encodeURIComponent(slug)}/visuals/generate`,
+    { method: "POST" },
+  );
+}
+
+/** Footage-only re-fetch on the existing scene plan: keeps scene_windows /
+ *  visual_prompts / visual_config, fills missing/failed/mode-changed scenes.
+ *  Does NOT re-plan (no LLM call) — use startVisualsGenerate for a full run. */
+export async function startFootageRefetch(
+  slug: string,
+): Promise<StageResponse> {
+  return getJSON<StageResponse>(
+    `/projects/${encodeURIComponent(slug)}/visuals/footage/generate`,
     { method: "POST" },
   );
 }

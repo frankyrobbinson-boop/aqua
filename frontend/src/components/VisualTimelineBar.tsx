@@ -33,8 +33,7 @@ export function VisualTimelineBar({
   if (segments.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-border bg-surface/40 p-4 text-center text-xs text-muted">
-        No segment timing yet — generate the voiceover first to see the
-        timeline.
+        Timeline appears after the first generate.
       </div>
     );
   }
