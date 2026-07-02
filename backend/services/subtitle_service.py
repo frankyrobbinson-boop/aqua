@@ -64,6 +64,14 @@ _EM_DASHES = ("—", "–")
 GAP_BRIDGE_THRESHOLD = 0.5   # s. Gap < this → cards transition back-to-back.
 NATURAL_TAIL = 0.1           # s. Hold the last frame this long when we DON'T bridge.
 
+# Highlight lead-in: ElevenLabs marks a word's acoustic onset a hair before
+# the syllable is perceived (leading consonant, breath, co-articulation), so
+# highlights can light up slightly early. Shift the whole highlight track
+# later by this much so each word lights up ON the word, not just before it.
+# Biases toward on-time/slightly-late, which reads better than early. Tune:
+# raise if still early, lower if it now feels late. 0 disables.
+HIGHLIGHT_LEAD_IN = 0.06   # seconds
+
 
 def _format_time(seconds: float) -> str:
     """ASS time format: H:MM:SS.cc (centisecond precision)."""
@@ -251,20 +259,29 @@ def build_subtitles(project_name: str, output_path: str) -> str:
             else None
         )
         for wi, w in enumerate(card_words):
-            start = w["global_start"]
+            # Shift the whole highlight track later by HIGHLIGHT_LEAD_IN so each
+            # word lights up ON the word rather than a hair early. The shift is
+            # applied uniformly to BOTH start and end so card durations and
+            # back-to-back bridging between cards are preserved.
+            start = w["global_start"] + HIGHLIGHT_LEAD_IN
             if wi + 1 < len(card_words):
                 # Mid-card: hold the highlight until the next word starts so
                 # the display doesn't flicker between words during micro-silences.
-                end = card_words[wi + 1]["global_start"]
+                end = card_words[wi + 1]["global_start"] + HIGHLIGHT_LEAD_IN
             else:
                 # Last word of card. Decide whether to bridge into the next card.
                 natural_end = w["global_end"]
                 if next_card_start is None:
-                    end = natural_end  # final card of the video
+                    end = natural_end + HIGHLIGHT_LEAD_IN  # final card of the video
                 elif next_card_start - natural_end < GAP_BRIDGE_THRESHOLD:
-                    end = next_card_start  # bridge: next card appears the frame this one ends
+                    end = next_card_start + HIGHLIGHT_LEAD_IN  # bridge: next card appears the frame this one ends
                 else:
-                    end = natural_end + NATURAL_TAIL  # real silent gap; fade with readability tail
+                    end = natural_end + NATURAL_TAIL + HIGHLIGHT_LEAD_IN  # real silent gap; fade with readability tail
+            # Clamp the shifted start (only the very first line can be affected)
+            # and guard end > start defensively (holds since both shift equally).
+            start = max(0.0, start)
+            if end <= start:
+                end = start
             text = _render_card_with_highlight(card_words, wi)
             dialogue_lines.append(
                 f"Dialogue: 0,{_format_time(start)},{_format_time(end)},"
