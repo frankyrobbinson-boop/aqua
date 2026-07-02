@@ -11,6 +11,7 @@ from services.research_filters import strip_research_sources
 from services.research_service import load_research
 from services.video_type_registry import (
     compose_script_prompt,
+    load_core,
     resolve_modules,
 )
 
@@ -61,9 +62,19 @@ SCRIPT_SCHEMA = {
 }
 
 
-def _load_script_base() -> str:
-    with open("prompts/script_base.md", "r") as f:
-        return f.read()
+def _resolve_sample_script(
+    video_type: str | None, sample_script: str | None
+) -> str:
+    """Sample precedence: user-supplied sample wins → else the per-type default
+    at prompts/samples/<video_type>.txt if present → else "" (never errors)."""
+    if sample_script and sample_script.strip():
+        return sample_script
+    if video_type:
+        path = os.path.join("prompts", "samples", f"{video_type}.txt")
+        if os.path.exists(path):
+            with open(path) as f:
+                return f.read()
+    return ""
 
 
 def generate_script_draft(
@@ -72,18 +83,16 @@ def generate_script_draft(
     target_minutes: int,
     channel: str | None = None,
     video_type: str | None = None,
-    hook_archetype: str | None = None,
     additional_instructions: str | None = None,
     sample_script: str | None = None,
+    item_count: int | None = None,
 ):
     outline = load_outline(project_name)
     research = strip_research_sources(load_research(project_name))
-    base = _load_script_base()
     channel_content = resolve_channel(channel)
-    _, script_module = resolve_modules(video_type)
-    from services.hook_archetype_registry import resolve_archetype, build_archetype_block
-    resolved_archetype_id = resolve_archetype(hook_archetype, channel)
-    hook_archetype_block = build_archetype_block(resolved_archetype_id)
+    core_content = load_core()
+    _, script_base = resolve_modules(video_type)
+    resolved_sample = _resolve_sample_script(video_type, sample_script)
 
     n_sections = max(1, len(outline.get("sections", [])))
     total_word_target = target_minutes * WORDS_PER_MINUTE
@@ -93,18 +102,18 @@ def generate_script_draft(
     words_per_segment = remainder // n_sections
 
     prompt = compose_script_prompt(
-        base,
+        script_base,
+        core_content,
         channel_content,
-        script_module,
         topic=topic,
         target_minutes=target_minutes,
         total_word_target=total_word_target,
         words_per_segment=words_per_segment,
         hook_word_target=hook_word_target,
         conclusion_word_target=conclusion_word_target,
-        hook_archetype_block=hook_archetype_block,
         additional_instructions=additional_instructions,
-        sample_script=sample_script,
+        sample_script=resolved_sample,
+        item_count=item_count,
     )
 
     # max_tokens covers thinking + structured output combined. Opus 4.7 uses

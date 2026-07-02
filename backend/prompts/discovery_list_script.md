@@ -1,0 +1,53 @@
+You are writing narration for a DISCOVERY LIST: a set of plants (or tools, or varieties) the viewer is mostly meeting for the first time. Nobody failed here. Your job with each item is to introduce it, make them want it with real facts, and hand them the one thing that unlocks it.
+
+Topic: **{topic}**
+Target length: **{target_minutes} minutes** spoken (~{total_word_target} words at 150 wpm).
+
+Your inputs: the channel definition (who you are - voice), the outline (your item plan, with each stance and feeling), and the research (your factual ground truth).
+
+{{CORE}}
+
+# Channel
+
+{{CHANNEL}}
+
+# Learn from the sample
+
+{{SAMPLE_SCRIPT}}
+
+If a sample is provided, study how it MOVES before you write: how every sentence answers the question the previous one raised; how the narrator guides; how items reference each other; how each lands on the title's promise. Imitate the moves, not the topic, facts, or phrasings. If none is provided, ignore this.
+
+# Hook (~{hook_word_target} words)
+
+One continuous thread, not a montage. Open on the want - the thing they've been living without, made visible with the gap_image - then the claim that these {item_count} exist and why nobody handed them over. State the title's actual promise plainly inside the first ~300 words. The promise points at their yard, never at the runtime: no "by the end of this video you'll know." Name no items and preview no item's trait or trick; if a bookmark is set, tease its importance, never its content. Roll straight into item 1.
+
+# Items
+
+**Name the plant in the first sentence or two.** Then the thing about it that earns its place - the surprising claim, where they've seen it without knowing its name, what it refuses to need. Never open an item on mystery; the fog of an unnamed subject is the opposite of easy to watch.
+
+Each "introduce" item runs: name it → the surprising claim → make them want it → the one unlock. The desire beat is the heart: what it looks like in their yard, anchored to a spot they actually have ("that strip where the lawn meets the bed"), what it gives them, what it doesn't ask of them - built from research facts, never invented scenery. The unlock is the single number, timing, or placement that makes it work, given as plain action. A "vindicate" item (the outline marks the rare ones) runs as a small turn instead: the failure, the truth, the fix.
+
+**Tell them what to do, not what to avoid.** Give the right way as clean action. One wrong-way is contrast; a catalog of don'ts is noise. If a warning genuinely matters (toxicity, invasiveness), say it once, plainly, as a placement decision - then move on.
+
+`key_material` is a pantry, not a checklist. When the item's landing lands - the promise coming true again, through what the plant does - the section ends. Aim around ~{words_per_segment} words each; let the peaks run long, total near ~{total_word_target}. Later items make the want bigger and more clearly within reach. Stitch backward when the outline planned it ("root it the same way you rooted the phlox cuttings") - never forward, never naming an unrevealed item. Items can simply end. Each needs `visual_notes`: one short line on mood and subject.
+
+# Conclusion (~{conclusion_word_target} words)
+
+Run the items past the viewer in tight short sentences - don't number them. Hand them ONE act, located in real time and place: go get the peak item this week and put it in the spot they already have. Bring the gap_image back still open - the bed still empties by July - but now they know exactly what it's for and what to put there, so the only thing left is standing up. Don't say "it's not over until you do this"; let the still-open image carry it. End warm, pointed at their yard, nothing aimed back at the channel - the video ends pointed at the act.
+
+# Creator steering (optional)
+
+{{ADDITIONAL_INSTRUCTIONS}}
+
+# Output
+
+Return ONLY valid JSON parsable by `json.loads()`. No markdown, no backticks, no preamble. Exact structure:
+
+{
+  "title": "",
+  "hook": { "narration": "" },
+  "segments": [ { "title": "", "narration": "", "visual_notes": "" } ],
+  "conclusion": { "narration": "" }
+}
+
+Copy each `segments[i].title` verbatim from `outline.sections[i].title` - downstream stages match on this exact string.

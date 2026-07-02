@@ -1,40 +1,19 @@
 {
-  "default_type": "default",
+  "default_type": "mistakes",
   "types": [
     {
-      "id": "default",
-      "label": "Default",
-      "description": "General-purpose structure for topics that don't fit a specific format. Independent, self-contained sections.",
-      "outline_module": "outline_modules/default.md",
-      "script_module": "script_modules/default.md"
+      "id": "mistakes",
+      "label": "Mistakes / Secrets",
+      "description": "The viewer has tried this and failed. Each section reveals a specific thing that was never their fault — and how to fix it.",
+      "outline_module": "mistakes_outline.md",
+      "script_module": "mistakes_script.md"
     },
     {
-      "id": "listicle",
-      "label": "Listicle",
-      "description": "A countable set of things. One item per segment, each a character with a secret. Best for \"5 ancient gardening secrets\"-style videos.",
-      "outline_module": "outline_modules/listicle.md",
-      "script_module": "script_modules/listicle.md"
-    },
-    {
-      "id": "deep_dive",
-      "label": "Deep Dive (one topic)",
-      "description": "One subject explored in depth. Sequential sections that withhold the how-to until the back half.",
-      "outline_module": "outline_modules/deep_dive.md",
-      "script_module": "script_modules/deep_dive.md"
-    },
-    {
-      "id": "story",
-      "label": "Story / Mystery",
-      "description": "A narrative arc — the technique nobody could explain, a historical discovery. Each act ends on an unresolved question.",
-      "outline_module": "outline_modules/story.md",
-      "script_module": "script_modules/story.md"
-    },
-    {
-      "id": "myth_bust",
-      "label": "Myth-Bust",
-      "description": "Corrects what the viewer believes. One myth per segment; conventional wisdom is the antagonist.",
-      "outline_module": "outline_modules/myth_bust.md",
-      "script_module": "script_modules/myth_bust.md"
+      "id": "discovery_list",
+      "label": "Discovery List",
+      "description": "A set of plants, tools, or varieties the viewer is mostly meeting for the first time. Introduce each, make them want it, hand them the one thing that unlocks it.",
+      "outline_module": "discovery_list_outline.md",
+      "script_module": "discovery_list_script.md"
     }
   ]
 }

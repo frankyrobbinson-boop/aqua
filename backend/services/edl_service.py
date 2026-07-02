@@ -109,10 +109,15 @@ def _listicle_segment_titles(segments: list) -> dict[int, str]:
     return {i: (s.get("title") or "").strip() for i, s in enumerate(segments or [])}
 
 
+# Video types whose sections are a numbered item list — each item's first scene
+# gets a "{N}. {title}" overlay stamped on it.
+_NUMBERED_LIST_TYPES = {"mistakes", "discovery_list"}
+
+
 def _is_listicle(script_config: dict | None) -> bool:
     if not script_config:
         return False
-    return (script_config.get("video_type") or "").strip().lower() == "listicle"
+    return (script_config.get("video_type") or "").strip().lower() in _NUMBERED_LIST_TYPES
 
 
 def generate_default_edl(

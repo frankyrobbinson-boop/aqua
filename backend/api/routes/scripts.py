@@ -60,11 +60,12 @@ class ScriptRequest(BaseModel):
         pattern=r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
         max_length=80,
     )
-    # Selects the outline/script structure module from video_types.json.
-    # None falls back to the registry's default_type at run time.
+    # Selects the outline/script type files from video_types.json.
+    # Required at generation time — an unset/unknown type fails loudly (no
+    # silent default). The UI always sends the dropdown's selected type.
     video_type: Optional[str] = None
-    # Number of items for the listicle video_type. Ignored by other types.
-    # None falls back to 5 in compose_outline_prompt.
+    # Number of items per section-list; applies to both video types.
+    # None falls back to 5 in the composers.
     item_count: Optional[int] = Field(default=None, ge=3, le=12)
     hook_archetype: Optional[str] = None
     # ElevenLabs `speed` voice setting (0.8–1.2). 1.0 = native rate.
@@ -101,7 +102,9 @@ def _write_script_config(project_slug: str, req: "ScriptRequest") -> None:
     project_dir.mkdir(parents=True, exist_ok=True)
     config = {
         "channel": req.channel or default_channel_id(),
-        "video_type": req.video_type or default_type_id(),
+        # No silent default: an unset type flows through as-is and fails loudly
+        # at generation time (resolve_modules raises) rather than defaulting.
+        "video_type": req.video_type,
         "item_count": req.item_count,
         "additional_instructions": req.additional_instructions,
         "sample_script": req.sample_script,

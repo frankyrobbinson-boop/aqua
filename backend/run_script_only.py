@@ -140,9 +140,9 @@ def run_script_only(topic: str, target_minutes: int = 10, project_name: str | No
         target_minutes,
         channel=channel,
         video_type=video_type,
-        hook_archetype=hook_archetype,
         additional_instructions=additional_instructions,
         sample_script=sample_script,
+        item_count=item_count,
     )
     save_script_draft(project_name, script_draft)
     print("      script_draft saved")

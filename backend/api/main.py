@@ -11,10 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from api.routes import edit, pipeline, projects, scripts, tasks, visuals, voice
 from services.channel_migration import run_channel_migration
 from services.channel_preset_registry import verify_presets
-from services.hook_archetype_registry import (
-    verify_archetype_modules_exist,
-    verify_hook_slot,
-)
+from services.hook_archetype_registry import verify_archetype_modules_exist
 from services.paths import PROJECTS_ROOT
 from services.research_service import verify_research_slot
 from services.video_type_registry import verify_base_slots, verify_modules_exist
@@ -32,7 +29,6 @@ verify_modules_exist()
 verify_base_slots()
 verify_research_slot()
 verify_archetype_modules_exist()
-verify_hook_slot()
 verify_providers_exist()
 verify_voice_providers_exist()
 verify_presets()

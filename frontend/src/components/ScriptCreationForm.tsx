@@ -15,9 +15,12 @@ import {
 import { invalidateForProject } from "@/lib/invalidation";
 
 import { ChannelSelect } from "@/components/ChannelSelect";
-import { HookArchetypeSelect } from "@/components/HookArchetypeSelect";
 import { StageList } from "@/components/StageList";
 import { VideoTypeSelect } from "@/components/VideoTypeSelect";
+
+// Video types whose sections are a countable item list — these expose the
+// "Number of items" control and send item_count. Mirrors the backend registry.
+const LIST_TYPES = ["mistakes", "discovery_list"];
 
 const SCRIPT_STAGES = ["research", "outline", "script_draft"];
 const PIPELINE_STAGES = [
@@ -63,7 +66,6 @@ export function ScriptCreationForm({
   const [preResearch, setPreResearch] = useState("");
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [sampleScript, setSampleScript] = useState("");
-  const [hookArchetype, setHookArchetype] = useState<string | undefined>(undefined);
   const [channel, setChannel] = useState<string | undefined>(undefined);
 
   const [submitting, setSubmitting] = useState(false);
@@ -96,9 +98,8 @@ export function ScriptCreationForm({
       target_minutes: targetMinutes,
       project_slug: projectSlug,
       video_type: videoType,
-      // Only send when the listicle module is selected; other types ignore it.
-      item_count: videoType === "listicle" ? itemCount : undefined,
-      hook_archetype: hookArchetype,
+      // Item count applies to both list video types; omit for any other type.
+      item_count: LIST_TYPES.includes(videoType ?? "") ? itemCount : undefined,
       channel: channel,
       pre_research: preResearch.trim() || undefined,
       additional_instructions: additionalInstructions.trim() || undefined,
@@ -197,7 +198,7 @@ export function ScriptCreationForm({
         </Row>
       </div>
 
-      {videoType === "listicle" && (
+      {LIST_TYPES.includes(videoType ?? "") && (
         <Row
           label="Number of items"
           hint={`~${itemCount * 250 + 450} words total`}
@@ -217,14 +218,6 @@ export function ScriptCreationForm({
           />
         </Row>
       )}
-
-      <Row label="Hook opening" optional hint="Beat 1 archetype">
-        <HookArchetypeSelect
-          value={hookArchetype}
-          onChange={setHookArchetype}
-          disabled={submitting}
-        />
-      </Row>
 
       <Row
         label="Target length"

@@ -10,6 +10,7 @@ from services.research_filters import strip_research_sources
 from services.research_service import load_research
 from services.video_type_registry import (
     compose_outline_prompt,
+    load_core,
     resolve_modules,
 )
 
@@ -18,11 +19,6 @@ load_dotenv()
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
-
-
-def _load_outline_base() -> str:
-    with open("prompts/outline_base.md", "r") as f:
-        return f.read()
 
 
 def generate_outline(
@@ -35,14 +31,14 @@ def generate_outline(
     item_count: int | None = None,
 ):
     research = strip_research_sources(load_research(project_name))
-    base = _load_outline_base()
     channel_content = resolve_channel(channel)
-    outline_module, _ = resolve_modules(video_type)
+    core_content = load_core()
+    outline_base, _ = resolve_modules(video_type)
 
     prompt = compose_outline_prompt(
-        base,
+        outline_base,
+        core_content,
         channel_content,
-        outline_module,
         topic=topic,
         target_minutes=target_minutes,
         additional_instructions=additional_instructions,
