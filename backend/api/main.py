@@ -8,7 +8,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from api.routes import edit, pipeline, projects, scripts, tasks, visuals, voice
+from api.routes import (
+    edit,
+    pipeline,
+    projects,
+    remotion,
+    scripts,
+    tasks,
+    visuals,
+    voice,
+)
 from services.channel_migration import run_channel_migration
 from services.channel_preset_registry import verify_presets
 from services.hook_archetype_registry import verify_archetype_modules_exist
@@ -49,6 +58,16 @@ app.add_middleware(
 if PROJECTS_ROOT.is_dir():
     app.mount("/files", StaticFiles(directory=str(PROJECTS_ROOT)), name="files")
 
+# Serve rendered Remotion MP4s. Scoped to backend/output/remotion/ ONLY — we do
+# not expose the rest of output/. Created at boot so the mount has a directory.
+remotion.REMOTION_OUT_DIR.mkdir(parents=True, exist_ok=True)
+if remotion.REMOTION_OUT_DIR.is_dir():
+    app.mount(
+        "/remotion-out",
+        StaticFiles(directory=str(remotion.REMOTION_OUT_DIR)),
+        name="remotion-out",
+    )
+
 
 @app.get("/health")
 def health():
@@ -62,3 +81,4 @@ app.include_router(pipeline.router)
 app.include_router(visuals.router)
 app.include_router(voice.router)
 app.include_router(edit.router)
+app.include_router(remotion.router)

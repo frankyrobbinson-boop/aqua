@@ -6,6 +6,9 @@ __pycache__/
 # Anchored to repo root so frontend/src/app/projects/ isn't matched.
 /projects/
 
+# Rendered Remotion MP4s (motion-graphics module output)
+/backend/output/remotion/
+
 # macOS Finder metadata
 .DS_Store
 

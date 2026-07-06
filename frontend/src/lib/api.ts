@@ -568,6 +568,27 @@ export async function startRender(
   });
 }
 
+// ---------------------------------------------------------------------------
+// Remotion motion-graphics module (standalone /remotion tab). Renders a title
+// card to MP4 via the backend task runner; output is served from /remotion-out.
+// ---------------------------------------------------------------------------
+
+/** Kick off a Remotion MP4 render of the TitleCard composition. Returns the
+ *  task id (for streamTaskLogs) and the output filename (for remotionOutUrl). */
+export async function startRemotionRender(
+  title: string,
+): Promise<{ task_id: string; filename: string }> {
+  return getJSON<{ task_id: string; filename: string }>("/remotion/render", {
+    method: "POST",
+    body: JSON.stringify({ title }),
+  });
+}
+
+/** Public URL for a rendered Remotion MP4 (served by the /remotion-out mount). */
+export function remotionOutUrl(filename: string): string {
+  return `${API_URL}/remotion-out/${filename}`;
+}
+
 /** Subscribe to a task's SSE log stream. Returns a cleanup function.
  *  ``onStage`` (optional) receives structured stage markers so callers can
  *  render a per-stage checklist without screen-scraping log lines. */

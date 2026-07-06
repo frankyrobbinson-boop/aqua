@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 const NAV_LINKS = [
   { href: "/projects", label: "Projects" },
   { href: "/channels", label: "Channels" },
+  { href: "/remotion", label: "Remotion" },
 ];
 
 export function TopNav() {
@@ -34,7 +35,7 @@ export function TopNav() {
                 href={link.href}
                 className={
                   active
-                    ? "rounded-md bg-surface-2 px-3 py-1.5 text-sm text-foreground"
+                    ? "rounded-md px-3 py-1.5 text-sm text-foreground hover:bg-surface-2 transition-colors"
                     : "rounded-md px-3 py-1.5 text-sm text-muted-strong hover:bg-surface-2 hover:text-foreground transition-colors"
                 }
               >
@@ -42,12 +43,6 @@ export function TopNav() {
               </Link>
             );
           })}
-          <span
-            title="Coming soon"
-            className="rounded-md px-3 py-1.5 text-sm text-muted/60 cursor-not-allowed"
-          >
-            Tools
-          </span>
         </div>
       </nav>
     </header>
