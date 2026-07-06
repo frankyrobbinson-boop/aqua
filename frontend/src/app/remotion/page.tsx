@@ -13,7 +13,8 @@ export default function RemotionPage() {
           Remotion
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Type a title, preview the animation live, then render it to an MP4.
+          Design a garden title card — pick a layout, tune the palette, motion,
+          and botanicals, preview it live, then render it to an MP4.
         </p>
       </div>
       <RemotionPanel />

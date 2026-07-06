@@ -1,5 +1,9 @@
 /** Thin client for the Aqua FastAPI service. */
 
+// Type-only import: erased at compile time, so this stays a pure client with no
+// runtime dependency on the Remotion bundle. Used by startRemotionRender.
+import type { CardProps } from "@/remotion/cards/types";
+
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 /** URL for a static file inside a project (video, audio, image). */
@@ -569,18 +573,21 @@ export async function startRender(
 }
 
 // ---------------------------------------------------------------------------
-// Remotion motion-graphics module (standalone /remotion tab). Renders a title
-// card to MP4 via the backend task runner; output is served from /remotion-out.
+// Remotion motion-graphics module (standalone /remotion tab). Renders a garden
+// title card to MP4 via the backend task runner; output is served from
+// /remotion-out.
 // ---------------------------------------------------------------------------
 
-/** Kick off a Remotion MP4 render of the TitleCard composition. Returns the
- *  task id (for streamTaskLogs) and the output filename (for remotionOutUrl). */
+/** Kick off a Remotion MP4 render of the given card composition with the given
+ *  props. `comp` must match a card id (see cards/registry.ts). Returns the task
+ *  id (for streamTaskLogs) and the output filename (for remotionOutUrl). */
 export async function startRemotionRender(
-  title: string,
+  comp: string,
+  props: CardProps,
 ): Promise<{ task_id: string; filename: string }> {
   return getJSON<{ task_id: string; filename: string }>("/remotion/render", {
     method: "POST",
-    body: JSON.stringify({ title }),
+    body: JSON.stringify({ comp, props }),
   });
 }
 
