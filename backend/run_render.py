@@ -8,7 +8,12 @@ import os
 import sys
 
 from services.assembly_service import assemble
-from services.edl_service import generate_default_edl, load_edl, save_edl
+from services.edl_service import (
+    generate_default_edl,
+    is_current_version,
+    load_edl,
+    save_edl,
+)
 from services.paths import PROJECTS_ROOT
 from services.stage_graph import missing_inputs
 
@@ -71,13 +76,16 @@ def run_render(project_name: str) -> str:
         transition = "cut"
     ken_burns = os.environ.get("RENDER_KEN_BURNS", "0") == "1"
 
-    # Ensure an EDL exists before assembly. The EDL is the per-scene render
-    # decision list (transition, ken_burns, text overlays); when absent we
-    # generate one using the Render-tab options so the behavior matches
-    # pre-EDL rendering for users who skip the dedicated edit stage.
-    # If an EDL is already on disk (from a prior run_edit.py), it's
-    # authoritative — we don't overwrite it.
-    if load_edl(project_name) is None:
+    # Ensure a current-version EDL exists before assembly. The EDL is the
+    # per-scene render decision list (transition, ken_burns, overlays); when
+    # absent OR at a stale schema version we (re)generate one using the
+    # Render-tab options so the behavior matches pre-EDL rendering for users who
+    # skip the dedicated edit stage. An on-disk EDL already at the current
+    # version (e.g. from a prior run_edit.py) is authoritative and left
+    # untouched; regeneration is deterministic, so a stale-version upgrade
+    # reproduces all prior data plus the current overlays shape.
+    existing_edl = load_edl(project_name)
+    if existing_edl is None or not is_current_version(existing_edl):
         print("[1/2] Generating EDL...")
         print("[[STAGE:edl:started]]", flush=True)
         edl = generate_default_edl(

@@ -3,29 +3,43 @@
 Stored at ``<projects_root>/<name>/edl.json`` with schema::
 
     {
-      "version": 1,
+      "version": 2,
       "scenes": [
         {
           "id": 0,
           "transition": "cut",        # cut | fade
           "ken_burns": false,
-          "overlay_text": null,        # string or null
-          "overlay_position": null     # "top" | "center" | "bottom" or null
+          "overlays": [                # zero or more on-screen text overlays
+            {
+              "kind": "header",       # header | callout | counter
+              "text": "1. Hot nights",
+              "position": "top",      # top | top_right | upper_third | center | bottom
+              "animation": "slide_up",# slide_up | pop | fade | none
+              "start_offset": 0.0,    # seconds into the scene the overlay begins
+              "duration": null         # seconds visible, or null = whole scene
+            },
+            ...
+          ]
         },
         ...
       ]
     }
 
-V1 is intentionally minimal — just enough to express per-scene render
-decisions and ship listicle text overlays as the first visible payoff. SFX,
-music, custom transition timings, etc. are future-phase additions; the
-``version`` field is here so readers can branch when the schema grows.
+V2 replaces V1's single flat ``overlay_text`` / ``overlay_position`` with an
+``overlays`` list so a scene can carry several composited overlays at once —
+a listicle item's first scene shows a ``header`` (item title) + a ``counter``
+(``n / total``), and any scene with on_screen_text shows a ``callout``. Each
+overlay's position + animation are baked in at generation time from the
+channel's editing style (``resolve_channel_editing``); the per-kind *look*
+(fontsize / box / animation timings) is resolved again at render time from the
+same style. SFX, music, custom transition timings, etc. remain future-phase.
 
 Generation is purely a function of upstream artifacts (scene_windows,
-scene_plan, outline, script_config) — running ``generate_default_edl``
-twice on unchanged inputs yields identical output. Assembly auto-creates
-an EDL when one is absent, so existing projects rendered before this
-stage existed don't need a migration.
+scene_plan, outline, script_config, channel editing style) — running
+``generate_default_edl`` twice on unchanged inputs yields identical output.
+Assembly regenerates an EDL when one is absent OR at a stale schema version
+(there is no manual EDL editor, so a deterministic regen reproduces all prior
+data while upgrading the shape), so pre-V2 projects migrate transparently.
 """
 
 from __future__ import annotations
@@ -36,9 +50,18 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from services.channel_registry import resolve_channel_editing
 from services.paths import PROJECTS_ROOT
 
-EDL_SCHEMA_VERSION = 1
+EDL_SCHEMA_VERSION = 2
+
+
+def is_current_version(edl: dict | None) -> bool:
+    """True iff ``edl`` is a dict at the current schema version. Readers
+    (assembly_service, run_render) use this to decide whether to regenerate:
+    there is no manual EDL editor, so a version mismatch is always safe to
+    regenerate deterministically from upstream artifacts."""
+    return bool(edl) and edl.get("version") == EDL_SCHEMA_VERSION
 
 
 def _project_path(project_name: str) -> Path:
@@ -110,8 +133,12 @@ def _listicle_segment_titles(segments: list) -> dict[int, str]:
 
 
 # Video types whose sections are a numbered item list — each item's first scene
-# gets a "{N}. {title}" overlay stamped on it.
-_NUMBERED_LIST_TYPES = {"mistakes", "discovery_list"}
+# gets a "{N}. {title}" overlay stamped on it. This set is render-time overlay
+# classification only; it does NOT affect prompt generation / video_type_registry,
+# which no longer accepts "listicle" for generation. "listicle" is retained here for
+# backward-compat so pre-migration projects still render numbered-item headers +
+# counters when re-rendered.
+_NUMBERED_LIST_TYPES = {"mistakes", "discovery_list", "listicle"}
 
 
 def _is_listicle(script_config: dict | None) -> bool:
@@ -126,21 +153,32 @@ def generate_default_edl(
     transition: str = "cut",
     ken_burns: bool = False,
 ) -> dict:
-    """Build a per-scene EDL from the project's upstream artifacts.
+    """Build a per-scene EDL (v2 overlays list) from the project's upstream
+    artifacts.
 
     For every scene: transition + ken_burns are populated from the kwargs
-    (so a render-triggered EDL respects the user's Render-tab choices).
-    overlay_text starts as None for every scene; for listicle videos, the
-    FIRST scene of each item segment is stamped with ``"{N}. {title}"`` at
-    the top position.
+    (so a render-triggered EDL respects the user's Render-tab choices). Each
+    scene's ``overlays`` list is built from the channel's editing style
+    (``resolve_channel_editing``, keyed off script_config's channel):
+
+      * header  — the FIRST scene of each listicle item segment, ``"{N}. {title}"``
+                  (listicle videos only, when ``header.enabled``).
+      * counter — every body-item scene, ``"{n} / {total}"`` (listicle videos
+                  only, when ``counter.enabled``).
+      * callout — any scene whose ``on_screen_text`` is non-empty (all video
+                  types, when ``callout.enabled``), UNLESS that scene already
+                  carries a header (the header labels the item on its intro
+                  scene and the on_screen_text there typically restates it, so
+                  a callout would double-label — later item scenes keep theirs).
 
     Robust to missing inputs:
       * scene_windows.json is the source of truth for scene ordering — if
         absent, raise (no point producing an empty EDL).
-      * outline.json absent: log a warning and skip overlays (listicle
-        videos still get a working EDL, just without text). Doesn't
-        happen in practice if the pipeline ran in order.
-      * script_config.json absent: assume non-listicle (no overlays).
+      * outline.json absent: log a warning and skip header/counter overlays
+        (listicle videos still get a working EDL, just without item text).
+        Doesn't happen in practice if the pipeline ran in order.
+      * script_config.json absent: assume non-listicle (callouts only) and
+        resolve the default channel's editing style.
     """
     if transition not in ("cut", "fade"):
         raise ValueError(f"transition must be 'cut' or 'fade', got {transition!r}")
@@ -163,8 +201,25 @@ def generate_default_edl(
     script_draft = _load_json(proj / "script_draft.json")
     script_config = _load_json(proj / "script_config.json")
 
+    # Per-channel on-screen editing style (header/callout/counter look +
+    # policy). channel_id comes from script_config; None → default channel.
+    # This is the seam where per-channel styles will source once presets carry
+    # an ``editing`` block — none do yet, so every channel gets the defaults.
+    channel_id = (script_config or {}).get("channel")
+    style = resolve_channel_editing(channel_id)
+    header_style = style["header"]
+    callout_style = style["callout"]
+    counter_style = style["counter"]
+
+    listicle = _is_listicle(script_config)
+
+    # Header text per body-item segment; the FIRST scene of each item segment
+    # gets a "{N}. {title}" header. Listicle-only, and only when headers are
+    # enabled. total_items feeds the counter's "{n} / {total}" text and is the
+    # same source used for the titles (len of the segment list).
     overlay_for_segment: dict[int, str] = {}
-    if _is_listicle(script_config):
+    total_items = 0
+    if listicle:
         segments: list | None = None
         if script_draft is not None:
             segments = script_draft.get("segments", [])
@@ -174,50 +229,90 @@ def generate_default_edl(
                 print(
                     f"WARNING: edl_service: script_draft.json missing for "
                     f"{project_name!r}; falling back to outline.json sections "
-                    f"for overlay text."
+                    f"for header/counter text."
                 )
                 segments = outline.get("sections", [])
             else:
                 print(
                     f"WARNING: edl_service: neither script_draft.json nor "
                     f"outline.json found for {project_name!r}; generating EDL "
-                    f"without overlay text."
+                    f"without header/counter overlays."
                 )
 
         if segments is not None:
-            titles = _listicle_segment_titles(segments)
-            # Item segments are body segment_ids 0..N-1 (hook=-1, conclusion=-2
-            # don't get item-number overlays). 1-indexed display.
-            for seg_id, title in titles.items():
-                if seg_id < 0 or not title:
-                    continue
-                overlay_for_segment[seg_id] = f"{seg_id + 1}. {title}"
+            total_items = len(segments)
+            if header_style.get("enabled", True):
+                titles = _listicle_segment_titles(segments)
+                # Item segments are body segment_ids 0..N-1 (hook=-1,
+                # conclusion=-2 don't get item headers). 1-indexed display.
+                for seg_id, title in titles.items():
+                    if seg_id < 0 or not title:
+                        continue
+                    overlay_for_segment[seg_id] = f"{seg_id + 1}. {title}"
 
-    # Track which segments we've already stamped the overlay on, so only the
-    # FIRST scene of each item segment gets the text.
+    # Build each scene's overlays list. Deterministic: same inputs → same EDL.
+    # ``stamped`` tracks segments already given a header so only the FIRST scene
+    # of each item segment carries it.
     stamped: set[int] = set()
     scenes: list[dict] = []
     for scene in scene_windows:
         sid = scene["id"]
         seg_id = scene.get("segment_id")
+        overlays: list[dict] = []
 
-        overlay_text: str | None = None
-        overlay_position: str | None = None
+        # header — first scene of each item segment (listicle only).
+        has_header = False
         if (
             seg_id is not None
             and seg_id in overlay_for_segment
             and seg_id not in stamped
         ):
-            overlay_text = overlay_for_segment[seg_id]
-            overlay_position = "top"
+            overlays.append({
+                "kind": "header",
+                "text": overlay_for_segment[seg_id],
+                "position": header_style["position"],
+                "animation": header_style["animation"],
+                "start_offset": 0.0,
+                "duration": None,
+            })
             stamped.add(seg_id)
+            has_header = True
+
+        # counter — every body-item scene (listicle only).
+        if (
+            listicle
+            and counter_style.get("enabled", True)
+            and seg_id is not None
+            and seg_id >= 0
+        ):
+            overlays.append({
+                "kind": "counter",
+                "text": f"{seg_id + 1} / {total_items}",
+                "position": counter_style["position"],
+                "animation": "none",
+                "start_offset": 0.0,
+                "duration": None,
+            })
+
+        # callout — on_screen_text on any scene, unless this scene already
+        # carries a header (see docstring: the header owns the item-intro
+        # scene; the on_screen_text there restates the title).
+        on_screen = (scene.get("on_screen_text") or "").strip()
+        if on_screen and callout_style.get("enabled", True) and not has_header:
+            overlays.append({
+                "kind": "callout",
+                "text": on_screen,
+                "position": callout_style["position"],
+                "animation": callout_style["animation"],
+                "start_offset": callout_style["start_offset"],
+                "duration": callout_style["duration"],
+            })
 
         scenes.append({
             "id": sid,
             "transition": transition,
             "ken_burns": ken_burns,
-            "overlay_text": overlay_text,
-            "overlay_position": overlay_position,
+            "overlays": overlays,
         })
 
     return {

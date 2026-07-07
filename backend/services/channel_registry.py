@@ -274,6 +274,84 @@ def resolve_channel_voiceover(channel_id: str | None) -> dict:
     return _flatten_voiceover(preset.get("voiceover") or {})
 
 
+# ---------------------------------------------------------------------------
+# Channel editing (on-screen motion / overlays)
+# ---------------------------------------------------------------------------
+
+# Defaults used when a channel's preset has no ``editing`` block or a field is
+# missing. Nested per-kind look + policy (header / callout / counter), flattened
+# by ``_flatten_editing`` the same way visuals are — the render layer
+# (assembly_service) and EDL generator consume the flat per-kind dicts. This is
+# the seam where per-channel on-screen styles will source LATER; no channel
+# editor writes an ``editing`` block yet, so every channel gets these defaults.
+_EDITING_DEFAULTS: dict = {
+    "header": {
+        "enabled": True,
+        "animation": "slide_up",
+        "position": "top",
+        "entrance": 0.4,
+        "exit_fade": 0.3,
+        "slide_distance": 40,
+        "fontsize": 64,
+        "box_opacity": 0.6,
+        "box_border": 20,
+    },
+    "callout": {
+        "enabled": False,
+        "animation": "pop",
+        "position": "upper_third",
+        "start_offset": 0.3,
+        "duration": 1.8,
+        "settle": 0.15,
+        "fontsize": 56,
+        "box_opacity": 0.55,
+        "box_border": 16,
+    },
+    "counter": {
+        "enabled": False,
+        "position": "top_right",
+        "margin": 40,
+        "fontsize": 40,
+        "box_opacity": 0.5,
+        "box_border": 12,
+    },
+}
+
+
+def _flatten_editing(nested: dict) -> dict:
+    """preset.json ``editing`` block → the flat per-kind schema the EDL
+    generator + render layer consume. Each kind (header/callout/counter) is
+    shallow-merged onto its defaults so a preset can override only the fields
+    it cares about without restating the whole block; unknown keys are dropped.
+    Mirrors ``_flatten_visuals`` / ``_flatten_voiceover`` semantics."""
+    merged: dict = {}
+    for kind, kind_defaults in _EDITING_DEFAULTS.items():
+        merged_kind = dict(kind_defaults)
+        override = (nested or {}).get(kind)
+        if isinstance(override, dict):
+            merged_kind.update(
+                {k: v for k, v in override.items() if k in kind_defaults}
+            )
+        merged[kind] = merged_kind
+    return merged
+
+
+def resolve_channel_editing(channel_id: str | None = None) -> dict:
+    """Read the channel's editing (on-screen motion) config from
+    ``channels/<id>/preset.json`` under the ``editing`` key. Returns the flat
+    per-kind schema with defaults filled in; if the preset has no editing block
+    (the case for every channel today — no editor writes one yet), returns all
+    defaults.
+
+    Public signature mirrors ``resolve_channel_visuals`` /
+    ``resolve_channel_voiceover`` and is meant to stay stable across the
+    channel-preset architecture migration — the EDL generator and render layer
+    consume this dict and rely on the full per-kind schema being present."""
+    c = _resolve(channel_id)
+    preset = _read_preset(c["id"])
+    return _flatten_editing(preset.get("editing") or {})
+
+
 def channel_preferred_hook_archetype(channel_id: str | None) -> str | None:
     """Return the channel's preferred_hook_archetype field, or None if absent.
 

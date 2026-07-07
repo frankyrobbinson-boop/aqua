@@ -3,7 +3,14 @@ import math
 import os
 import subprocess
 
-from services.edl_service import generate_default_edl, load_edl, save_edl
+from services.channel_registry import resolve_channel_editing
+from services.edl_service import (
+    EDL_SCHEMA_VERSION,
+    generate_default_edl,
+    is_current_version,
+    load_edl,
+    save_edl,
+)
 from services.paths import PROJECTS_ROOT
 from services.scene_timing_service import load_scene_windows, load_audio_timeline
 from services.subtitle_service import build_subtitles
@@ -31,17 +38,20 @@ RENDER_KB_TEMPORAL_SUPERSAMPLE = int(os.environ.get("RENDER_KB_TEMPORAL_SUPERSAM
 # v6: per-scene EDL drives overlay_text + overlay_position; cache key now
 # includes both so a text change invalidates only the affected clip.
 # v7: Ken Burns supersample is env-driven; bump invalidates v6 clips.
-_CLIP_CACHE_VERSION = 7
+# v8: EDL v2 overlays list (header/callout/counter) with per-overlay animation
+#     + drawtext expansion=none; cache key swaps overlay_text/overlay_position
+#     for an overlays signature + an editing-style signature.
+# v9: single-quote-safe overlay text escaping. drawtext text= is unescaped
+#     twice (filtergraph split + option parse), so apostrophe breaks out with a
+#     triple backslash (' -> '\\\'') and colon escapes to \: ; commas/brackets
+#     stay literal (guarded by the quotes). Replaces the arg-escaper that
+#     crashed on apostrophes. Re-renders any clip cached under v8.
+_CLIP_CACHE_VERSION = 9
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
 # produces a soft dip-through-black between scenes.
 FADE_DUR = 0.15
-
-# Per-overlay fade-in/out duration (drawtext alpha ramp). 0.3s each side
-# softens the entry/exit of text on screen without eating into legibility on
-# short scenes (a 1.5s scene still gets ~0.9s of full-opacity text).
-OVERLAY_FADE = 0.3
 
 # Mac-only system fonts for the drawtext overlay. Portable font handling
 # (bundle a TTF, fallback to a fontconfig family) is a future-phase concern;
@@ -74,78 +84,185 @@ def _escape_filter_arg(s: str) -> str:
 
 
 def _escape_drawtext(s: str) -> str:
-    """Escape a string for ffmpeg drawtext's text= argument.
+    """Escape text for the caller's single-quoted ffmpeg drawtext text= value.
 
-    drawtext text= rides on top of the filtergraph parser, so we run the
-    standard filter-arg escape first, then layer drawtext's own ``%``-escape
-    on top (drawtext expands ``%{...}`` expressions in text= and a literal
-    percent has to be escaped to survive that pass). Newlines/CRs are
-    stripped — a single-line overlay is the only V1 layout."""
+    The caller wraps the result as ``text='...'``. ffmpeg unescapes a drawtext
+    ``text=`` value TWICE — once when it splits the filtergraph into filter
+    args, again when the drawtext filter parses its own option string — and the
+    ``-vf`` graph reaches ffmpeg as a single argv (no shell to pre-join quotes).
+    Two characters need handling; everything else is safe as-is:
+
+      * ``:`` — the option-value separator. The outer quotes are consumed by the
+        first pass, so a literal colon reaches the second pass unguarded and
+        must be backslash-escaped as ``\\:``. That backslash sits inside the
+        outer quotes (the first pass leaves it alone) and the second pass
+        consumes it, so the colon renders cleanly with no visible backslash. A
+        raw ``:`` instead makes the filterchain fail to parse.
+      * ``'`` — cannot sit inside single quotes, so it must break out
+        (close-quote, emit the quote, reopen). Because that broken-out span is
+        unescaped twice, the quote needs THREE backslashes to survive both
+        passes: each ``'`` becomes the six characters ' \\ \\ \\ ' ' (see the
+        replacement below). The single-backslash form a shell would use
+        (``'\\''``) is fully consumed by the first pass, leaving a bare quote
+        that corrupts the second pass and SILENTLY drops the whole overlay.
+
+    ``,`` ``;`` ``[`` ``]`` stay literal — the outer quotes protect them in the
+    first pass and they aren't special in the second. ``%`` renders literally
+    because every overlay drawtext is emitted with ``expansion=none``; real
+    overlay text never contains a backslash. Newlines/CRs collapse to spaces
+    (single-line overlay is the only layout)."""
     cleaned = s.replace("\n", " ").replace("\r", " ")
-    cleaned = _escape_filter_arg(cleaned)
-    cleaned = cleaned.replace("%", "\\%")
+    cleaned = cleaned.replace("'", "'" + "\\" * 3 + "''")  # ' -> '\\\''
+    cleaned = cleaned.replace(":", "\\:")
     return cleaned
 
 
-def _overlay_position_expr(position: str) -> tuple[str, str]:
+def _overlay_position_expr(position: str, *, margin: int = 40) -> tuple[str, str]:
     """Return (x_expr, y_expr) for drawtext given a position keyword.
     Defaults to top for unknown values rather than raising — overlays are
-    cosmetic, a bad position string shouldn't kill the render."""
+    cosmetic, a bad position string shouldn't kill the render.
+
+    ``upper_third`` (y=h/3) and ``top_right`` (y=margin, right-aligned) both
+    clear the bottom karaoke-subtitle band (subtitle_service ALIGNMENT=2 bottom
+    centre, MARGIN_V=110, always on) so a callout/counter never collides with
+    the burned-in subtitles; ``top_right`` also clears a ``top`` header."""
     if position == "center":
         return "(w-text_w)/2", "(h-text_h)/2"
     if position == "bottom":
         return "(w-text_w)/2", "h*7/8-text_h"
+    if position == "upper_third":
+        return "(w-text_w)/2", "h/3"
+    if position == "top_right":
+        return f"w-text_w-{margin}", f"{margin}"
     # "top" (and fallback)
     return "(w-text_w)/2", "h/8"
 
 
-def _build_overlay_filter(
-    text: str,
-    position: str,
-    duration: float,
+def _fade_alpha_expr(duration: float, fade_in: float, fade_out: float) -> str:
+    """drawtext alpha ramp over a whole-scene overlay: fade in over ``fade_in``
+    s, hold at full opacity, fade out over ``fade_out`` s. A window too short to
+    hold (duration <= fade_in + fade_out) collapses to a symmetric up-then-down
+    ramp so tiny scenes never flash full opacity or hold a negative window."""
+    if duration <= fade_in + fade_out:
+        half = max(1e-3, duration / 2)
+        return (
+            f"if(lt(t,{half:.3f}),t/{half:.3f},"
+            f"({duration:.3f}-t)/{half:.3f})"
+        )
+    out_start = duration - fade_out
+    return (
+        f"if(lt(t,{fade_in:.3f}),t/{fade_in:.3f},"
+        f"if(lt(t,{out_start:.3f}),1,"
+        f"({duration:.3f}-t)/{fade_out:.3f}))"
+    )
+
+
+def _build_overlay_drawtext(
+    overlay: dict,
+    kind_style: dict,
+    scene_duration: float,
 ) -> str | None:
-    """Build the drawtext filter expression for one scene's overlay, or None
-    if no font is available (logged once per render)."""
+    """Build one drawtext filter for a single overlay dict, or None if no font
+    is available (logged once per render) or the overlay window collapses.
+
+    ``overlay`` carries the per-scene decision baked into the EDL at generation
+    time (kind / text / position / animation / start_offset / duration);
+    ``kind_style`` is that kind's slice of the resolved channel editing style
+    and carries the *look* (fontsize / box_opacity / box_border / margin) plus
+    the animation timings (entrance / exit_fade / slide_distance / settle).
+
+    Every drawtext is emitted with ``expansion=none`` so a literal ``%`` in the
+    text renders as ``%`` instead of triggering drawtext's ``%{...}`` expansion
+    (the prior blackout bug). expansion=none does not affect the x / y / alpha /
+    enable expression evaluation. Expression values that contain commas are
+    single-quoted so the top-level comma that joins filters isn't misparsed."""
     font = _overlay_font_path()
     if font is None:
         print(
             "  WARN: no overlay font found on this system; skipping text "
-            f"overlay {text!r}. Tried: {_OVERLAY_FONT_CANDIDATES}"
+            f"overlay {overlay.get('text')!r}. Tried: {_OVERLAY_FONT_CANDIDATES}"
         )
         return None
-    x_expr, y_expr = _overlay_position_expr(position)
-    text_esc = _escape_drawtext(text)
-    # Alpha ramp: fade in 0.3s, hold, fade out 0.3s. Clamp the hold window so
-    # very short scenes (< 2 * OVERLAY_FADE) just cross-fade in/out without a
-    # negative-duration hold.
-    fade = OVERLAY_FADE
-    if duration <= 2 * fade:
-        # Symmetric ramp up to mid, ramp down after — keeps legibility on tiny
-        # clips without a flash of full opacity.
-        half = duration / 2
-        alpha = (
-            f"if(lt(t,{half:.3f}),t/{half:.3f},"
-            f"({duration:.3f}-t)/{half:.3f})"
+
+    text_esc = _escape_drawtext(overlay.get("text") or "")
+    position = overlay.get("position") or "top"
+    animation = overlay.get("animation") or "none"
+    margin = int(kind_style.get("margin", 40))
+    x_expr, base_y = _overlay_position_expr(position, margin=margin)
+
+    fontsize = int(kind_style.get("fontsize", 64))
+    box_opacity = float(kind_style.get("box_opacity", 0.6))
+    box_border = int(kind_style.get("box_border", 20))
+
+    start_offset = float(overlay.get("start_offset") or 0.0)
+    raw_duration = overlay.get("duration")
+    end = scene_duration if raw_duration is None else min(
+        start_offset + float(raw_duration), scene_duration
+    )
+
+    enable_expr: str | None = None
+    if animation == "slide_up":
+        # Header: eases up into place over `entrance`, fading in/out across the
+        # whole scene. y travels base_y+slide -> base_y.
+        entrance = float(kind_style.get("entrance", 0.4))
+        exit_fade = float(kind_style.get("exit_fade", 0.3))
+        slide = float(kind_style.get("slide_distance", 40))
+        y_expr = f"({base_y})+{slide:.3f}*(1-min(1,t/{max(1e-3, entrance):.3f}))"
+        alpha_expr = _fade_alpha_expr(scene_duration, entrance, exit_fade)
+    elif animation == "pop":
+        # Callout: visible for [start_offset, end]; pops up 12px and settles
+        # over `settle`, with a quick 0.12s fade-in / 0.2s fade-out.
+        if end <= start_offset:
+            return None  # window collapsed to nothing on a very short scene
+        settle = float(kind_style.get("settle", 0.15))
+        o, en = start_offset, end
+        window = en - o
+        enable_expr = f"between(t,{o:.3f},{en:.3f})"
+        y_expr = (
+            f"({base_y})-12*(1-min(1,max(0,(t-{o:.3f}))/{max(1e-3, settle):.3f}))"
         )
+        fade_in, fade_out = 0.12, 0.2
+        if window <= fade_in + fade_out:
+            half = max(1e-3, window / 2)
+            mid = o + half
+            alpha_expr = (
+                f"if(lt(t,{mid:.3f}),(t-{o:.3f})/{half:.3f},"
+                f"({en:.3f}-t)/{half:.3f})"
+            )
+        else:
+            hold_end = en - fade_out
+            alpha_expr = (
+                f"if(lt(t,{o + fade_in:.3f}),(t-{o:.3f})/{fade_in:.3f},"
+                f"if(lt(t,{hold_end:.3f}),1,"
+                f"({en:.3f}-t)/{fade_out:.3f}))"
+            )
+    elif animation == "fade":
+        # Header fallback: fade in/out, no slide.
+        entrance = float(kind_style.get("entrance", 0.4))
+        exit_fade = float(kind_style.get("exit_fade", 0.3))
+        y_expr = base_y
+        alpha_expr = _fade_alpha_expr(scene_duration, entrance, exit_fade)
     else:
-        out_start = duration - fade
-        alpha = (
-            f"if(lt(t,{fade}),t/{fade},"
-            f"if(lt(t,{out_start:.3f}),1,"
-            f"({duration:.3f}-t)/{fade}))"
-        )
+        # "none" / static (counter, or any unknown animation): fixed position,
+        # brief 0.2s fade-in then hold for the rest of the scene.
+        y_expr = base_y
+        alpha_expr = "if(lt(t,0.2),t/0.2,1)"
+
     parts = [
         f"text='{text_esc}'",
         f"fontfile='{_escape_filter_arg(font)}'",
-        "fontsize=64",
+        "expansion=none",
+        f"fontsize={fontsize}",
         "fontcolor=white",
         "box=1",
-        "boxcolor=black@0.6",
-        "boxborderw=20",
-        f"x={x_expr}",
-        f"y={y_expr}",
-        f"alpha='{alpha}'",
+        f"boxcolor=black@{box_opacity:g}",
+        f"boxborderw={box_border}",
+        f"x='{x_expr}'",
+        f"y='{y_expr}'",
+        f"alpha='{alpha_expr}'",
     ]
+    if enable_expr is not None:
+        parts.append(f"enable='{enable_expr}'")
     return "drawtext=" + ":".join(parts)
 
 # Note: `speech_end` from the audio timeline is already trim-adjusted by
@@ -339,20 +456,35 @@ def _clip_cache_path(output_path: str) -> str:
     return output_path + ".cache.json"
 
 
+def _overlays_signature(overlays: list[dict] | None) -> str:
+    """Stable JSON signature of a scene's overlays list for the clip cache key.
+    sort_keys makes it insensitive to dict key ordering; the list order is
+    deterministic from generate_default_edl."""
+    return json.dumps(overlays or [], sort_keys=True)
+
+
+def _edit_style_signature(edit_style: dict | None) -> str:
+    """Stable JSON signature of the resolved channel editing style so a style
+    change (fontsize / box / animation timings) re-renders the affected clips
+    even when the overlays list itself is unchanged."""
+    return json.dumps(edit_style or {}, sort_keys=True)
+
+
 def _clip_cache_hit(
     scene: dict,
     footage_path: str,
     output_path: str,
     transition: str,
     ken_burns: bool,
-    overlay_text: str | None = None,
-    overlay_position: str | None = None,
+    overlays: list[dict] | None = None,
+    edit_style: dict | None = None,
 ) -> bool:
     """True iff a previously-rendered clip is still valid for these inputs.
 
-    overlay_text + overlay_position are part of the key so an EDL edit (e.g.
-    changing 'Item 3: foo' to 'Item 3: bar') invalidates only the one
-    affected scene, not the whole project's clip cache."""
+    The overlays signature + editing-style signature are part of the key so an
+    EDL overlay change (text / position / animation) OR a channel style change
+    (fontsize / box / animation timings) invalidates only the affected
+    scene(s), not the whole project's clip cache."""
     cache_path = _clip_cache_path(output_path)
     if not (os.path.exists(output_path) and os.path.exists(cache_path)):
         return False
@@ -371,8 +503,8 @@ def _clip_cache_hit(
         and cache.get("fps") == FPS
         and cache.get("transition") == transition
         and cache.get("ken_burns") == ken_burns
-        and cache.get("overlay_text") == overlay_text
-        and cache.get("overlay_position") == overlay_position
+        and cache.get("overlays_sig") == _overlays_signature(overlays)
+        and cache.get("edit_style_sig") == _edit_style_signature(edit_style)
         and cache.get("cache_version") == _CLIP_CACHE_VERSION
     )
 
@@ -384,8 +516,8 @@ def render_scene_clip(
     *,
     transition: str = "cut",
     ken_burns: bool = False,
-    overlay_text: str | None = None,
-    overlay_position: str = "top",
+    overlays: list[dict] | None = None,
+    edit_style: dict | None = None,
 ):
     """Render one scene by trimming + scaling a stock-footage clip to OUT_W x OUT_H.
 
@@ -406,16 +538,18 @@ def render_scene_clip(
       sources are untouched — re-encoding stock video via zoompan can
       introduce subtle stretching, and they already have motion.
 
-    overlay_text: when non-None, append a drawtext filter rendering the text
-      with a translucent black box at ``overlay_position`` (top/center/bottom)
-      with 0.3s alpha fade in and out. EDL-driven; assembly_service reads
-      both from edl.json per scene."""
+    overlays: zero or more EDL overlay dicts (kind / text / position /
+      animation / start_offset / duration) drawn as drawtext filters composited
+      over the final frame, in list order, after scale/crop/Ken Burns/fade so
+      they're never zoomed or cropped. edit_style is the resolved channel
+      editing style supplying each kind's look (fontsize / box / animation
+      timings). Both are read from edl.json + resolve_channel_editing per
+      scene by render_all_scene_clips."""
     duration = max(0.1, scene['duration'])
 
     if _clip_cache_hit(
         scene, footage_path, output_path, transition, ken_burns,
-        overlay_text=overlay_text,
-        overlay_position=overlay_position if overlay_text else None,
+        overlays=overlays, edit_style=edit_style,
     ):
         return  # cache hit — output already valid
 
@@ -481,13 +615,13 @@ def render_scene_clip(
         filters.append(f"fade=t=in:st=0:d={FADE_DUR}")
         filters.append(f"fade=t=out:st={fade_out_start}:d={FADE_DUR}")
 
-    # Overlay text comes after fade so the text doesn't fade with the clip
-    # transition (it has its own alpha ramp). drawtext renders on top of
-    # whatever color the underlying frame is at that moment.
-    if overlay_text:
-        overlay_filter = _build_overlay_filter(
-            overlay_text, overlay_position, duration,
-        )
+    # Overlays come after fade so their own alpha ramps aren't multiplied by
+    # the clip fade, and after scale/crop/Ken Burns so they compose over the
+    # final 1920x1080 canvas (never zoomed or cropped). Chained in list order;
+    # drawtext renders on top of whatever colour the frame is at that moment.
+    for overlay in (overlays or []):
+        kind_style = (edit_style or {}).get(overlay.get("kind")) or {}
+        overlay_filter = _build_overlay_drawtext(overlay, kind_style, duration)
         if overlay_filter:
             filters.append(overlay_filter)
 
@@ -514,10 +648,26 @@ def render_scene_clip(
             "fps": FPS,
             "transition": transition,
             "ken_burns": ken_burns,
-            "overlay_text": overlay_text,
-            "overlay_position": overlay_position if overlay_text else None,
+            "overlays_sig": _overlays_signature(overlays),
+            "edit_style_sig": _edit_style_signature(edit_style),
             "cache_version": _CLIP_CACHE_VERSION,
         }, f)
+
+
+def _project_channel_id(project_name: str) -> str | None:
+    """Read the project's channel from script_config.json — the same source
+    edl_service uses to resolve the editing style, so the render layer resolves
+    the *same* style the EDL's overlay positions/animations were baked from.
+    Returns None (→ default channel downstream) when the config or key is
+    absent."""
+    p = PROJECTS_ROOT / project_name / "script_config.json"
+    if not p.exists():
+        return None
+    try:
+        with p.open() as f:
+            return (json.load(f) or {}).get("channel")
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def _load_or_create_edl(
@@ -526,17 +676,27 @@ def _load_or_create_edl(
     transition: str,
     ken_burns: bool,
 ) -> dict:
-    """Return the saved EDL, or auto-generate + persist one if missing.
+    """Return the saved EDL, or auto-generate + persist one if missing OR at a
+    stale schema version.
 
     Auto-generation preserves the contract that a render-without-edit-first
     still works: we synthesize an EDL using the per-render transition +
     ken_burns choices so the behavior matches pre-EDL rendering for
     non-listicle videos. Listicle videos additionally get their auto-text
-    overlays even on the first render."""
+    overlays even on the first render. A version mismatch is regenerated
+    deterministically (there is no manual EDL editor — api/routes/edit.py is
+    read-only), reproducing all prior data while upgrading to the current
+    overlays-list schema."""
     edl = load_edl(project_name)
-    if edl is not None:
+    if edl is not None and is_current_version(edl):
         return edl
-    print("  No edl.json found — auto-generating default EDL.")
+    if edl is None:
+        print("  No edl.json found — auto-generating default EDL.")
+    else:
+        print(
+            f"  edl.json is schema v{edl.get('version')} (current is "
+            f"v{EDL_SCHEMA_VERSION}) — regenerating."
+        )
     edl = generate_default_edl(
         project_name, transition=transition, ken_burns=ken_burns,
     )
@@ -565,6 +725,12 @@ def render_all_scene_clips(
     # (e.g. dropped hallucinated final scene) still pairs correctly.
     edl_by_id: dict[int, dict] = {e["id"]: e for e in edl.get("scenes", [])}
 
+    # Resolve the channel's on-screen editing style ONCE — supplies each
+    # overlay kind's look (fontsize / box / animation timings). Positions +
+    # animations were already baked into the EDL at generation time from this
+    # same style; this re-resolves the same channel so they stay consistent.
+    edit_style = resolve_channel_editing(_project_channel_id(project_name))
+
     clips_dir = str(PROJECTS_ROOT / project_name / "clips")
     os.makedirs(clips_dir, exist_ok=True)
 
@@ -580,17 +746,15 @@ def render_all_scene_clips(
 
         entry = edl_by_id.get(sid, {})
         # Forward-compat: assembly reads only the keys it knows. Missing keys
-        # fall back to the call-site defaults (so an older EDL without
-        # overlay_text keys still renders cleanly).
+        # fall back to the call-site defaults (so an EDL entry without an
+        # overlays list still renders cleanly).
         per_scene_transition = entry.get("transition", transition)
         per_scene_ken_burns = entry.get("ken_burns", ken_burns)
-        overlay_text = entry.get("overlay_text")
-        overlay_position = entry.get("overlay_position") or "top"
+        overlays = entry.get("overlays", [])
 
         if _clip_cache_hit(
             scene, src, out, per_scene_transition, per_scene_ken_burns,
-            overlay_text=overlay_text,
-            overlay_position=overlay_position if overlay_text else None,
+            overlays=overlays, edit_style=edit_style,
         ):
             cached += 1
         else:
@@ -599,8 +763,8 @@ def render_all_scene_clips(
                 scene, src, out,
                 transition=per_scene_transition,
                 ken_burns=per_scene_ken_burns,
-                overlay_text=overlay_text,
-                overlay_position=overlay_position,
+                overlays=overlays,
+                edit_style=edit_style,
             )
             rendered += 1
         clip_paths.append(out)
