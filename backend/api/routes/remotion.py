@@ -80,8 +80,10 @@ _MAX_EYEBROW_LEN = 40
 _MAX_HIGHLIGHT_LEN = 60
 _MAX_INDEX_LEN = 12
 
-# Saved-design extras: the GardenBloom-only Lottie fields that _sanitize_props
-# drops but a persisted design must round-trip (see _sanitize_card_design).
+# GardenBloom-only Lottie config bounds. These fields flow through
+# _sanitize_props so BOTH the MP4 render and a saved design keep them: the render
+# script (render-remotion.mjs) loads each named file's JSON server-side into
+# lottieData so the decorations bake into the MP4.
 _MAX_LOTTIE_ROWS = 4
 _MAX_LOTTIE_NAME_LEN = 80
 _DEFAULT_LOTTIE_RECOLOR_AMOUNT = 0.8
@@ -196,47 +198,19 @@ def _sanitize_props(raw: dict[str, Any]) -> dict[str, Any]:
 
     # lottieRecolorColor — GardenBloom's Lottie recolor target, INDEPENDENT of
     # the accent. Strict #rrggbb; falls back to the sanitized accent when
-    # missing/invalid. (The MP4 render still drops the other lottie fields today,
-    # so this only bites once Lotties bake into renders — kept correct now.)
+    # missing/invalid.
     recolor_color = str(raw.get("lottieRecolorColor", ""))
     out["lottieRecolorColor"] = (
         recolor_color if _HEX_RE.match(recolor_color) else palette_out["accent"]
     )
 
-    # foliageColor — GardenBloom's SVG foliage/leaf color, INDEPENDENT of the
-    # text (which still colors the title/subtitle). Strict #rrggbb; falls back to
-    # the sanitized text color when missing/invalid. This lives in _sanitize_props
-    # (NOT only the card-design wrapper) because the SVG foliage DOES bake into the
-    # MP4 render, so the render path must honor it.
-    foliage_color = str(raw.get("foliageColor", ""))
-    out["foliageColor"] = (
-        foliage_color if _HEX_RE.match(foliage_color) else palette_out["text"]
-    )
-
-    # style enums — lenient pass-through with defaults.
-    out["animation"] = _enum_str(raw.get("animation"), "rise")
-    out["background"] = _enum_str(raw.get("background"), "gradient")
-    out["fontFamily"] = _enum_str(raw.get("fontFamily"), "nunito")
-
-    decoration_in = raw.get("decoration")
-    if not isinstance(decoration_in, dict):
-        decoration_in = {}
-    out["decoration"] = {
-        "set": _enum_str(decoration_in.get("set"), "leaves"),
-        "density": _enum_str(decoration_in.get("density"), "low"),
-    }
-
-    return out
-
-
-def _sanitize_card_design(raw: dict[str, Any]) -> dict[str, Any]:
-    """Sanitize a SAVED title-card design: the strict/lenient render props from
-    ``_sanitize_props`` PLUS the GardenBloom-only Lottie fields that
-    ``_sanitize_props`` drops. The MP4 render path doesn't need those extras yet,
-    but a persisted design must round-trip losslessly. The runtime-only
-    ``lottieData`` is never persisted (``_sanitize_props`` already drops it and
-    we never re-attach it). Each extra is attached only when present in ``raw``."""
-    out = _sanitize_props(raw)
+    # lottieAnimations / lottieDensity / lottieRecolorAmount — GardenBloom's
+    # Lottie config (which files, how many instances, how strongly recolored).
+    # Kept on BOTH the render and the save path: render-remotion.mjs loads each
+    # named file's JSON server-side into `lottieData` so the decorations bake into
+    # the MP4. This is small, already-validated config — the big JSON is never
+    # sent here, and the runtime-only `lottieData` is never accepted. Each field
+    # is attached only when present in `raw`.
 
     # lottieAnimations — up to _MAX_LOTTIE_ROWS rows; skip malformed entries.
     anims = raw.get("lottieAnimations")
@@ -272,7 +246,40 @@ def _sanitize_card_design(raw: dict[str, Any]) -> dict[str, Any]:
             amount = _DEFAULT_LOTTIE_RECOLOR_AMOUNT
         out["lottieRecolorAmount"] = _clamp(amount, 0.0, 1.0)
 
+    # foliageColor — GardenBloom's SVG foliage/leaf color, INDEPENDENT of the
+    # text (which still colors the title/subtitle). Strict #rrggbb; falls back to
+    # the sanitized text color when missing/invalid. Bakes into the MP4 render,
+    # so the render path honors it too.
+    foliage_color = str(raw.get("foliageColor", ""))
+    out["foliageColor"] = (
+        foliage_color if _HEX_RE.match(foliage_color) else palette_out["text"]
+    )
+
+    # style enums — lenient pass-through with defaults.
+    out["animation"] = _enum_str(raw.get("animation"), "rise")
+    out["background"] = _enum_str(raw.get("background"), "gradient")
+    out["fontFamily"] = _enum_str(raw.get("fontFamily"), "nunito")
+
+    decoration_in = raw.get("decoration")
+    if not isinstance(decoration_in, dict):
+        decoration_in = {}
+    out["decoration"] = {
+        "set": _enum_str(decoration_in.get("set"), "leaves"),
+        "density": _enum_str(decoration_in.get("density"), "low"),
+    }
+
     return out
+
+
+def _sanitize_card_design(raw: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize a SAVED title-card design. Identical to ``_sanitize_props`` now
+    that the GardenBloom Lottie config (lottieAnimations / lottieDensity /
+    lottieRecolorAmount) flows through the render path too — a saved design and a
+    render sanitize the same way. Kept as a named delegate so the save call site
+    reads intentionally (and leaves a seam for save-only extras later). The
+    runtime-only ``lottieData`` is never persisted (never accepted by
+    ``_sanitize_props``)."""
+    return _sanitize_props(raw)
 
 
 def _validate_preset_name(name: str) -> str:

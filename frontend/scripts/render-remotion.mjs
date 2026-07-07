@@ -11,6 +11,7 @@
  * stream on stdout so the SSE task log shows live progress. We use the
  * programmatic API (not the `remotion` CLI) so we control the args and stream.
  */
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +40,42 @@ function parseArgs(argv) {
   return out;
 }
 
+/**
+ * Load the raw Lottie JSON for each GardenBloom `lottieAnimations` row into the
+ * runtime `lottieData` shape the card consumes — the SAME array CardDesigner
+ * builds client-side for the <Player>, so the MP4 bakes in the same decorations
+ * the preview shows. The endpoint forwards only the small config (names +
+ * loop/recolor); the big JSON is read HERE, server-side, from public/lottie.
+ *
+ * One entry per row, IN ORDER, so the card's `entries[i % entries.length]`
+ * cycling matches the preview's alignment. `name` may or may not carry the
+ * `.json` extension; a missing or unparseable file becomes `data: null` (the
+ * card filters those out via isLikelyLottie) plus a logged warning. `basename`
+ * confines the read to the lottie dir. Deterministic — no Date.now / random.
+ */
+function loadLottieData(animations, dirname) {
+  const dir = path.resolve(dirname, "../public/lottie");
+  return animations.map((row) => {
+    const base = path.basename(String((row && row.name) || ""));
+    const file = base.toLowerCase().endsWith(".json") ? base : `${base}.json`;
+    let data = null;
+    try {
+      data = JSON.parse(readFileSync(path.join(dir, file), "utf8"));
+    } catch (err) {
+      console.warn(
+        `[render] Lottie load failed for ${file}: ${
+          err && err.message ? err.message : err
+        }`,
+      );
+    }
+    return {
+      data,
+      loop: (row && row.loop) ?? true,
+      recolor: (row && row.recolor) ?? true,
+    };
+  });
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const compId = args.comp;
@@ -50,6 +87,20 @@ async function main() {
   }
 
   const inputProps = args.props ? JSON.parse(args.props) : {};
+
+  // Bake GardenBloom's Lottie decorations into the MP4: the endpoint forwards
+  // only the small lottie CONFIG (names + loop/recolor, density, amount), so we
+  // load each animation's JSON here and attach it as `lottieData` — the exact
+  // shape GardenBloom's LottieDecor consumes (and the <Player> preview builds
+  // client-side). This augmented `inputProps` feeds BOTH selectComposition and
+  // renderMedia below, so metadata + frames see the same decorations.
+  if (
+    Array.isArray(inputProps.lottieAnimations) &&
+    inputProps.lottieAnimations.length > 0
+  ) {
+    inputProps.lottieData = loadLottieData(inputProps.lottieAnimations, __dirname);
+  }
+
   const outputLocation = path.resolve(process.cwd(), outArg);
   const entryPoint = path.resolve(__dirname, "../src/remotion/index.ts");
 
