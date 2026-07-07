@@ -106,6 +106,78 @@ export function Flower({ palette, size }: ShapeProps) {
   );
 }
 
+/** A broad, full leaf — rounder and fuller than `Leaf`, for lush backdrop
+ *  foliage. Additive: does not alter the other shapes. Pure SVG. */
+export function BroadLeaf({ palette, size }: ShapeProps) {
+  const fill = palette.accent;
+  const vein = darken(palette.accent, 0.28);
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      style={{ display: "block", overflow: "visible" }}
+    >
+      <path
+        d="M50 5 C 75 19 90 38 88 59 C 86 82 67 95 50 96 C 33 95 14 82 12 59 C 10 38 25 19 50 5 Z"
+        fill={fill}
+      />
+      <path d="M50 14 L50 90" stroke={vein} strokeWidth={3} strokeLinecap="round" />
+      <path
+        d="M50 40 L27 31 M50 40 L73 31 M50 58 L24 51 M50 58 L76 51 M50 74 L31 68 M50 74 L69 68"
+        stroke={vein}
+        strokeWidth={2}
+        strokeLinecap="round"
+        fill="none"
+        opacity={0.7}
+      />
+    </svg>
+  );
+}
+
+/** A soft flowering sprig — a small, rounded bloom atop a slender stem with a
+ *  pair of leaves. Colored entirely from `palette.accent` (bright petals, a pale
+ *  center, a deeper tone for stem + leaves) so it reads as one warm little
+ *  flower. Additive; pure SVG. */
+export function BerrySprig({ palette, size }: ShapeProps) {
+  const stem = darken(palette.accent, 0.24);
+  const leaf = darken(palette.accent, 0.14);
+  const petal = palette.accent;
+  const center = lighten(palette.accent, 0.5);
+  const ring = darken(palette.accent, 0.12);
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      style={{ display: "block", overflow: "visible" }}
+    >
+      <path
+        d="M50 97 C 48 80 52 64 50 50"
+        stroke={stem}
+        strokeWidth={4}
+        fill="none"
+        strokeLinecap="round"
+      />
+      <ellipse cx={39} cy={70} rx={11} ry={6} fill={leaf} transform="rotate(-40 39 70)" />
+      <ellipse cx={61} cy={64} rx={11} ry={6} fill={leaf} transform="rotate(40 61 64)" />
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <ellipse
+          key={i}
+          cx={50}
+          cy={16}
+          rx={8.5}
+          ry={13}
+          fill={petal}
+          transform={`rotate(${i * 60} 50 30)`}
+        />
+      ))}
+      <circle cx={50} cy={30} r={9} fill={center} />
+      <circle cx={50} cy={30} r={9} fill="none" stroke={ring} strokeWidth={2} />
+    </svg>
+  );
+}
+
 /** Corner vine art drawn for the TOP-LEFT corner. Callers mirror it for the
  *  other corners with scaleX / scaleY. Pure SVG — placement + sway live in the
  *  card that uses it. */

@@ -11,6 +11,7 @@ import type {
   CardProps,
   DecorationDensity,
   DecorationSet,
+  LottieDensity,
 } from "./types";
 import { DEFAULT_FONT_ID } from "./theme";
 
@@ -48,6 +49,18 @@ export const DENSITY_OPTIONS: ReadonlyArray<{
   { id: "high", label: "High" },
 ];
 
+// Lottie instance-count options (GardenBloom's animation layer). Distinct from
+// DENSITY_OPTIONS: no "none" — the count only matters once the user has added
+// at least one animation.
+export const LOTTIE_DENSITY_OPTIONS: ReadonlyArray<{
+  id: LottieDensity;
+  label: string;
+}> = [
+  { id: "low", label: "Low" },
+  { id: "med", label: "Medium" },
+  { id: "high", label: "High" },
+];
+
 const DEFAULT_DECORATION: CardDecoration = { set: "leaves", density: "low" };
 
 export const CARD_DEFAULTS: CardProps = {
@@ -63,4 +76,40 @@ export const CARD_DEFAULTS: CardProps = {
   decoration: DEFAULT_DECORATION,
   fontFamily: DEFAULT_FONT_ID,
   durationInSeconds: 5,
+};
+
+/**
+ * Per-card starting overrides, merged onto CARD_DEFAULTS by Root.tsx's
+ * defaultProps and by the panel when you switch cards. Lets a card boot with
+ * its own signature look (e.g. GardenPremium's muted palette + kicker) while
+ * every card still shares one base. Keyed by registry card id.
+ */
+export const CARD_DEFAULT_OVERRIDES: Partial<
+  Record<string, Partial<CardProps>>
+> = {
+  GardenPremium: {
+    // Warm neutral + desaturated green — sophisticated, not flat bright green.
+    palette: {
+      background: "#f4f1e8",
+      text: "#2f3b2b",
+      accent: "#93a97e",
+    },
+    eyebrow: "GARDEN GUIDE",
+  },
+  GardenBloom: {
+    // Soft sunlit warm-green canvas, deep readable garden-green text, and a warm
+    // floral rose accent — foliage greens derive from the text color, blooms +
+    // the highlight word from the accent. Boots lush (mixed / high).
+    palette: {
+      background: "#eef4e3",
+      text: "#31492b",
+      accent: "#e2917f",
+    },
+    decoration: { set: "mixed", density: "high" },
+    // Lottie decorations layer OVER the botanicals (both show). Boots with none
+    // added; recolor on and a light instance count for once the user adds some.
+    lottieAnimations: [],
+    lottieDensity: "low",
+    lottieRecolor: true,
+  },
 };

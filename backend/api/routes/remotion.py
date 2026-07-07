@@ -40,7 +40,15 @@ _RENDER_SCRIPT = FRONTEND_DIR / "scripts" / "render-remotion.mjs"
 
 # Mirror of CARD_IDS in frontend/src/remotion/cards/registry.ts. Keep in sync
 # when adding or removing a card. Only these ids may be rendered.
-ALLOWED_COMPS = frozenset({"GardenCentered", "GardenFramed", "GardenBand"})
+ALLOWED_COMPS = frozenset(
+    {
+        "GardenCentered",
+        "GardenFramed",
+        "GardenBand",
+        "GardenPremium",
+        "GardenBloom",
+    }
+)
 
 # Garden defaults, mirroring frontend/src/remotion/cards/defaults.ts.
 _DEFAULT_PALETTE = {
@@ -58,6 +66,8 @@ _MAX_PROPS_BYTES = 4096
 # Cap on any pass-through style enum string (lenient, but bounded).
 _MAX_ENUM_LEN = 40
 _MAX_SUBTITLE_LEN = 200
+_MAX_EYEBROW_LEN = 40
+_MAX_HIGHLIGHT_LEN = 60
 
 
 class RemotionRenderRequest(BaseModel):
@@ -115,6 +125,20 @@ def _sanitize_props(raw: dict[str, Any]) -> dict[str, Any]:
         sub = str(subtitle).strip()[:_MAX_SUBTITLE_LEN]
         if sub:
             out["subtitle"] = sub
+
+    # eyebrow — optional kicker (GardenPremium), trimmed, length-capped.
+    eyebrow = raw.get("eyebrow")
+    if eyebrow is not None:
+        eb = str(eyebrow).strip()[:_MAX_EYEBROW_LEN]
+        if eb:
+            out["eyebrow"] = eb
+
+    # highlight — optional title word/phrase to accent, trimmed, length-capped.
+    highlight = raw.get("highlight")
+    if highlight is not None:
+        hl = str(highlight).strip()[:_MAX_HIGHLIGHT_LEN]
+        if hl:
+            out["highlight"] = hl
 
     # durationInSeconds — clamp to [2, 20].
     try:

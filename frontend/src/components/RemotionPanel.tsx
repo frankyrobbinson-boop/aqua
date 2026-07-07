@@ -16,9 +16,11 @@ import {
   ANIMATION_OPTIONS,
   BACKGROUND_OPTIONS,
   CARD_DEFAULTS,
+  CARD_DEFAULT_OVERRIDES,
   DECORATION_SETS,
   DENSITY_OPTIONS,
   FONT_OPTIONS,
+  LOTTIE_DENSITY_OPTIONS,
 } from "@/remotion/cards/defaults";
 import { CARDS } from "@/remotion/cards/registry";
 import type {
@@ -27,6 +29,9 @@ import type {
   CardProps,
   DecorationDensity,
   DecorationSet,
+  LottieAnimationEntry,
+  LottieDensity,
+  LottieRuntimeEntry,
 } from "@/remotion/cards/types";
 
 // The Player touches browser-only APIs, so it must never render on the server.
@@ -44,6 +49,12 @@ type RunState = {
   status: TaskStatus;
   filename: string;
 };
+
+/** One entry from `GET /api/lottie` (mirrors LottieLibrary). */
+type LottieItem = { name: string; url: string };
+
+/** Cap on the GardenBloom animation rows — keeps the list sane. */
+const LOTTIE_MAX_ROWS = 4;
 
 const FIELD_CLASS =
   "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent";
@@ -100,20 +111,117 @@ function Select({
   );
 }
 
+/** Base defaults with the card's per-card overrides applied, so switching cards
+ *  seeds the form with that card's signature palette/props (see defaults.ts). */
+function mergedDefaults(id: string): CardProps {
+  return { ...CARD_DEFAULTS, ...(CARD_DEFAULT_OVERRIDES[id] ?? {}) };
+}
+
 export function RemotionPanel() {
   const [cardId, setCardId] = useState<string>(CARDS[0].id);
-  const [props, setProps] = useState<CardProps>(CARD_DEFAULTS);
+  const [props, setProps] = useState<CardProps>(() =>
+    mergedDefaults(CARDS[0].id),
+  );
   const [run, setRun] = useState<RunState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
+  // Lottie decorations (GardenBloom): the library list for the row dropdowns,
+  // plus the fetched JSON for each chosen animation — assembled (aligned to
+  // props.lottieAnimations, each paired with its loop flag) and injected into
+  // the Player's inputProps.
+  const [lottieList, setLottieList] = useState<LottieItem[] | null>(null);
+  const [lottieData, setLottieData] = useState<Array<LottieRuntimeEntry | null>>(
+    [],
+  );
+  const lottieCacheRef = useRef<Map<string, Record<string, unknown>>>(new Map());
+
   // Close any open SSE stream on unmount.
   useEffect(() => () => cleanupRef.current?.(), []);
+
+  // Load the Lottie library once so the animation-row dropdowns list every
+  // animation (and pick up newly added ones on reload).
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/lottie")
+      .then((r) =>
+        r.ok
+          ? (r.json() as Promise<LottieItem[]>)
+          : Promise.reject(new Error(String(r.status))),
+      )
+      .then((data) => {
+        if (!cancelled) setLottieList(data);
+      })
+      .catch(() => {
+        // Non-fatal: the dropdown just shows "None". Don't hijack the render
+        // error box, which is scoped to MP4 renders.
+        if (!cancelled) setLottieList([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selected = CARDS.find((c) => c.id === cardId) ?? CARDS[0];
   const running = submitting || run?.status === "running";
   const durationInFrames = Math.round(props.durationInSeconds * FPS);
+  const lottieAnimations = props.lottieAnimations ?? [];
+
+  // Fetch (and cache, by name) each chosen animation's JSON, then assemble the
+  // runtime `lottieData` array aligned to props.lottieAnimations — each paired
+  // with its loop flag, null until its JSON loads (or if it failed / is "None").
+  // Fed to the Player so GardenBloom layers the animations live. Toggling loop
+  // or reordering rows reassembles from the cache without refetching.
+  useEffect(() => {
+    const entries = props.lottieAnimations ?? [];
+    let cancelled = false;
+
+    const assemble = (): Array<LottieRuntimeEntry | null> =>
+      entries.map((e) => {
+        const data = e.name ? lottieCacheRef.current.get(e.name) : undefined;
+        return data ? { data, loop: e.loop } : null;
+      });
+
+    // Reflect whatever's already cached immediately (snappy loop toggles).
+    setLottieData(assemble());
+
+    const uncached = Array.from(
+      new Set(entries.map((e) => e.name).filter(Boolean)),
+    ).filter((name) => !lottieCacheRef.current.has(name));
+    if (uncached.length === 0) return;
+
+    Promise.all(
+      uncached.map((name) =>
+        fetch(`/lottie/${encodeURIComponent(name)}`)
+          .then((r) =>
+            r.ok
+              ? (r.json() as Promise<Record<string, unknown>>)
+              : Promise.reject(new Error(String(r.status))),
+          )
+          .then((json) => {
+            lottieCacheRef.current.set(name, json);
+          })
+          .catch(() => {
+            // Non-fatal: that row stays null (its slot shows nothing; the SVG
+            // botanicals still render). Don't hijack the MP4 render error box.
+          }),
+      ),
+    ).then(() => {
+      if (!cancelled) setLottieData(assemble());
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [props.lottieAnimations]);
+
+  // Switching cards reseeds the form with that card's merged defaults, so e.g.
+  // Premium boots with its muted palette + kicker.
+  function selectCard(id: string) {
+    setCardId(id);
+    setProps(mergedDefaults(id));
+  }
 
   function update<K extends keyof CardProps>(key: K, value: CardProps[K]) {
     setProps((prev) => ({ ...prev, [key]: value }));
@@ -128,6 +236,32 @@ export function RemotionPanel() {
     setProps((prev) => ({
       ...prev,
       decoration: { ...prev.decoration, [key]: value },
+    }));
+  }
+
+  // Lottie animation rows (GardenBloom) — add/remove/edit the list of chosen
+  // animations. New rows default to the first library animation (looping).
+  function updateLottieRow(index: number, patch: Partial<LottieAnimationEntry>) {
+    setProps((prev) => {
+      const list = [...(prev.lottieAnimations ?? [])];
+      list[index] = { ...list[index], ...patch };
+      return { ...prev, lottieAnimations: list };
+    });
+  }
+  function addLottieRow() {
+    setProps((prev) => {
+      const list = [...(prev.lottieAnimations ?? [])];
+      if (list.length >= LOTTIE_MAX_ROWS) return prev;
+      list.push({ name: lottieList?.[0]?.name ?? "", loop: true });
+      return { ...prev, lottieAnimations: list };
+    });
+  }
+  function removeLottieRow(index: number) {
+    setProps((prev) => ({
+      ...prev,
+      lottieAnimations: (prev.lottieAnimations ?? []).filter(
+        (_, i) => i !== index,
+      ),
     }));
   }
 
@@ -159,6 +293,14 @@ export function RemotionPanel() {
     run?.status === "completed" ? remotionOutUrl(run.filename) : null;
   const titleEmpty = props.title.trim().length === 0;
 
+  // The Lottie decoration is a GardenBloom-only evaluation aid, so its controls
+  // only show for that card (other cards keep the SVG botanicals).
+  const isBloom = cardId === "GardenBloom";
+  const lottieOptions = [
+    { id: "", label: "None" },
+    ...(lottieList ?? []).map((it) => ({ id: it.name, label: it.name })),
+  ];
+
   return (
     <section className="space-y-6">
       {/* Card picker */}
@@ -169,7 +311,7 @@ export function RemotionPanel() {
             <button
               key={card.id}
               type="button"
-              onClick={() => setCardId(card.id)}
+              onClick={() => selectCard(card.id)}
               title={card.description}
               aria-pressed={active}
               className={`rounded-md border px-3.5 py-2 text-sm font-medium transition-colors ${
@@ -210,6 +352,31 @@ export function RemotionPanel() {
               className={FIELD_CLASS}
             />
           </Field>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Eyebrow" htmlFor="card-eyebrow">
+              <input
+                id="card-eyebrow"
+                type="text"
+                value={props.eyebrow ?? ""}
+                onChange={(e) => update("eyebrow", e.target.value)}
+                maxLength={40}
+                placeholder="Optional kicker..."
+                className={FIELD_CLASS}
+              />
+            </Field>
+            <Field label="Highlight word" htmlFor="card-highlight">
+              <input
+                id="card-highlight"
+                type="text"
+                value={props.highlight ?? ""}
+                onChange={(e) => update("highlight", e.target.value)}
+                maxLength={60}
+                placeholder="Word to accent..."
+                className={FIELD_CLASS}
+              />
+            </Field>
+          </div>
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Animation" htmlFor="card-animation">
@@ -265,6 +432,84 @@ export function RemotionPanel() {
             </Field>
           </div>
 
+          {isBloom && (
+            <>
+              <Field label="Decoration animations">
+                <div className="space-y-2">
+                  {lottieAnimations.length === 0 ? (
+                    <p className="text-xs text-muted">
+                      None — showing the SVG botanicals only.
+                    </p>
+                  ) : (
+                    lottieAnimations.map((entry, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <Select
+                            value={entry.name}
+                            onChange={(v) => updateLottieRow(i, { name: v })}
+                            options={lottieOptions}
+                          />
+                        </div>
+                        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-strong">
+                          <input
+                            type="checkbox"
+                            checked={entry.loop}
+                            onChange={(e) =>
+                              updateLottieRow(i, { loop: e.target.checked })
+                            }
+                            className="h-4 w-4 cursor-pointer accent-accent"
+                          />
+                          loop
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeLottieRow(i)}
+                          aria-label="Remove animation"
+                          className="shrink-0 rounded-md border border-border bg-surface px-2.5 py-2 text-sm leading-none text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))
+                  )}
+                  {lottieAnimations.length < LOTTIE_MAX_ROWS && (
+                    <button
+                      type="button"
+                      onClick={addLottieRow}
+                      className="w-full rounded-md border border-dashed border-border bg-surface px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+                    >
+                      + Add animation
+                    </button>
+                  )}
+                </div>
+              </Field>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Animation density" htmlFor="card-lottie-density">
+                  <Select
+                    id="card-lottie-density"
+                    value={props.lottieDensity ?? "low"}
+                    onChange={(v) => update("lottieDensity", v as LottieDensity)}
+                    options={LOTTIE_DENSITY_OPTIONS}
+                  />
+                </Field>
+                <div />
+              </div>
+
+              {lottieAnimations.length > 0 && (
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-strong">
+                  <input
+                    type="checkbox"
+                    checked={props.lottieRecolor ?? true}
+                    onChange={(e) => update("lottieRecolor", e.target.checked)}
+                    className="h-4 w-4 cursor-pointer accent-accent"
+                  />
+                  Recolor Lottie to palette
+                </label>
+              )}
+            </>
+          )}
+
           <Field label="Background color">
             <ColorField
               value={props.palette.background}
@@ -311,7 +556,7 @@ export function RemotionPanel() {
             <Player
               key={cardId}
               component={selected.component}
-              inputProps={props}
+              inputProps={{ ...props, lottieData }}
               durationInFrames={durationInFrames}
               fps={FPS}
               compositionWidth={WIDTH}

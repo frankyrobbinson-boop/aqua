@@ -14,6 +14,10 @@ export type CardAnimation = AnimationId;
 export type CardBackground = "solid" | "gradient";
 export type DecorationSet = "leaves" | "flowers" | "mixed" | "none";
 export type DecorationDensity = "none" | "low" | "med" | "high";
+/** How many Lottie INSTANCES the animation layer places — independent of the
+ *  SVG botanicals' `DecorationDensity` (no "none": the count only matters once
+ *  at least one animation has been added). */
+export type LottieDensity = "low" | "med" | "high";
 
 export type CardPalette = {
   background: string;
@@ -26,9 +30,30 @@ export type CardDecoration = {
   density: DecorationDensity;
 };
 
+/** One user-chosen Lottie decoration: a library filename (e.g. "flower.json")
+ *  plus whether it loops. Loop off = play once and HOLD the final frame (so a
+ *  one-shot "grow" animation settles fully grown instead of snapping back). */
+export type LottieAnimationEntry = {
+  name: string;
+  loop: boolean;
+};
+
+/** Runtime counterpart to a LottieAnimationEntry: the fetched + parsed Lottie
+ *  JSON paired with that entry's loop setting. */
+export type LottieRuntimeEntry = {
+  data: Record<string, unknown>;
+  loop: boolean;
+};
+
 export type CardProps = {
   title: string;
   subtitle?: string;
+  /** Small uppercase kicker above the title. Optional; only GardenPremium
+   *  renders it today (other cards ignore it). */
+  eyebrow?: string;
+  /** Word/phrase within the title to emphasize in `palette.accent`. Optional;
+   *  GardenPremium-specific (other cards ignore it). */
+  highlight?: string;
   animation: CardAnimation;
   palette: CardPalette;
   /** Fill treatment. Independent of `decoration` so a card can show a gradient
@@ -39,4 +64,22 @@ export type CardProps = {
   fontFamily: string;
   /** Clamped 2–20 backend-side; drives durationInFrames via calculateMetadata. */
   durationInSeconds: number;
+  /** Optional Lottie decorations (GardenBloom only), layered ON TOP OF the SVG
+   *  botanicals — both render together. Each entry is a library filename plus
+   *  its loop setting; the card places instances cycling through the list.
+   *  User-edited via the panel; other cards ignore it. */
+  lottieAnimations?: LottieAnimationEntry[];
+  /** How many Lottie INSTANCES to place, independent of `decoration.density`
+   *  (which still drives the SVG botanicals). Defaults to "low". GardenBloom-only. */
+  lottieDensity?: LottieDensity;
+  /** Recolor every Lottie decoration's solid fills/strokes to `palette.accent`.
+   *  Defaults to true; applies to all Lottie decorations. */
+  lottieRecolor?: boolean;
+  /** Runtime-only: the fetched + parsed Lottie JSON for each `lottieAnimations`
+   *  entry, in the SAME order (null for a not-yet-loaded / failed entry),
+   *  injected by RemotionPanel straight into the <Player> inputProps. NOT a
+   *  user-edited form field and NOT carried through the render pipeline (the
+   *  backend sanitizer drops it). GardenBloom layers these over the botanicals;
+   *  other cards ignore them. */
+  lottieData?: Array<LottieRuntimeEntry | null>;
 };

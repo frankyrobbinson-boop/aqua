@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { RemotionPanel } from "@/components/RemotionPanel";
+import { RemotionWorkspace } from "@/components/RemotionWorkspace";
 
 export const metadata: Metadata = {
   title: "Remotion · Aqua",
@@ -13,11 +13,11 @@ export default function RemotionPage() {
           Remotion
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Design a garden title card — pick a layout, tune the palette, motion,
-          and botanicals, preview it live, then render it to an MP4.
+          Design garden title cards and preview them live, or browse the Lottie
+          library to curate downloaded animations.
         </p>
       </div>
-      <RemotionPanel />
+      <RemotionWorkspace />
     </div>
   );
 }

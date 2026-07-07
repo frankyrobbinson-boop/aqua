@@ -8,8 +8,10 @@
 import type { ComponentType } from "react";
 
 import { GardenBand } from "./GardenBand";
+import { GardenBloom } from "./GardenBloom";
 import { GardenCentered } from "./GardenCentered";
 import { GardenFramed } from "./GardenFramed";
+import { GardenPremium } from "./GardenPremium";
 import type { CardProps } from "./types";
 
 export type CardDefinition = {
@@ -37,6 +39,20 @@ export const CARDS: readonly CardDefinition[] = [
     label: "Band",
     description: "Title above a lower botanical band.",
     component: GardenBand,
+  },
+  {
+    id: "GardenPremium",
+    label: "Premium",
+    description:
+      "Kicker, masked word-by-word title reveal, soft panel, grain + layered botanicals.",
+    component: GardenPremium,
+  },
+  {
+    id: "GardenBloom",
+    label: "Bloom",
+    description:
+      "No panel — a lush, layered botanical frame that blooms in around the title.",
+    component: GardenBloom,
   },
 ];
 

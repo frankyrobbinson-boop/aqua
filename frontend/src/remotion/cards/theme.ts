@@ -48,7 +48,9 @@ export function resolveFontFamily(id: string): string {
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
-function hexToRgb(hex: string): [number, number, number] | null {
+/** Parse `#rrggbb` → [r,g,b] in 0..255, or null if not a valid 6-digit hex.
+ *  Exported so the Lottie recolorer (cards/lottie.ts) reuses the same parse. */
+export function hexToRgb(hex: string): [number, number, number] | null {
   if (!HEX_RE.test(hex)) return null;
   return [
     parseInt(hex.slice(1, 3), 16),
