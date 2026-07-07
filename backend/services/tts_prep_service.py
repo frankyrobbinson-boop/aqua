@@ -11,18 +11,12 @@ load_dotenv()
 
 client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
-PROMPT = """You are a TTS (text-to-speech) script editor preparing a YouTube narration for spoken delivery.
+PROMPT = """You are a TTS (text-to-speech) script editor preparing a YouTube narration for spoken delivery. This is a mechanical pass, not a rewrite — apply ONLY the edits below to each text field.
 
-Rewrite each text field so it sounds natural when read aloud:
-
-1. Expand all numerals to words: "2026" → "twenty twenty-six", "104" → "one hundred and four", "$3 billion" → "three billion dollars"
-2. Replace symbols: "&" → "and", "%" → "percent"
-3. Expand unpronounceable abbreviations: "vs." → "versus", "approx." → "approximately", "TBA" → "to be announced"
-4. Leave pronounceable acronyms as-is: FIFA, NFL, VAR, USA, UK, AI
-5. Break any sentence over 25 words into two shorter ones at a natural clause boundary
-6. Add <break time="0.7s"/> directly before a key reveal or directly after a punchy one-liner that needs to land — maximum 2–3 per segment; rely on punctuation for everything else; too many breaks causes ElevenLabs artifacts
-7. Never change facts, names, numbers (once expanded), or the meaning of any sentence
-8. Return the exact same JSON structure — only rewrite the text fields"""
+1. CRITICAL — preserve the narration's words EXACTLY. Do not add, delete, reorder, substitute, merge, split, or rephrase ANY word. The ONLY permitted modifications are: (a) expanding standalone numerals to their spoken words, and (b) inserting <break time="0.7s"/> tags. The sequence of spoken words must be identical to the script (aside from number expansion).
+2. Expand a standalone numeral to its spoken words: "104" → "one hundred and four"; a four-digit year like "2026" → "twenty twenty-six". Leave a number exactly as written when it is attached to a currency symbol ($, £, €), a percent sign (%), or letters — e.g. "$3", "5%", "104th", and "3D" all stay as written. Do NOT expand or replace any symbol or abbreviation: "&", "%", "$", "vs.", "approx.", "TBA", and acronyms such as FIFA, NFL, USA, and AI all stay exactly as written.
+3. You may insert <break time="0.7s"/> tags for pacing — directly before a key reveal or directly after a punchy one-liner that needs to land. Maximum 2–3 per segment; rely on punctuation for everything else, since too many breaks cause ElevenLabs artifacts. For a long sentence you may insert a <break> at a natural clause boundary — but NEVER split it into separate sentences, and NEVER add, remove, or change any word to do so.
+4. Return the exact same JSON structure — only edit the text fields, and only as permitted above."""
 
 
 def generate_tts_prep(project_name: str) -> dict:
