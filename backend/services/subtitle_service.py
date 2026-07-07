@@ -64,13 +64,17 @@ _EM_DASHES = ("—", "–")
 GAP_BRIDGE_THRESHOLD = 0.5   # s. Gap < this → cards transition back-to-back.
 NATURAL_TAIL = 0.1           # s. Hold the last frame this long when we DON'T bridge.
 
-# Highlight lead-in: ElevenLabs marks a word's acoustic onset a hair before
-# the syllable is perceived (leading consonant, breath, co-articulation), so
-# highlights can light up slightly early. Shift the whole highlight track
-# later by this much so each word lights up ON the word, not just before it.
-# Biases toward on-time/slightly-late, which reads better than early. Tune:
-# raise if still early, lower if it now feels late. 0 disables.
-HIGHLIGHT_LEAD_IN = 0.06   # seconds
+# Highlight lead-in: a uniform shift (seconds) added to every highlight's
+# start/end relative to the word's global_start. 0 = each word lights up ON its
+# spoken onset — the tightest match the ElevenLabs word timestamps allow.
+#
+# A prior non-zero value (0.06) shifted the WHOLE track a uniform ~60ms LATE to
+# counter highlights reading "early." But a uniform shift only re-centers the
+# track; it cannot fix the per-word scatter inherent in the ASR timestamps (some
+# onsets land a hair early, some late), and the added late bias made alignment
+# read worse, not better. Kept as a re-tunable knob: nudge up a hair only if
+# highlights consistently feel early, down if they feel late.
+HIGHLIGHT_LEAD_IN = 0.0   # seconds (0 = highlight on the word's global_start)
 
 
 def _format_time(seconds: float) -> str:
@@ -221,7 +225,35 @@ def _ass_header() -> str:
     )
 
 
-def build_subtitles(project_name: str, output_path: str) -> str:
+def _overlaps_blank_window(start: float, end: float, blank_windows) -> bool:
+    """True iff the cue span [start, end] overlaps any (bs, be) blank window at
+    all — including a partial straddle. Suppressing on ANY overlap guarantees no
+    karaoke word is visible while a section card is on screen; a cue crossing the
+    card→footage seam (or the card's entry edge) would otherwise linger over the
+    card. Cues that merely abut an edge (end == bs or start == be) do not overlap
+    and are kept."""
+    for bs, be in blank_windows:
+        if start < be and end > bs:
+            return True
+    return False
+
+
+def build_subtitles(
+    project_name: str,
+    output_path: str,
+    blank_windows: List[tuple] | None = None,
+) -> str:
+    """Build the burned-in karaoke subtitles from the word-level audio timeline.
+
+    ``blank_windows`` (optional): a list of ``(start, end)`` time windows in
+    seconds covered by a section card (see assembly_service — a card fronts a
+    section-intro scene, eating into that scene's own frames). Any subtitle cue
+    whose ``[start, end]`` OVERLAPS one of these windows at all — including a cue
+    that straddles the card→footage seam — is dropped, so no karaoke word is ever
+    visible while a card is on screen. ``None`` (the default) drops nothing — the
+    output is byte-for-byte identical to the pre-card behavior, so the normal
+    render path is unaffected."""
+    blank = blank_windows or []
     timeline_path = PROJECTS_ROOT / project_name / "audio_timeline.json"
     with timeline_path.open() as f:
         timeline = json.load(f)
@@ -282,6 +314,8 @@ def build_subtitles(project_name: str, output_path: str) -> str:
             start = max(0.0, start)
             if end <= start:
                 end = start
+            if blank and _overlaps_blank_window(start, end, blank):
+                continue  # cue overlaps a section card — suppress (no sub over a card)
             text = _render_card_with_highlight(card_words, wi)
             dialogue_lines.append(
                 f"Dialogue: 0,{_format_time(start)},{_format_time(end)},"
