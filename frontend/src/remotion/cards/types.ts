@@ -30,19 +30,23 @@ export type CardDecoration = {
   density: DecorationDensity;
 };
 
-/** One user-chosen Lottie decoration: a library filename (e.g. "flower.json")
- *  plus whether it loops. Loop off = play once and HOLD the final frame (so a
- *  one-shot "grow" animation settles fully grown instead of snapping back). */
+/** One user-chosen Lottie decoration: a library filename (e.g. "flower.json"),
+ *  whether it loops, and whether to recolor it toward the palette. Loop off =
+ *  play once and HOLD the final frame (so a one-shot "grow" animation settles
+ *  fully grown instead of snapping back). `recolor` is per-animation (blended by
+ *  `lottieRecolorAmount`); defaults to true. */
 export type LottieAnimationEntry = {
   name: string;
   loop: boolean;
+  recolor: boolean;
 };
 
 /** Runtime counterpart to a LottieAnimationEntry: the fetched + parsed Lottie
- *  JSON paired with that entry's loop setting. */
+ *  JSON paired with that entry's loop + recolor settings. */
 export type LottieRuntimeEntry = {
   data: Record<string, unknown>;
   loop: boolean;
+  recolor: boolean;
 };
 
 export type CardProps = {
@@ -66,15 +70,16 @@ export type CardProps = {
   durationInSeconds: number;
   /** Optional Lottie decorations (GardenBloom only), layered ON TOP OF the SVG
    *  botanicals — both render together. Each entry is a library filename plus
-   *  its loop setting; the card places instances cycling through the list.
-   *  User-edited via the panel; other cards ignore it. */
+   *  its loop + recolor settings; the card places instances cycling through the
+   *  list. User-edited via the panel; other cards ignore it. */
   lottieAnimations?: LottieAnimationEntry[];
   /** How many Lottie INSTANCES to place, independent of `decoration.density`
    *  (which still drives the SVG botanicals). Defaults to "low". GardenBloom-only. */
   lottieDensity?: LottieDensity;
-  /** Recolor every Lottie decoration's solid fills/strokes to `palette.accent`.
-   *  Defaults to true; applies to all Lottie decorations. */
-  lottieRecolor?: boolean;
+  /** How strongly recolored Lottie decorations blend toward `palette.accent`,
+   *  0..1 (0 = native colors, 1 = full palette). Applies to every animation
+   *  whose per-row `recolor` is on. Defaults to 0.8. GardenBloom-only. */
+  lottieRecolorAmount?: number;
   /** Runtime-only: the fetched + parsed Lottie JSON for each `lottieAnimations`
    *  entry, in the SAME order (null for a not-yet-loaded / failed entry),
    *  injected by RemotionPanel straight into the <Player> inputProps. NOT a

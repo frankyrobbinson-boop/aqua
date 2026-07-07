@@ -107,9 +107,10 @@ export const CARD_DEFAULT_OVERRIDES: Partial<
     },
     decoration: { set: "mixed", density: "high" },
     // Lottie decorations layer OVER the botanicals (both show). Boots with none
-    // added; recolor on and a light instance count for once the user adds some.
+    // added; a light instance count and a mostly-palette recolor blend for once
+    // the user adds some (each new animation defaults to recolor on).
     lottieAnimations: [],
     lottieDensity: "low",
-    lottieRecolor: true,
+    lottieRecolorAmount: 0.8,
   },
 };

@@ -180,7 +180,9 @@ export function RemotionPanel() {
     const assemble = (): Array<LottieRuntimeEntry | null> =>
       entries.map((e) => {
         const data = e.name ? lottieCacheRef.current.get(e.name) : undefined;
-        return data ? { data, loop: e.loop } : null;
+        return data
+          ? { data, loop: e.loop ?? true, recolor: e.recolor ?? true }
+          : null;
       });
 
     // Reflect whatever's already cached immediately (snappy loop toggles).
@@ -252,7 +254,7 @@ export function RemotionPanel() {
     setProps((prev) => {
       const list = [...(prev.lottieAnimations ?? [])];
       if (list.length >= LOTTIE_MAX_ROWS) return prev;
-      list.push({ name: lottieList?.[0]?.name ?? "", loop: true });
+      list.push({ name: lottieList?.[0]?.name ?? "", loop: true, recolor: true });
       return { ...prev, lottieAnimations: list };
     });
   }
@@ -453,13 +455,24 @@ export function RemotionPanel() {
                         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-strong">
                           <input
                             type="checkbox"
-                            checked={entry.loop}
+                            checked={entry.loop ?? true}
                             onChange={(e) =>
                               updateLottieRow(i, { loop: e.target.checked })
                             }
                             className="h-4 w-4 cursor-pointer accent-accent"
                           />
                           loop
+                        </label>
+                        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs font-medium text-muted-strong">
+                          <input
+                            type="checkbox"
+                            checked={entry.recolor ?? true}
+                            onChange={(e) =>
+                              updateLottieRow(i, { recolor: e.target.checked })
+                            }
+                            className="h-4 w-4 cursor-pointer accent-accent"
+                          />
+                          recolor
                         </label>
                         <button
                           type="button"
@@ -496,16 +509,28 @@ export function RemotionPanel() {
                 <div />
               </div>
 
-              {lottieAnimations.length > 0 && (
-                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-strong">
-                  <input
-                    type="checkbox"
-                    checked={props.lottieRecolor ?? true}
-                    onChange={(e) => update("lottieRecolor", e.target.checked)}
-                    className="h-4 w-4 cursor-pointer accent-accent"
-                  />
-                  Recolor Lottie to palette
-                </label>
+              {lottieAnimations.some((e) => e.recolor) && (
+                <Field label="Recolor amount">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={1}
+                      value={Math.round((props.lottieRecolorAmount ?? 0.8) * 100)}
+                      onChange={(e) =>
+                        update(
+                          "lottieRecolorAmount",
+                          Number(e.target.value) / 100,
+                        )
+                      }
+                      className="flex-1 accent-accent"
+                    />
+                    <span className="w-10 text-right text-sm font-medium tabular-nums text-foreground">
+                      {Math.round((props.lottieRecolorAmount ?? 0.8) * 100)}%
+                    </span>
+                  </div>
+                </Field>
               )}
             </>
           )}
