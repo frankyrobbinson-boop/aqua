@@ -1,10 +1,12 @@
 import json
 import os
 import subprocess
+from pathlib import Path
 
 from services.channel_registry import resolve_channel_editing
 from services.edl_service import (
     EDL_SCHEMA_VERSION,
+    _listicle_segment_titles,
     generate_default_edl,
     is_current_version,
     load_edl,
@@ -17,6 +19,19 @@ from services.voice_service import CHUNK_GAP
 
 FPS = 25
 OUT_W, OUT_H = 1920, 1080
+
+# Frontend dir hosting the Remotion renderer (scripts/render-remotion.mjs) used
+# by render_section_card. Anchored off this file (backend/services/…) so it
+# resolves regardless of the caller's cwd: parent x3 == repo root.
+FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
+RENDER_SCRIPT = FRONTEND_DIR / "scripts" / "render-remotion.mjs"
+
+# Section-card defaults. A short Remotion title card fronts each section-intro
+# scene, eating into THAT scene's own frames (never spanning into the next), so
+# the assembled video length is unchanged. Hardcoded for now; the channel-preset
+# + per-video graphics_config that will drive card look/duration is a follow-up.
+SECTION_CARD_SECONDS = 2.5
+SECTION_CARD_COMP = "GardenBand"
 
 # Ken Burns supersample quality knobs. Defaults preserve current "final-render
 # quality" behavior — every render gets the best output by default. Lower the
@@ -683,6 +698,238 @@ def render_scene_clip(
         }, f)
 
 
+# ---------------------------------------------------------------------------
+# Section cards (zero-added-time title cards fronting each section-intro scene)
+#
+# For the first scene of each body segment we render a Remotion title card and
+# concatenate it with a SHORTENED footage segment so card_frames + footage_frames
+# == the scene's own frame count EXACTLY. The card thus eats into the scene's
+# frames (never adds any), so the total video length — and therefore the audio
+# and subtitle timelines — is untouched. Output goes to a distinct
+# ``scene_{sid:03d}.card.mp4`` path; the plain clip + its cache stay intact so a
+# card-off render is unaffected.
+# ---------------------------------------------------------------------------
+
+def _normalize_video_chain() -> str:
+    """The per-input normalization applied to EVERY concat-filter input (scene
+    clips AND card MP4s) before it reaches the concat/xfade filters.
+
+    Fit-to-fill 1920x1080, constant 25 fps, yuv420p, square pixels. The concat
+    filter demands identical width/height/SAR/format/fps across inputs; card
+    MP4s render at 30 fps from Remotion and clips are already 25 fps CFR, so
+    forcing one shape here is what lets the two interleave. Applied to clips too
+    (not just cards) so a single code path guarantees the match."""
+    return (
+        f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase,"
+        f"crop={OUT_W}:{OUT_H},fps={FPS},format=yuv420p,setsar=1"
+    )
+
+
+def render_section_card(
+    index: str,
+    title: str,
+    out_path: str,
+    *,
+    duration: float = SECTION_CARD_SECONDS,
+    comp: str = SECTION_CARD_COMP,
+) -> str:
+    """Render one Remotion section-header card to a silent MP4 at ``out_path``.
+
+    Reuses the SAME renderer the /remotion tab drives (frontend
+    scripts/render-remotion.mjs) via subprocess, cwd=<frontend>. A COMPLETE prop
+    set is passed (index + title + the garden defaults) so nothing falls back to
+    the designer's demo props; ``subtitle`` is explicitly blanked so the card
+    shows only the numbered section title. The raw card renders at the comp's
+    native 30 fps; _normalize_card_to_clip resamples it to the canonical
+    25 fps / 1920x1080 / yuv420p / SAR 1:1 shape and caps it to exact frames."""
+    props = {
+        "index": str(index),
+        "title": title,
+        "subtitle": "",  # title-only card (blank the designer demo subtitle)
+        "durationInSeconds": float(duration),
+        "animation": "rise",
+        "palette": {"background": "#e9f1e4", "text": "#2f4a34", "accent": "#7bae5a"},
+        "background": "gradient",
+        "decoration": {"set": "leaves", "density": "low"},
+        "fontFamily": "nunito",
+    }
+    cmd = [
+        "node", str(RENDER_SCRIPT),
+        f"--comp={comp}",
+        f"--props={json.dumps(props)}",
+        f"--out={out_path}",
+    ]
+    try:
+        subprocess.run(cmd, cwd=str(FRONTEND_DIR), check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+        stdout = e.stdout.decode("utf-8", errors="replace") if e.stdout else ""
+        print(f"Remotion card render failed for {title!r}:\n{stdout}\n{stderr}")
+        raise
+    return out_path
+
+
+def _normalize_card_to_clip(raw_path: str, frames: int, out_path: str) -> str:
+    """Re-encode a raw Remotion card MP4 to the canonical scene-clip shape and
+    cap it to exactly ``frames`` frames.
+
+    ``_normalize_video_chain`` fits it to 1920x1080 / 25 fps / yuv420p / SAR 1:1
+    (matching every plain scene clip so the concat demuxer can stream-copy the
+    seam), and ``-frames:v frames`` trims it to the card's frame budget. The raw
+    card is >= this many frames (2.5 s at 25 fps == 62.5 frames >= 62), so the
+    cap only ever drops the tail.
+
+    The extra ``scale=in_range=pc:out_range=tv`` after the shared chain converts
+    the card from full-range (Remotion renders yuvj420p / color_range=pc) to the
+    limited-range yuv420p / color_range=tv that every stock-footage scene clip
+    already carries. Without it the card stays yuvj420p and the top-level concat
+    demuxer would refuse to stream-copy the mismatched seam (and the card's
+    colors would read a touch off against the tv-range footage). The card is the
+    ONLY full-range source, so this conversion lives here rather than in the
+    shared chain (kept verbatim)."""
+    vf = _normalize_video_chain() + ",scale=in_range=pc:out_range=tv"
+    subprocess.run([
+        "ffmpeg", "-y", "-i", os.path.abspath(raw_path),
+        "-vf", vf,
+        "-frames:v", str(frames),
+        "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+        os.path.abspath(out_path),
+    ], check=True, capture_output=True)
+    return out_path
+
+
+def _concat_segments_copy(segs: list[str], output_path: str, base: str) -> str:
+    """Join already-canonical segments with the concat demuxer (stream copy).
+
+    Both the card segment and the footage segment are encoded to the identical
+    canonical shape (1920x1080 / 25 fps / yuv420p tv-range / SAR 1:1 / tb
+    1/12800), so a stream copy preserves every frame with no re-encode. If the
+    demuxer ever refuses the seam, fall back to a concat-filter re-encode of just
+    this 2-segment join (re-normalizing each input) and note it."""
+    concat_txt = base + ".concat.txt"
+    with open(concat_txt, "w") as f:
+        for p in segs:
+            f.write(f"file '{os.path.abspath(p)}'\n")
+    try:
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_txt,
+            "-c", "copy", os.path.abspath(output_path),
+        ], check=True, capture_output=True)
+        return output_path
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+        print(
+            "  Section-card seam rejected by concat demuxer copy "
+            f"({stderr[-400:].strip()!r}); falling back to concat-filter "
+            "re-encode of the 2-segment join."
+        )
+
+    input_args: list[str] = []
+    for p in segs:
+        input_args += ["-i", os.path.abspath(p)]
+    norm = _normalize_video_chain()
+    n = len(segs)
+    graph = (
+        ";".join(f"[{i}:v]{norm}[n{i}]" for i in range(n)) + ";"
+        + "".join(f"[n{i}]" for i in range(n)) + f"concat=n={n}:v=1:a=0[outv]"
+    )
+    subprocess.run([
+        "ffmpeg", "-y", *input_args,
+        "-filter_complex", graph, "-map", "[outv]",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+        os.path.abspath(output_path),
+    ], check=True, capture_output=True)
+    return output_path
+
+
+def render_section_intro_clip(
+    scene: dict,
+    footage_path: str,
+    output_path: str,
+    *,
+    index: str,
+    title: str,
+    card_seconds: float = SECTION_CARD_SECONDS,
+    card_comp: str = SECTION_CARD_COMP,
+    transition: str = "cut",
+    ken_burns: bool = False,
+    overlays: list[dict] | None = None,
+    edit_style: dict | None = None,
+) -> str:
+    """Render a section-intro scene as ``[card | card_frames] ++ [footage |
+    footage_frames]`` where ``card_frames + footage_frames == scene['frames']``
+    EXACTLY, written to ``output_path`` (``scene_{sid:03d}.card.mp4``).
+
+    ``card_frames = min(round(card_seconds * FPS), scene_frames)``: the card eats
+    into the scene's own frames and NEVER spans into the next scene, so the total
+    video length is unchanged. On the clamp (scene_frames <= card_frames) the
+    card fills the whole scene and there is no footage segment. The footage
+    segment renders through the normal render_scene_clip path (Ken Burns / fade /
+    any remaining overlays apply) at the shortened frame count, with the header +
+    counter overlays already stripped by the caller — the card now carries the
+    section number (its badge) + the title. The card hard-cuts into the footage;
+    the scene's own transition is passed to the footage segment."""
+    scene_frames = _scene_frame_count(scene)
+    card_frames = min(round(card_seconds * FPS), scene_frames)
+    footage_frames = scene_frames - card_frames
+
+    base = os.path.splitext(output_path)[0]  # …/scene_013.card
+    raw_card = base + ".raw.mp4"
+    card_seg = base + ".cardseg.mp4"
+    foot_seg = base + ".footseg.mp4"
+
+    render_section_card(index, title, raw_card, duration=card_seconds, comp=card_comp)
+    _normalize_card_to_clip(raw_card, card_frames, card_seg)
+
+    segs = [card_seg]
+    if footage_frames > 0:
+        render_scene_clip(
+            {**scene, "frames": footage_frames}, footage_path, foot_seg,
+            transition=transition, ken_burns=ken_burns,
+            overlays=overlays, edit_style=edit_style,
+        )
+        segs.append(foot_seg)
+
+    _concat_segments_copy(segs, output_path, base)
+    return output_path
+
+
+def derive_section_cards(project_name: str) -> dict[int, dict]:
+    """Map ``scene_id -> {"index": str, "title": str}`` for the FIRST scene of
+    each body segment (``segment_id >= 0``) — the section-intro scenes that get a
+    card.
+
+    Titles come from script_draft.json's segment list via the SAME
+    ``_listicle_segment_titles`` logic the EDL header text uses; when
+    script_draft is absent/unreadable we fall back to each window's own
+    ``segment_title``. ``index`` is the 1-based segment number
+    (``segment_id + 1``), matching the EDL's ``"{N}. {title}"`` header. A segment
+    with no resolvable title yields no card (skipped)."""
+    windows = load_scene_windows(project_name)
+    seg_titles: dict[int, str] = {}
+    draft_path = PROJECTS_ROOT / project_name / "script_draft.json"
+    if draft_path.exists():
+        try:
+            with draft_path.open() as f:
+                draft = json.load(f)
+            seg_titles = _listicle_segment_titles(draft.get("segments", []))
+        except (OSError, json.JSONDecodeError):
+            seg_titles = {}
+
+    cards: dict[int, dict] = {}
+    seen: set[int] = set()
+    for s in windows:
+        seg = s.get("segment_id")
+        if seg is None or seg < 0 or seg in seen:
+            continue
+        seen.add(seg)
+        title = seg_titles.get(seg) or (s.get("segment_title") or "").strip()
+        if not title:
+            continue
+        cards[s["id"]] = {"index": str(seg + 1), "title": title}
+    return cards
+
+
 def _project_channel_id(project_name: str) -> str | None:
     """Read the project's channel from script_config.json — the same source
     edl_service uses to resolve the editing style, so the render layer resolves
@@ -740,12 +987,23 @@ def render_all_scene_clips(
     *,
     transition: str = "cut",
     ken_burns: bool = False,
+    section_cards: dict | None = None,
+    card_seconds: float = SECTION_CARD_SECONDS,
+    card_comp: str = SECTION_CARD_COMP,
 ) -> list[str]:
     """Render every scene clip. Returns ordered list of clip paths.
 
     Per-scene render parameters come from edl.json (auto-generated if
     absent). The transition + ken_burns kwargs here are *defaults* passed
-    into auto-generation; once an EDL exists, the EDL is authoritative."""
+    into auto-generation; once an EDL exists, the EDL is authoritative.
+
+    ``section_cards`` (optional): ``{scene_id: {"index", "title"}}`` from
+    derive_section_cards. Each listed scene is rendered as a title card fronting a
+    shortened footage segment (render_section_intro_clip → scene_{sid}.card.mp4)
+    instead of a plain clip, and that ``.card.mp4`` path is returned in its slot
+    so the downstream concat picks it up. ``None`` (default) renders every scene
+    the plain way — byte-identical to the pre-card path. ``card_seconds`` /
+    ``card_comp`` set the card length + Remotion comp."""
     windows = load_scene_windows(project_name)
     edl = _load_or_create_edl(
         project_name, transition=transition, ken_burns=ken_burns,
@@ -780,6 +1038,32 @@ def render_all_scene_clips(
         per_scene_transition = entry.get("transition", transition)
         per_scene_ken_burns = entry.get("ken_burns", ken_burns)
         overlays = entry.get("overlays", [])
+
+        # Section-intro scene → render a title card fronting a shortened footage
+        # segment (zero added time) to scene_{sid}.card.mp4. The card carries the
+        # section number (badge) + title, so header + counter overlays are dropped
+        # from the footage segment; any other overlay (e.g. a callout) is kept.
+        # The plain scene_{sid}.mp4 + its cache are left untouched.
+        card = (section_cards or {}).get(sid)
+        if card:
+            out_card = os.path.join(clips_dir, f"scene_{sid:03d}.card.mp4")
+            footage_overlays = [
+                o for o in overlays if o.get("kind") not in ("header", "counter")
+            ]
+            print(
+                f"  Rendering section card + clip: scene {sid} "
+                f"({card['index']}. {card['title']})..."
+            )
+            render_section_intro_clip(
+                scene, src, out_card,
+                index=card["index"], title=card["title"],
+                card_seconds=card_seconds, card_comp=card_comp,
+                transition=per_scene_transition, ken_burns=per_scene_ken_burns,
+                overlays=footage_overlays, edit_style=edit_style,
+            )
+            rendered += 1
+            clip_paths.append(out_card)
+            continue
 
         if _clip_cache_hit(
             scene, src, out, per_scene_transition, per_scene_ken_burns,
@@ -875,16 +1159,30 @@ def assemble(
     *,
     transition: str = "cut",
     ken_burns: bool = False,
+    section_cards: bool = False,
+    card_seconds: float = SECTION_CARD_SECONDS,
+    card_comp: str = SECTION_CARD_COMP,
+    output_name: str = "final.mp4",
 ) -> str:
-    """Full assembly: audio → clips → concat → subtitles → mux → final.mp4
+    """Full assembly: audio → clips → concat → subtitles → mux → <output_name>
 
     transition: "cut" (default) or "fade" — per-clip fade-in/out against black.
     ken_burns: when True, applies a slow zoom to PNG (still-image) scenes only.
     Both kwargs become DEFAULTS for EDL auto-generation when no edl.json
     exists yet; once an EDL is present, its per-scene values are
-    authoritative and these kwargs are ignored."""
+    authoritative and these kwargs are ignored.
+
+    section_cards: when True, front each section-intro scene (first scene of each
+    body segment) with a title card that eats into THAT scene's own frames — the
+    total length, and therefore the audio + subtitle timelines, are unchanged.
+    Karaoke cues that play entirely under a card are suppressed. Default False
+    renders the plain path (byte-identical to before). card_seconds / card_comp
+    set the card length + Remotion comp. output_name: filename inside video/, so
+    a card render can write beside an untouched final.mp4."""
     if transition not in ("cut", "fade"):
         raise ValueError(f"transition must be 'cut' or 'fade', got {transition!r}")
+
+    cards = derive_section_cards(project_name) if section_cards else {}
 
     print("  Assembling audio...")
     audio = assemble_audio(project_name)
@@ -892,18 +1190,39 @@ def assemble(
     print("  Rendering scene clips...")
     clips = render_all_scene_clips(
         project_name, footage_paths, transition=transition, ken_burns=ken_burns,
+        section_cards=cards or None, card_seconds=card_seconds, card_comp=card_comp,
     )
 
     print("  Concatenating clips...")
     silent = concat_clips(project_name, clips)
 
+    # Windows covered by a section card, so the subtitle builder can suppress any
+    # karaoke cue that would otherwise render over a card. Each window is
+    # [scene start_time, start_time + card_frames/FPS] using the SAME frame math
+    # render_section_intro_clip uses, so the window's right edge lands exactly on
+    # the card→footage seam. None when cards are off (subtitles unchanged).
+    blank_windows = None
+    if cards:
+        windows_by_id = {s["id"]: s for s in load_scene_windows(project_name)}
+        blank_windows = []
+        for sid in cards:
+            s = windows_by_id[sid]
+            scene_frames = _scene_frame_count(s)
+            card_frames = min(round(card_seconds * FPS), scene_frames)
+            start = s["start_time"]
+            blank_windows.append((start, round(start + card_frames / FPS, 3)))
+
     print("  Building subtitles...")
     sub_path = build_subtitles(
         project_name,
         str(PROJECTS_ROOT / project_name / "video" / "subtitles.ass"),
+        blank_windows=blank_windows,
     )
 
     print("  Muxing audio + burning subtitles...")
-    final = mux_audio(project_name, silent, audio, subtitle_path=sub_path)
+    final = mux_audio(
+        project_name, silent, audio,
+        subtitle_path=sub_path, output_name=output_name,
+    )
 
     return final

@@ -75,6 +75,12 @@ def run_render(project_name: str) -> str:
         print(f"  WARN: RENDER_TRANSITION={transition!r} invalid, falling back to 'cut'")
         transition = "cut"
     ken_burns = os.environ.get("RENDER_KEN_BURNS", "0") == "1"
+    # Section cards front each section-intro scene with a title card that eats
+    # into that scene's own frames (zero added time). Off by default so the CLI
+    # and existing callers are unchanged. RENDER_OUTPUT_NAME lets a card render
+    # land beside an untouched final.mp4.
+    section_cards = os.environ.get("RENDER_SECTION_CARDS", "0") == "1"
+    output_name = os.environ.get("RENDER_OUTPUT_NAME", "final.mp4")
 
     # Ensure a current-version EDL exists before assembly. The EDL is the
     # per-scene render decision list (transition, ken_burns, overlays); when
@@ -97,11 +103,13 @@ def run_render(project_name: str) -> str:
 
     print(
         f"\nAssembling video for '{project_name}' ({len(footage_paths)} scenes; "
-        f"transition={transition}, ken_burns={ken_burns})..."
+        f"transition={transition}, ken_burns={ken_burns}, "
+        f"section_cards={section_cards}, output={output_name})..."
     )
     print("[[STAGE:render:started]]", flush=True)
     final_video = assemble(
         project_name, footage_paths, transition=transition, ken_burns=ken_burns,
+        section_cards=section_cards, output_name=output_name,
     )
     print("[[STAGE:render:completed]]", flush=True)
 
