@@ -18,9 +18,10 @@
  *     shared base, so the whole garden breathes TOGETHER — one soft breeze, not
  *     scattered bobbing. The optional Lottie animations materialize and sway the
  *     very same way, so the two decoration layers move together.
- *   - Foliage greens derive from `palette.text`, softer the further back a layer
- *     sits; blooms/berries + the optional `highlight` word use `palette.accent`
- *     (a warm floral rose by default). Fully recolorable via `palette`.
+ *   - Foliage greens derive from `foliageColor` (its own leaf color, defaulting
+ *     to the deep `palette.text` green), softer the further back a layer sits;
+ *     blooms/berries + the optional `highlight` word use `palette.accent` (a warm
+ *     floral rose by default). Fully recolorable via `palette` + `foliageColor`.
  *
  * The DECORATIONS establish first: they bloom in from frame 0, and only THEN —
  * ~0.95s in, via a delayed <Sequence> — does the title rise in (the shared soft
@@ -241,7 +242,7 @@ const SVG_FRONT_COUNT: Record<DecorationDensity, number> = {
 };
 
 // The BACK wash look: faded + blurred into a hazy depth backdrop. Its foliage
-// green is mixed this far from `palette.text` toward the background — softer for
+// green is mixed this far from `foliageBase` toward the background — softer for
 // the distant back, a touch deeper for the crisp foreground.
 const BACK_STYLE = { opacity: 0.34, blur: 4, foliageMix: 0.4 };
 const FRONT_FOLIAGE_MIX = 0.3;
@@ -294,9 +295,11 @@ function BloomPiece({
 function BloomDecor({
   palette,
   decoration,
+  foliageBase,
 }: {
   palette: CardPalette;
   decoration: CardDecoration;
+  foliageBase: string;
 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -337,7 +340,8 @@ function BloomDecor({
   ];
 
   // Blooms/berries take the real accent (warm rose); foliage greens derive from
-  // the deep text color, mixed per piece (BACK_STYLE vs FRONT_FOLIAGE_MIX).
+  // `foliageBase` (its own leaf color), mixed per piece (BACK_STYLE vs
+  // FRONT_FOLIAGE_MIX).
   const bloom = palette;
 
   // Entrance: each piece softly MATERIALIZES — a small downward settle + fade,
@@ -353,7 +357,7 @@ function BloomDecor({
   const renderPiece = (piece: (typeof pieces)[number], i: number) => {
     const foliage: CardPalette = {
       ...palette,
-      accent: mix(palette.text, palette.background, piece.foliageMix),
+      accent: mix(foliageBase, palette.background, piece.foliageMix),
     };
     const kind = resolveKind(decoration.set, piece.kind, i);
 
@@ -436,12 +440,12 @@ function LottieDecor({
   entries,
   density,
   recolorAmount,
-  palette,
+  recolorColor,
 }: {
   entries: LottieRuntimeEntry[];
   density: LottieDensity;
   recolorAmount: number;
-  palette: CardPalette;
+  recolorColor: string;
 }) {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -457,7 +461,7 @@ function LottieDecor({
       const entry = entries[i % entries.length];
       try {
         const data = entry.recolor
-          ? recolorLottie(entry.data, palette.accent, recolorAmount)
+          ? recolorLottie(entry.data, recolorColor, recolorAmount)
           : cloneLottie(entry.data);
         return {
           anchor,
@@ -472,7 +476,7 @@ function LottieDecor({
         };
       }
     });
-  }, [entries, density, recolorAmount, palette.accent]);
+  }, [entries, density, recolorAmount, recolorColor]);
 
   // Per-instance entrance timing, shared with the SVG botanicals: staggered by
   // index from frame 0 so the Lotties establish WITH (not after) the garden.
@@ -640,6 +644,16 @@ export const GardenBloom = (props: CardProps) => {
     [props.lottieData],
   );
 
+  // The Lottie recolor target is its OWN color, independent of `palette.accent`
+  // (which still colors the highlight word + the SVG blooms). Falls back to the
+  // accent so an unset value keeps the original look.
+  const recolorColor = props.lottieRecolorColor ?? palette.accent;
+
+  // The SVG foliage (leaves/sprigs) draws from its OWN color, independent of
+  // `palette.text` (which still colors the title/subtitle). Falls back to the
+  // text green so an unset value keeps the original look.
+  const foliageBase = props.foliageColor ?? palette.text;
+
   // Decorations bloom in from frame 0; the title arrives AFTER the garden has
   // established (~0.95s in, as the bloom is finishing settling). A <Sequence>
   // offset shifts the title's entrance clock to start here (its `useTextEntrance`
@@ -670,13 +684,17 @@ export const GardenBloom = (props: CardProps) => {
       {/* Dappled sun — far, behind the botanicals; fades up WITH the gradient so
           it never glows on pure black at frame 0. */}
       <AtmosphereLight enter={emerge} />
-      <BloomDecor palette={palette} decoration={props.decoration} />
+      <BloomDecor
+        palette={palette}
+        decoration={props.decoration}
+        foliageBase={foliageBase}
+      />
       {lottieEntries.length > 0 ? (
         <LottieDecor
           entries={lottieEntries}
           density={props.lottieDensity ?? "low"}
           recolorAmount={props.lottieRecolorAmount ?? 0.8}
-          palette={palette}
+          recolorColor={recolorColor}
         />
       ) : null}
       {/* Floating motes — in front of the garden but behind the title; emerge

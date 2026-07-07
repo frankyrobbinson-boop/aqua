@@ -80,6 +80,19 @@ export type CardProps = {
    *  0..1 (0 = native colors, 1 = full palette). Applies to every animation
    *  whose per-row `recolor` is on. Defaults to 0.8. GardenBloom-only. */
   lottieRecolorAmount?: number;
+  /** Target color for Lottie recolor — a `#rrggbb` hex, independent of
+   *  `palette.accent` (which still colors the highlight word + the SVG
+   *  flowers/berries). Recolored Lottie decorations blend toward THIS color;
+   *  defaults to GardenBloom's accent so the look is unchanged until set.
+   *  GardenBloom-only. */
+  lottieRecolorColor?: string;
+  /** SVG foliage/leaf color — a `#rrggbb` hex, independent of `palette.text`.
+   *  GardenBloom derives its leaves/sprigs (the green botanicals) from THIS
+   *  color, mixed toward the background per depth layer; the flowers/berries
+   *  still use `palette.accent` and the title/subtitle still use `palette.text`.
+   *  Defaults to GardenBloom's deep green so the look is unchanged until set.
+   *  GardenBloom-only. */
+  foliageColor?: string;
   /** Runtime-only: the fetched + parsed Lottie JSON for each `lottieAnimations`
    *  entry, in the SAME order (null for a not-yet-loaded / failed entry),
    *  injected by RemotionPanel straight into the <Player> inputProps. NOT a

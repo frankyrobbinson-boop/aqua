@@ -4,12 +4,18 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { ChannelSelect } from "@/components/ChannelSelect";
 import { ColorField } from "@/components/ColorField";
 import {
+  deleteTitleCard,
+  getTitleCards,
   remotionOutUrl,
+  saveTitleCard,
   startRemotionRender,
   streamTaskLogs,
   type TaskStatus,
+  type TitleCardLibrary,
+  type TitleCardPreset,
 } from "@/lib/api";
 import { FPS, HEIGHT, WIDTH } from "@/remotion/constants";
 import {
@@ -127,6 +133,13 @@ export function RemotionPanel() {
   const [error, setError] = useState<string | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
+  // Title-card design library, scoped to the selected channel. `libraryError`
+  // is kept SEPARATE from the render `error` box (same split as the Lottie
+  // fetch) so a save/load failure never masquerades as a render failure.
+  const [channel, setChannel] = useState<string | undefined>(undefined);
+  const [library, setLibrary] = useState<TitleCardLibrary | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+
   // Lottie decorations (GardenBloom): the library list for the row dropdowns,
   // plus the fetched JSON for each chosen animation — assembled (aligned to
   // props.lottieAnimations, each paired with its loop flag) and injected into
@@ -162,6 +175,29 @@ export function RemotionPanel() {
       cancelled = true;
     };
   }, []);
+
+  // Load the selected channel's saved title-card designs — on mount (once
+  // ChannelSelect auto-picks the default) and whenever the channel changes.
+  useEffect(() => {
+    if (!channel) return;
+    let cancelled = false;
+    getTitleCards(channel)
+      .then((lib) => {
+        if (!cancelled) {
+          setLibrary(lib);
+          setLibraryError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setLibrary(null);
+          setLibraryError(err instanceof Error ? err.message : String(err));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [channel]);
 
   const selected = CARDS.find((c) => c.id === cardId) ?? CARDS[0];
   const running = submitting || run?.status === "running";
@@ -291,6 +327,38 @@ export function RemotionPanel() {
     }
   }
 
+  // Save the current design as a named preset under the selected channel.
+  async function onSavePreset() {
+    if (props.title.trim().length === 0 || !channel) return;
+    const raw = window.prompt("Save this design as a preset named:");
+    if (raw === null) return; // dialog cancelled
+    const name = raw.trim();
+    if (!name) return;
+    setLibraryError(null);
+    try {
+      setLibrary(await saveTitleCard(channel, name, cardId, props));
+    } catch (err) {
+      setLibraryError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  // Load a saved preset into the form: switch to its card, then merge its props
+  // over that card's defaults so every controlled input stays defined.
+  function onLoadPreset(preset: TitleCardPreset) {
+    setCardId(preset.card_id);
+    setProps({ ...mergedDefaults(preset.card_id), ...preset.props });
+  }
+
+  async function onDeletePreset(name: string) {
+    if (!channel) return;
+    setLibraryError(null);
+    try {
+      setLibrary(await deleteTitleCard(channel, name));
+    } catch (err) {
+      setLibraryError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
   const videoUrl =
     run?.status === "completed" ? remotionOutUrl(run.filename) : null;
   const titleEmpty = props.title.trim().length === 0;
@@ -305,6 +373,11 @@ export function RemotionPanel() {
 
   return (
     <section className="space-y-6">
+      {/* Channel — scopes the saved title-card design library */}
+      <Field label="Channel">
+        <ChannelSelect value={channel} onChange={setChannel} />
+      </Field>
+
       {/* Card picker */}
       <div className="flex flex-wrap gap-2">
         {CARDS.map((card) => {
@@ -510,27 +583,40 @@ export function RemotionPanel() {
               </div>
 
               {lottieAnimations.some((e) => e.recolor) && (
-                <Field label="Recolor amount">
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      step={1}
-                      value={Math.round((props.lottieRecolorAmount ?? 0.8) * 100)}
-                      onChange={(e) =>
-                        update(
-                          "lottieRecolorAmount",
-                          Number(e.target.value) / 100,
-                        )
-                      }
-                      className="flex-1 accent-accent"
+                <>
+                  <Field label="Recolor amount">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={Math.round(
+                          (props.lottieRecolorAmount ?? 0.8) * 100,
+                        )}
+                        onChange={(e) =>
+                          update(
+                            "lottieRecolorAmount",
+                            Number(e.target.value) / 100,
+                          )
+                        }
+                        className="flex-1 accent-accent"
+                      />
+                      <span className="w-10 text-right text-sm font-medium tabular-nums text-foreground">
+                        {Math.round((props.lottieRecolorAmount ?? 0.8) * 100)}%
+                      </span>
+                    </div>
+                  </Field>
+
+                  {/* Recolor target — its OWN color, separate from the accent
+                      (which still colors the highlight word + SVG blooms). */}
+                  <Field label="Recolor color">
+                    <ColorField
+                      value={props.lottieRecolorColor ?? props.palette.accent}
+                      onChange={(hex) => update("lottieRecolorColor", hex)}
                     />
-                    <span className="w-10 text-right text-sm font-medium tabular-nums text-foreground">
-                      {Math.round((props.lottieRecolorAmount ?? 0.8) * 100)}%
-                    </span>
-                  </div>
-                </Field>
+                  </Field>
+                </>
               )}
             </>
           )}
@@ -553,6 +639,17 @@ export function RemotionPanel() {
               onChange={(hex) => updatePalette("accent", hex)}
             />
           </Field>
+          {/* Foliage — GardenBloom's SVG leaves/sprigs color, its OWN color
+              separate from the text (which still colors the title/subtitle).
+              Falls back to the text green until set. GardenBloom-only. */}
+          {isBloom && (
+            <Field label="Foliage color">
+              <ColorField
+                value={props.foliageColor ?? props.palette.text}
+                onChange={(hex) => update("foliageColor", hex)}
+              />
+            </Field>
+          )}
 
           <Field label="Duration" htmlFor="card-duration">
             <div className="flex items-center gap-3">
@@ -573,6 +670,67 @@ export function RemotionPanel() {
               </span>
             </div>
           </Field>
+
+          {/* Saved presets — per-channel title-card design library */}
+          <div className="space-y-3 border-t border-border pt-5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-muted-strong">
+                Saved presets
+              </span>
+              <button
+                type="button"
+                onClick={onSavePreset}
+                disabled={titleEmpty || !channel}
+                className="rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Save as preset
+              </button>
+            </div>
+
+            {libraryError && (
+              <div className="rounded-md border border-danger/30 bg-danger/10 p-2 text-xs text-danger">
+                {libraryError}
+              </div>
+            )}
+
+            {library && library.presets.length === 0 && (
+              <p className="text-xs text-muted">No saved presets yet.</p>
+            )}
+
+            {library && library.presets.length > 0 && (
+              <ul className="space-y-1.5">
+                {library.presets.map((preset) => {
+                  const cardLabel =
+                    CARDS.find((c) => c.id === preset.card_id)?.label ??
+                    preset.card_id;
+                  return (
+                    <li key={preset.name} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onLoadPreset(preset)}
+                        className="flex flex-1 items-center justify-between gap-2 rounded-md border border-border bg-surface px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-surface-2"
+                      >
+                        <span className="truncate font-medium">
+                          {preset.name}
+                        </span>
+                        <span className="shrink-0 text-xs text-muted">
+                          {cardLabel}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeletePreset(preset.name)}
+                        aria-label={`Delete preset ${preset.name}`}
+                        className="shrink-0 rounded-md border border-border bg-surface px-2.5 py-2 text-sm leading-none text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
 
         {/* Preview + render + output */}

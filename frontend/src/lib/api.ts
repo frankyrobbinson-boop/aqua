@@ -596,6 +596,51 @@ export function remotionOutUrl(filename: string): string {
   return `${API_URL}/remotion-out/${filename}`;
 }
 
+// ---------------------------------------------------------------------------
+// Per-channel title-card design library (Phase 1 persistence). Named designs
+// saved from the /remotion designer. `card_id` is a card id (see
+// cards/registry.ts); `props` is the full CardProps for that design. snake_case
+// leaf keys mirror the backend JSON.
+// ---------------------------------------------------------------------------
+
+export type TitleCardPreset = { name: string; card_id: string; props: CardProps };
+export type TitleCardLibrary = { default: string | null; presets: TitleCardPreset[] };
+
+/** GET /channels/{id}/title-cards — the channel's saved design library. */
+export async function getTitleCards(
+  channelId: string,
+): Promise<TitleCardLibrary> {
+  return getJSON<TitleCardLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/title-cards`,
+  );
+}
+
+/** POST /channels/{id}/title-cards — upsert a named design; returns the updated
+ *  library. */
+export async function saveTitleCard(
+  channelId: string,
+  name: string,
+  cardId: string,
+  props: CardProps,
+): Promise<TitleCardLibrary> {
+  return getJSON<TitleCardLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/title-cards`,
+    { method: "POST", body: JSON.stringify({ name, card_id: cardId, props }) },
+  );
+}
+
+/** DELETE /channels/{id}/title-cards/{name} — remove a named design; returns
+ *  the updated library. */
+export async function deleteTitleCard(
+  channelId: string,
+  name: string,
+): Promise<TitleCardLibrary> {
+  return getJSON<TitleCardLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/title-cards/${encodeURIComponent(name)}`,
+    { method: "DELETE" },
+  );
+}
+
 /** Subscribe to a task's SSE log stream. Returns a cleanup function.
  *  ``onStage`` (optional) receives structured stage markers so callers can
  *  render a per-stage checklist without screen-scraping log lines. */

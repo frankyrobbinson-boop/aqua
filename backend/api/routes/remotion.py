@@ -27,6 +27,11 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.routes.tasks import start_task
+from services.title_card_registry import (
+    delete_preset as delete_title_card_preset,
+    load_library as load_title_card_library,
+    save_preset as save_title_card_preset,
+)
 
 router = APIRouter(tags=["remotion"])
 
@@ -69,6 +74,18 @@ _MAX_SUBTITLE_LEN = 200
 _MAX_EYEBROW_LEN = 40
 _MAX_HIGHLIGHT_LEN = 60
 
+# Saved-design extras: the GardenBloom-only Lottie fields that _sanitize_props
+# drops but a persisted design must round-trip (see _sanitize_card_design).
+_MAX_LOTTIE_ROWS = 4
+_MAX_LOTTIE_NAME_LEN = 80
+_DEFAULT_LOTTIE_RECOLOR_AMOUNT = 0.8
+
+# Title-card preset name — must be a safe single URL path segment: 1..60 chars
+# after trim, no "/" and no C0/DEL control characters.
+_PRESET_NAME_MIN = 1
+_PRESET_NAME_MAX = 60
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+
 
 class RemotionRenderRequest(BaseModel):
     comp: str
@@ -78,6 +95,12 @@ class RemotionRenderRequest(BaseModel):
 class RemotionRenderResponse(BaseModel):
     task_id: str
     filename: str
+
+
+class SaveTitleCardRequest(BaseModel):
+    name: str
+    card_id: str
+    props: dict[str, Any] = {}
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -157,6 +180,25 @@ def _sanitize_props(raw: dict[str, Any]) -> dict[str, Any]:
         palette_out[key] = val if _HEX_RE.match(val) else default
     out["palette"] = palette_out
 
+    # lottieRecolorColor — GardenBloom's Lottie recolor target, INDEPENDENT of
+    # the accent. Strict #rrggbb; falls back to the sanitized accent when
+    # missing/invalid. (The MP4 render still drops the other lottie fields today,
+    # so this only bites once Lotties bake into renders — kept correct now.)
+    recolor_color = str(raw.get("lottieRecolorColor", ""))
+    out["lottieRecolorColor"] = (
+        recolor_color if _HEX_RE.match(recolor_color) else palette_out["accent"]
+    )
+
+    # foliageColor — GardenBloom's SVG foliage/leaf color, INDEPENDENT of the
+    # text (which still colors the title/subtitle). Strict #rrggbb; falls back to
+    # the sanitized text color when missing/invalid. This lives in _sanitize_props
+    # (NOT only the card-design wrapper) because the SVG foliage DOES bake into the
+    # MP4 render, so the render path must honor it.
+    foliage_color = str(raw.get("foliageColor", ""))
+    out["foliageColor"] = (
+        foliage_color if _HEX_RE.match(foliage_color) else palette_out["text"]
+    )
+
     # style enums — lenient pass-through with defaults.
     out["animation"] = _enum_str(raw.get("animation"), "rise")
     out["background"] = _enum_str(raw.get("background"), "gradient")
@@ -171,6 +213,72 @@ def _sanitize_props(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
     return out
+
+
+def _sanitize_card_design(raw: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize a SAVED title-card design: the strict/lenient render props from
+    ``_sanitize_props`` PLUS the GardenBloom-only Lottie fields that
+    ``_sanitize_props`` drops. The MP4 render path doesn't need those extras yet,
+    but a persisted design must round-trip losslessly. The runtime-only
+    ``lottieData`` is never persisted (``_sanitize_props`` already drops it and
+    we never re-attach it). Each extra is attached only when present in ``raw``."""
+    out = _sanitize_props(raw)
+
+    # lottieAnimations — up to _MAX_LOTTIE_ROWS rows; skip malformed entries.
+    anims = raw.get("lottieAnimations")
+    if isinstance(anims, list):
+        rows: list[dict[str, Any]] = []
+        for item in anims:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()[:_MAX_LOTTIE_NAME_LEN]
+            if not name:
+                continue
+            rows.append(
+                {
+                    "name": name,
+                    "loop": bool(item.get("loop", True)),
+                    "recolor": bool(item.get("recolor", True)),
+                }
+            )
+            if len(rows) >= _MAX_LOTTIE_ROWS:
+                break
+        if rows:
+            out["lottieAnimations"] = rows
+
+    # lottieDensity — lenient enum, default "low".
+    if "lottieDensity" in raw:
+        out["lottieDensity"] = _enum_str(raw.get("lottieDensity"), "low")
+
+    # lottieRecolorAmount — clamp to [0, 1]; default 0.8 when present-but-invalid.
+    if "lottieRecolorAmount" in raw:
+        try:
+            amount = float(raw["lottieRecolorAmount"])
+        except (TypeError, ValueError):
+            amount = _DEFAULT_LOTTIE_RECOLOR_AMOUNT
+        out["lottieRecolorAmount"] = _clamp(amount, 0.0, 1.0)
+
+    return out
+
+
+def _validate_preset_name(name: str) -> str:
+    """Trim + validate a preset name so it's safe as a single URL path segment:
+    1..60 chars, no "/", no control characters. Raises HTTP 422 on violation."""
+    trimmed = name.strip()
+    if not (_PRESET_NAME_MIN <= len(trimmed) <= _PRESET_NAME_MAX):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                f"preset name must be {_PRESET_NAME_MIN}–{_PRESET_NAME_MAX} "
+                f"characters"
+            ),
+        )
+    if "/" in trimmed or _CONTROL_CHAR_RE.search(trimmed):
+        raise HTTPException(
+            status_code=422,
+            detail="preset name may not contain '/' or control characters",
+        )
+    return trimmed
 
 
 @router.post("/remotion/render", response_model=RemotionRenderResponse)
@@ -206,3 +314,49 @@ async def start_remotion_render(
         kind="remotion",
     )
     return RemotionRenderResponse(task_id=task.id, filename=filename)
+
+
+# ---------------------------------------------------------------------------
+# Per-channel title-card design library (Phase 1 persistence). Named designs the
+# /remotion designer can save, list, load, and delete. Stored under
+# prompts/channels/<id>/title_cards.json via services.title_card_registry.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/channels/{channel_id}/title-cards")
+def get_title_cards(channel_id: str) -> dict[str, Any]:
+    """The channel's saved title-card design library (default + presets)."""
+    try:
+        return load_title_card_library(channel_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/channels/{channel_id}/title-cards")
+def save_title_card(channel_id: str, req: SaveTitleCardRequest) -> dict[str, Any]:
+    """Upsert a named title-card design under this channel; returns the updated
+    library. 422 on an unknown card_id, a bad name, or bad props; 404 on an
+    unknown channel."""
+    if req.card_id not in ALLOWED_COMPS:
+        raise HTTPException(
+            status_code=422, detail=f"unknown card_id: {req.card_id!r}"
+        )
+    name = _validate_preset_name(req.name)
+    props = _sanitize_card_design(req.props)
+    try:
+        return save_title_card_preset(channel_id, name, req.card_id, props)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.delete("/channels/{channel_id}/title-cards/{name}")
+def delete_title_card(channel_id: str, name: str) -> dict[str, Any]:
+    """Delete a named title-card design; returns the updated library. 404 if the
+    channel or the named preset is unknown."""
+    # FastAPI hands us the URL-decoded segment; still guard its shape so a
+    # decoded "/" or control char can't slip past.
+    name = _validate_preset_name(name)
+    try:
+        return delete_title_card_preset(channel_id, name)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))

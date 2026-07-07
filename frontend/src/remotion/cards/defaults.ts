@@ -22,6 +22,13 @@ export const FONT_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "nunito", label: "Nunito · rounded" },
   { id: "quicksand", label: "Quicksand · geometric" },
   { id: "fraunces", label: "Fraunces · serif" },
+  { id: "poppins", label: "Poppins · geometric" },
+  { id: "worksans", label: "Work Sans · clean sans" },
+  { id: "lora", label: "Lora · warm serif" },
+  { id: "playfairdisplay", label: "Playfair Display · elegant serif" },
+  { id: "dmserifdisplay", label: "DM Serif Display · bold serif" },
+  { id: "caveat", label: "Caveat · handwritten" },
+  { id: "merriweather", label: "Merriweather · essayistic serif" },
 ];
 
 export const BACKGROUND_OPTIONS: ReadonlyArray<{
@@ -98,13 +105,18 @@ export const CARD_DEFAULT_OVERRIDES: Partial<
   },
   GardenBloom: {
     // Soft sunlit warm-green canvas, deep readable garden-green text, and a warm
-    // floral rose accent — foliage greens derive from the text color, blooms +
-    // the highlight word from the accent. Boots lush (mixed / high).
+    // floral rose accent — foliage greens derive from `foliageColor` (its own
+    // leaf color, defaulting to the same deep green), blooms + the highlight word
+    // from the accent. Boots lush (mixed / high).
     palette: {
       background: "#eef4e3",
       text: "#31492b",
       accent: "#e2917f",
     },
+    // SVG foliage/leaf green — INDEPENDENT of palette.text (which now only colors
+    // the title/subtitle). Set to the SAME deep green as the text so the default
+    // render is pixel-identical; change it to recolor the leaves alone.
+    foliageColor: "#31492b",
     decoration: { set: "mixed", density: "high" },
     // Lottie decorations layer OVER the botanicals (both show). Boots with none
     // added; a light instance count and a mostly-palette recolor blend for once
@@ -112,5 +124,9 @@ export const CARD_DEFAULT_OVERRIDES: Partial<
     lottieAnimations: [],
     lottieDensity: "low",
     lottieRecolorAmount: 0.8,
+    // Lottie recolor target — SEPARATE from palette.accent (which still colors
+    // the highlight word + the SVG blooms). Defaults to the SAME accent rose so
+    // the look is unchanged until the user picks a new color.
+    lottieRecolorColor: "#e2917f",
   },
 };

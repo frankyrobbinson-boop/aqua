@@ -9,9 +9,16 @@
  * capturing frames, so the MP4 matches the live <Player> preview. Headless
  * Chromium has no Mac system fonts, which is exactly why we can't lean on one.
  */
+import { loadFont as loadCaveat } from "@remotion/google-fonts/Caveat";
+import { loadFont as loadDMSerifDisplay } from "@remotion/google-fonts/DMSerifDisplay";
 import { loadFont as loadFraunces } from "@remotion/google-fonts/Fraunces";
+import { loadFont as loadLora } from "@remotion/google-fonts/Lora";
+import { loadFont as loadMerriweather } from "@remotion/google-fonts/Merriweather";
 import { loadFont as loadNunito } from "@remotion/google-fonts/Nunito";
+import { loadFont as loadPlayfairDisplay } from "@remotion/google-fonts/PlayfairDisplay";
+import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
 import { loadFont as loadQuicksand } from "@remotion/google-fonts/Quicksand";
+import { loadFont as loadWorkSans } from "@remotion/google-fonts/WorkSans";
 
 import type { CardBackground, CardPalette } from "./types";
 
@@ -29,6 +36,35 @@ const quicksand = loadQuicksand("normal", {
   weights: ["400", "500", "700"],
   subsets: ["latin"],
 });
+const poppins = loadPoppins("normal", {
+  weights: ["400", "700"],
+  subsets: ["latin"],
+});
+const workSans = loadWorkSans("normal", {
+  weights: ["400", "700"],
+  subsets: ["latin"],
+});
+const lora = loadLora("normal", {
+  weights: ["400", "700"],
+  subsets: ["latin"],
+});
+const playfairDisplay = loadPlayfairDisplay("normal", {
+  weights: ["400", "700"],
+  subsets: ["latin"],
+});
+// DM Serif Display ships a single weight (400 normal); load just that.
+const dmSerifDisplay = loadDMSerifDisplay("normal", {
+  weights: ["400"],
+  subsets: ["latin"],
+});
+const caveat = loadCaveat("normal", {
+  weights: ["400", "700"],
+  subsets: ["latin"],
+});
+const merriweather = loadMerriweather("normal", {
+  weights: ["400", "700"],
+  subsets: ["latin"],
+});
 
 export const DEFAULT_FONT_ID = "nunito";
 
@@ -36,6 +72,13 @@ const FONT_FAMILY_BY_ID: Record<string, string> = {
   nunito: nunito.fontFamily,
   fraunces: fraunces.fontFamily,
   quicksand: quicksand.fontFamily,
+  poppins: poppins.fontFamily,
+  worksans: workSans.fontFamily,
+  lora: lora.fontFamily,
+  playfairdisplay: playfairDisplay.fontFamily,
+  dmserifdisplay: dmSerifDisplay.fontFamily,
+  caveat: caveat.fontFamily,
+  merriweather: merriweather.fontFamily,
 };
 
 /** Resolve a curated font id to its loaded CSS family. Unknown ids (the backend
