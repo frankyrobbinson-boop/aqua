@@ -1,5 +1,4 @@
 import json
-import math
 import os
 import subprocess
 
@@ -46,7 +45,8 @@ RENDER_KB_TEMPORAL_SUPERSAMPLE = int(os.environ.get("RENDER_KB_TEMPORAL_SUPERSAM
 #     triple backslash (' -> '\\\'') and colon escapes to \: ; commas/brackets
 #     stay literal (guarded by the quotes). Replaces the arg-escaper that
 #     crashed on apostrophes. Re-renders any clip cached under v8.
-_CLIP_CACHE_VERSION = 9
+# v10: clips rendered to exact scene['frames'], not -t seconds; key gains frames
+_CLIP_CACHE_VERSION = 10
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -470,6 +470,22 @@ def _edit_style_signature(edit_style: dict | None) -> str:
     return json.dumps(edit_style or {}, sort_keys=True)
 
 
+def _scene_frame_count(scene: dict) -> int:
+    """Exact number of frames this scene's clip must render to.
+
+    scene_timing_service frame-quantizes the whole narration timeline and
+    stamps each scene with an integer ``frames``; that count is authoritative
+    so concatenated clip frames sum to the quantized total (== audio length)
+    with no per-scene drift. The render encodes exactly this many frames and
+    derives its duration clock from it, and the clip cache keys on it. The
+    fallback reconstructs a count from ``duration`` for older
+    scene_windows.json written before the ``frames`` field existed."""
+    frames = scene.get("frames")
+    if frames is None:
+        frames = max(1, round(max(0.1, scene["duration"]) * FPS))
+    return int(frames)
+
+
 def _clip_cache_hit(
     scene: dict,
     footage_path: str,
@@ -498,6 +514,7 @@ def _clip_cache_hit(
     return (
         cache.get("footage_mtime") == os.path.getmtime(footage_path)
         and abs(cache.get("duration", 0.0) - max(0.1, scene["duration"])) < 0.01
+        and cache.get("frames") == _scene_frame_count(scene)
         and cache.get("out_w") == OUT_W
         and cache.get("out_h") == OUT_H
         and cache.get("fps") == FPS
@@ -545,7 +562,13 @@ def render_scene_clip(
       editing style supplying each kind's look (fontsize / box / animation
       timings). Both are read from edl.json + resolve_channel_editing per
       scene by render_all_scene_clips."""
-    duration = max(0.1, scene['duration'])
+    # Frame count is the single source of truth for this clip's length. The
+    # timeline was frame-quantized upstream, so we encode exactly this many
+    # frames and derive the duration clock from it — every filter (Ken Burns,
+    # fade, overlays) and the encode then share one clock, and the concatenated
+    # clips sum to the quantized total (== audio length).
+    frames = _scene_frame_count(scene)
+    duration = frames / FPS
 
     if _clip_cache_hit(
         scene, footage_path, output_path, transition, ken_burns,
@@ -553,7 +576,7 @@ def render_scene_clip(
     ):
         return  # cache hit — output already valid
 
-    is_png = footage_path.lower().endswith(".png")
+    is_png = str(footage_path).lower().endswith(".png")
 
     # Standard chain when Ken Burns is OFF (or source is video).
     # When Ken Burns is ON and source is a PNG, swap zoompan entirely
@@ -570,7 +593,12 @@ def render_scene_clip(
         SUPER = RENDER_KB_SUPERSAMPLE
         FPS_HI = FPS * RENDER_KB_TEMPORAL_SUPERSAMPLE
         sw, sh = OUT_W * SUPER, OUT_H * SUPER
-        total_frames_hi = max(1, math.ceil(duration * FPS_HI))
+        # Exact (not ceil'd): duration == frames/FPS and FPS_HI ==
+        # FPS*SUPERSAMPLE, so this is precisely duration*FPS_HI with no
+        # fractional-frame slop. After tblend+framestep (÷SUPERSAMPLE) the
+        # chain emits exactly `frames`, matching the -frames:v cap below so the
+        # zoom completes on the last rendered frame.
+        total_frames_hi = frames * RENDER_KB_TEMPORAL_SUPERSAMPLE
         KB_END_ZOOM = 1.08
         denom = max(1, total_frames_hi - 1)
         # Scale grows uniformly per frame (aspect preserved via the
@@ -631,7 +659,7 @@ def render_scene_clip(
         "ffmpeg", "-y",
         "-stream_loop", "-1", "-i", footage_path,
         "-vf", vf,
-        "-t", str(duration),
+        "-frames:v", str(frames),
         "-an",  # drop the stock clip's audio
         "-c:v", "libx264", "-preset", "fast", "-crf", "18",
         output_path,
@@ -643,6 +671,7 @@ def render_scene_clip(
         json.dump({
             "footage_mtime": os.path.getmtime(footage_path),
             "duration": duration,
+            "frames": frames,
             "out_w": OUT_W,
             "out_h": OUT_H,
             "fps": FPS,
@@ -826,6 +855,11 @@ def mux_audio(
         cmd += ["-c:v", "copy"]
     cmd += [
         "-map", "0:v", "-map", "1:a",
+        # Pad the audio with trailing silence so it's always >= the (finite)
+        # video length. -shortest then keys on the video and truncates only that
+        # padding, never narration. Scene windows ceil the terminal boundary so
+        # video >= narration end, so no spoken word is ever clipped.
+        "-af", "apad",
         "-c:a", "aac", "-shortest",
     ]
     if duration_cap is not None:

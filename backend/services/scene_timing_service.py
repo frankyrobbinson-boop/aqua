@@ -1,9 +1,17 @@
 import json
+import math
 import re
 from typing import Optional
 
 from services.paths import PROJECTS_ROOT
 from services.voice_prep_service import _expand_numbers
+
+# Frames per second for scene-boundary frame quantization. MUST stay in sync
+# with assembly_service.FPS: compute_scene_windows quantizes every scene
+# boundary to this grid and stamps an integer scene['frames'], then the render
+# encodes exactly that many frames per clip. A mismatch would desync the
+# assembled video length from the narration timeline.
+FPS = 25
 
 
 class SceneTimingError(Exception):
@@ -270,6 +278,34 @@ def compute_scene_windows(project_name: str) -> list:
             'end_time': round(end_time, 3),
             'duration': round(end_time - start_time, 3),
         })
+
+    # Frame-quantize the scene boundaries against the ABSOLUTE cumulative
+    # timeline so per-scene rounding never accumulates. We take the N scene
+    # start times plus the final audio end as N+1 monotonic boundaries and snap
+    # each to a whole 1/FPS frame ONCE, then derive every scene's frame count as
+    # the difference of adjacent snapped boundaries. Because each boundary is
+    # rounded from its own absolute time (not from a running sum of durations),
+    # the error at any boundary stays within half a frame and never compounds
+    # down the video — the old per-scene round(duration*FPS) drifted ~1 frame
+    # per scene and ran ~0.85s short by scene 80. The terminal boundary uses
+    # ceil (not round) so the rendered video is always >= the narration end and
+    # the closing word is never clipped.
+    N = len(result)
+    audio_len = all_words[-1]['global_end']
+    raw_bounds = [r['start_time'] for r in result] + [audio_len]
+    F = [round(b * FPS) for b in raw_bounds[:-1]] + [math.ceil(raw_bounds[-1] * FPS)]
+    # Strict monotonicity: if two scene starts snap to the same frame, push the
+    # later boundary out by one so no scene collapses to zero (or negative)
+    # frames.
+    for i in range(1, N + 1):
+        if F[i] <= F[i - 1]:
+            F[i] = F[i - 1] + 1
+    for i in range(N):
+        frames_i = F[i + 1] - F[i]
+        result[i]['start_time'] = round(F[i] / FPS, 3)
+        result[i]['end_time'] = round(F[i + 1] / FPS, 3)
+        result[i]['duration'] = round(frames_i / FPS, 3)
+        result[i]['frames'] = frames_i
 
     return result
 
