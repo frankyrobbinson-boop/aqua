@@ -13,8 +13,9 @@ export default function RemotionPage() {
           Remotion
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Design garden title cards and preview them live, or browse the Lottie
-          library to curate downloaded animations.
+          Design garden graphics by role — title screens, section headers,
+          overlays — and preview them live, or browse the Lottie library to
+          curate downloaded animations.
         </p>
       </div>
       <RemotionWorkspace />

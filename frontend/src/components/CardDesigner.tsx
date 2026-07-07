@@ -4,18 +4,17 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
-import { ChannelSelect } from "@/components/ChannelSelect";
 import { ColorField } from "@/components/ColorField";
 import {
-  deleteTitleCard,
-  getTitleCards,
+  deleteGraphic,
+  getGraphics,
   remotionOutUrl,
-  saveTitleCard,
+  saveGraphic,
   startRemotionRender,
   streamTaskLogs,
+  type GraphicLibrary,
+  type GraphicPreset,
   type TaskStatus,
-  type TitleCardLibrary,
-  type TitleCardPreset,
 } from "@/lib/api";
 import { FPS, HEIGHT, WIDTH } from "@/remotion/constants";
 import {
@@ -28,7 +27,7 @@ import {
   FONT_OPTIONS,
   LOTTIE_DENSITY_OPTIONS,
 } from "@/remotion/cards/defaults";
-import { CARDS } from "@/remotion/cards/registry";
+import { cardsForRole, type CardRole } from "@/remotion/cards/registry";
 import type {
   CardAnimation,
   CardBackground,
@@ -123,21 +122,36 @@ function mergedDefaults(id: string): CardProps {
   return { ...CARD_DEFAULTS, ...(CARD_DEFAULT_OVERRIDES[id] ?? {}) };
 }
 
-export function RemotionPanel() {
-  const [cardId, setCardId] = useState<string>(CARDS[0].id);
+/**
+ * Per-role card designer: the card picker, the full form (all controls,
+ * including the Bloom lottie rows / recolor / foliage), a live <Player> preview,
+ * and the Render-to-MP4 flow with SSE logs + result video, plus the saved-variant
+ * library. Scoped to one `role` (its picker only offers that role's comps) and
+ * one `channel` (passed down from the workspace, which owns the ChannelSelect).
+ */
+export function CardDesigner({
+  role,
+  channel,
+}: {
+  role: CardRole;
+  channel: string | undefined;
+}) {
+  // Comps available for this role — the picker only offers these.
+  const cards = cardsForRole(role);
+
+  const [cardId, setCardId] = useState<string>(cards[0]?.id ?? "");
   const [props, setProps] = useState<CardProps>(() =>
-    mergedDefaults(CARDS[0].id),
+    mergedDefaults(cards[0]?.id ?? ""),
   );
   const [run, setRun] = useState<RunState | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
 
-  // Title-card design library, scoped to the selected channel. `libraryError`
-  // is kept SEPARATE from the render `error` box (same split as the Lottie
-  // fetch) so a save/load failure never masquerades as a render failure.
-  const [channel, setChannel] = useState<string | undefined>(undefined);
-  const [library, setLibrary] = useState<TitleCardLibrary | null>(null);
+  // Saved-variant design library, scoped to the selected channel + role.
+  // `libraryError` is kept SEPARATE from the render `error` box (same split as
+  // the Lottie fetch) so a save/load failure never masquerades as a render one.
+  const [library, setLibrary] = useState<GraphicLibrary | null>(null);
   const [libraryError, setLibraryError] = useState<string | null>(null);
 
   // Lottie decorations (GardenBloom): the library list for the row dropdowns,
@@ -176,12 +190,13 @@ export function RemotionPanel() {
     };
   }, []);
 
-  // Load the selected channel's saved title-card designs — on mount (once
-  // ChannelSelect auto-picks the default) and whenever the channel changes.
+  // Load the selected channel's saved designs for THIS role — on mount (once
+  // the workspace's ChannelSelect auto-picks the default) and whenever the
+  // channel or role changes.
   useEffect(() => {
     if (!channel) return;
     let cancelled = false;
-    getTitleCards(channel)
+    getGraphics(channel, role)
       .then((lib) => {
         if (!cancelled) {
           setLibrary(lib);
@@ -197,9 +212,9 @@ export function RemotionPanel() {
     return () => {
       cancelled = true;
     };
-  }, [channel]);
+  }, [channel, role]);
 
-  const selected = CARDS.find((c) => c.id === cardId) ?? CARDS[0];
+  const selected = cards.find((c) => c.id === cardId) ?? cards[0];
   const running = submitting || run?.status === "running";
   const durationInFrames = Math.round(props.durationInSeconds * FPS);
   const lottieAnimations = props.lottieAnimations ?? [];
@@ -327,7 +342,7 @@ export function RemotionPanel() {
     }
   }
 
-  // Save the current design as a named preset under the selected channel.
+  // Save the current design as a named variant under the selected channel + role.
   async function onSavePreset() {
     if (props.title.trim().length === 0 || !channel) return;
     const raw = window.prompt("Save this design as a preset named:");
@@ -336,7 +351,7 @@ export function RemotionPanel() {
     if (!name) return;
     setLibraryError(null);
     try {
-      setLibrary(await saveTitleCard(channel, name, cardId, props));
+      setLibrary(await saveGraphic(channel, role, name, cardId, props));
     } catch (err) {
       setLibraryError(err instanceof Error ? err.message : String(err));
     }
@@ -344,7 +359,7 @@ export function RemotionPanel() {
 
   // Load a saved preset into the form: switch to its card, then merge its props
   // over that card's defaults so every controlled input stays defined.
-  function onLoadPreset(preset: TitleCardPreset) {
+  function onLoadPreset(preset: GraphicPreset) {
     setCardId(preset.card_id);
     setProps({ ...mergedDefaults(preset.card_id), ...preset.props });
   }
@@ -353,7 +368,7 @@ export function RemotionPanel() {
     if (!channel) return;
     setLibraryError(null);
     try {
-      setLibrary(await deleteTitleCard(channel, name));
+      setLibrary(await deleteGraphic(channel, role, name));
     } catch (err) {
       setLibraryError(err instanceof Error ? err.message : String(err));
     }
@@ -371,16 +386,22 @@ export function RemotionPanel() {
     ...(lottieList ?? []).map((it) => ({ id: it.name, label: it.name })),
   ];
 
+  // Roles with no comps yet get a small placeholder instead of the designer.
+  if (cards.length === 0) {
+    return (
+      <section className="space-y-6">
+        <div className="rounded-xl border border-border bg-surface p-6 text-sm text-muted">
+          No cards for this role yet.
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-6">
-      {/* Channel — scopes the saved title-card design library */}
-      <Field label="Channel">
-        <ChannelSelect value={channel} onChange={setChannel} />
-      </Field>
-
       {/* Card picker */}
       <div className="flex flex-wrap gap-2">
-        {CARDS.map((card) => {
+        {cards.map((card) => {
           const active = card.id === cardId;
           return (
             <button
@@ -452,6 +473,21 @@ export function RemotionPanel() {
               />
             </Field>
           </div>
+
+          {/* Section-header index badge — only section headers render it. */}
+          {role === "section_header" && (
+            <Field label="Index" htmlFor="card-index">
+              <input
+                id="card-index"
+                type="text"
+                value={props.index ?? ""}
+                onChange={(e) => update("index", e.target.value)}
+                maxLength={12}
+                placeholder="e.g. 1 or #1..."
+                className={FIELD_CLASS}
+              />
+            </Field>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <Field label="Animation" htmlFor="card-animation">
@@ -671,7 +707,7 @@ export function RemotionPanel() {
             </div>
           </Field>
 
-          {/* Saved presets — per-channel title-card design library */}
+          {/* Saved presets — per-channel, per-role design library */}
           <div className="space-y-3 border-t border-border pt-5">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-strong">
@@ -701,7 +737,7 @@ export function RemotionPanel() {
               <ul className="space-y-1.5">
                 {library.presets.map((preset) => {
                   const cardLabel =
-                    CARDS.find((c) => c.id === preset.card_id)?.label ??
+                    cards.find((c) => c.id === preset.card_id)?.label ??
                     preset.card_id;
                   return (
                     <li key={preset.name} className="flex items-center gap-2">

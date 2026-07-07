@@ -94,6 +94,19 @@ export const CARD_DEFAULTS: CardProps = {
 export const CARD_DEFAULT_OVERRIDES: Partial<
   Record<string, Partial<CardProps>>
 > = {
+  // The two section-header cards boot as a recognizable numbered section header
+  // (badge above a short label) so the designer opens looking like real output.
+  // Palette/decoration stay inherited from CARD_DEFAULTS.
+  GardenFramed: {
+    index: "1",
+    title: "Hydrangeas",
+    subtitle: "Big blooms, all summer",
+  },
+  GardenBand: {
+    index: "1",
+    title: "Hydrangeas",
+    subtitle: "Big blooms, all summer",
+  },
   GardenPremium: {
     // Warm neutral + desaturated green — sophisticated, not flat bright green.
     palette: {

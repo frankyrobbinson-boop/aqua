@@ -27,10 +27,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.routes.tasks import start_task
-from services.title_card_registry import (
-    delete_preset as delete_title_card_preset,
-    load_library as load_title_card_library,
-    save_preset as save_title_card_preset,
+from services.graphics_registry import (
+    delete_preset as delete_graphics_preset,
+    load_library as load_graphics_library,
+    save_preset as save_graphics_preset,
 )
 
 router = APIRouter(tags=["remotion"])
@@ -55,6 +55,11 @@ ALLOWED_COMPS = frozenset(
     }
 )
 
+# Mirror of ROLES in frontend/src/remotion/cards/registry.ts and _ROLE_FILES in
+# services/graphics_registry.py — the roles a saved graphic can be filed under.
+# Keep the three in sync.
+ALLOWED_ROLES = frozenset({"title", "section_header", "overlay", "transition"})
+
 # Garden defaults, mirroring frontend/src/remotion/cards/defaults.ts.
 _DEFAULT_PALETTE = {
     "background": "#e9f1e4",
@@ -73,6 +78,7 @@ _MAX_ENUM_LEN = 40
 _MAX_SUBTITLE_LEN = 200
 _MAX_EYEBROW_LEN = 40
 _MAX_HIGHLIGHT_LEN = 60
+_MAX_INDEX_LEN = 12
 
 # Saved-design extras: the GardenBloom-only Lottie fields that _sanitize_props
 # drops but a persisted design must round-trip (see _sanitize_card_design).
@@ -97,7 +103,7 @@ class RemotionRenderResponse(BaseModel):
     filename: str
 
 
-class SaveTitleCardRequest(BaseModel):
+class SaveGraphicRequest(BaseModel):
     name: str
     card_id: str
     props: dict[str, Any] = {}
@@ -162,6 +168,14 @@ def _sanitize_props(raw: dict[str, Any]) -> dict[str, Any]:
         hl = str(highlight).strip()[:_MAX_HIGHLIGHT_LEN]
         if hl:
             out["highlight"] = hl
+
+    # index — optional section-header badge (GardenFramed/GardenBand bake it into
+    # the MP4), trimmed, length-capped. Kept AS TYPED (the user controls the '#').
+    index = raw.get("index")
+    if index is not None:
+        ix = str(index).strip()[:_MAX_INDEX_LEN]
+        if ix:
+            out["index"] = ix
 
     # durationInSeconds — clamp to [2, 20].
     try:
@@ -317,26 +331,34 @@ async def start_remotion_render(
 
 
 # ---------------------------------------------------------------------------
-# Per-channel title-card design library (Phase 1 persistence). Named designs the
-# /remotion designer can save, list, load, and delete. Stored under
-# prompts/channels/<id>/title_cards.json via services.title_card_registry.
+# Per-channel graphics design library (Phase 1 persistence). Named designs the
+# /remotion designer can save, list, load, and delete, keyed by role. Stored
+# under prompts/channels/<id>/<role-file>.json via services.graphics_registry
+# (title_cards.json, section_headers.json, overlays.json, transitions.json).
 # ---------------------------------------------------------------------------
 
 
-@router.get("/channels/{channel_id}/title-cards")
-def get_title_cards(channel_id: str) -> dict[str, Any]:
-    """The channel's saved title-card design library (default + presets)."""
+@router.get("/channels/{channel_id}/graphics/{role}")
+def get_graphics(channel_id: str, role: str) -> dict[str, Any]:
+    """The channel's saved graphics library for one role (default + presets).
+    422 on an unknown role; 404 on an unknown channel."""
+    if role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=422, detail=f"unknown role: {role!r}")
     try:
-        return load_title_card_library(channel_id)
+        return load_graphics_library(channel_id, role)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/channels/{channel_id}/title-cards")
-def save_title_card(channel_id: str, req: SaveTitleCardRequest) -> dict[str, Any]:
-    """Upsert a named title-card design under this channel; returns the updated
-    library. 422 on an unknown card_id, a bad name, or bad props; 404 on an
-    unknown channel."""
+@router.post("/channels/{channel_id}/graphics/{role}")
+def save_graphic(
+    channel_id: str, role: str, req: SaveGraphicRequest
+) -> dict[str, Any]:
+    """Upsert a named graphics design under this channel + role; returns the
+    updated library. 422 on an unknown role, an unknown card_id, a bad name, or
+    bad props; 404 on an unknown channel."""
+    if role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=422, detail=f"unknown role: {role!r}")
     if req.card_id not in ALLOWED_COMPS:
         raise HTTPException(
             status_code=422, detail=f"unknown card_id: {req.card_id!r}"
@@ -344,19 +366,22 @@ def save_title_card(channel_id: str, req: SaveTitleCardRequest) -> dict[str, Any
     name = _validate_preset_name(req.name)
     props = _sanitize_card_design(req.props)
     try:
-        return save_title_card_preset(channel_id, name, req.card_id, props)
+        return save_graphics_preset(channel_id, role, name, req.card_id, props)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.delete("/channels/{channel_id}/title-cards/{name}")
-def delete_title_card(channel_id: str, name: str) -> dict[str, Any]:
-    """Delete a named title-card design; returns the updated library. 404 if the
-    channel or the named preset is unknown."""
+@router.delete("/channels/{channel_id}/graphics/{role}/{name}")
+def delete_graphic(channel_id: str, role: str, name: str) -> dict[str, Any]:
+    """Delete a named graphics design; returns the updated library. 422 on an
+    unknown role or bad name; 404 if the channel or the named preset is
+    unknown."""
+    if role not in ALLOWED_ROLES:
+        raise HTTPException(status_code=422, detail=f"unknown role: {role!r}")
     # FastAPI hands us the URL-decoded segment; still guard its shape so a
     # decoded "/" or control char can't slip past.
     name = _validate_preset_name(name)
     try:
-        return delete_title_card_preset(channel_id, name)
+        return delete_graphics_preset(channel_id, role, name)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

@@ -597,46 +597,53 @@ export function remotionOutUrl(filename: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Per-channel title-card design library (Phase 1 persistence). Named designs
-// saved from the /remotion designer. `card_id` is a card id (see
+// Per-channel graphics design library (Phase 1 persistence). Named designs
+// saved from the /remotion designer, keyed by role (title screens, section
+// headers, overlays, transitions). `card_id` is a card id (see
 // cards/registry.ts); `props` is the full CardProps for that design. snake_case
-// leaf keys mirror the backend JSON.
+// leaf keys mirror the backend JSON. `GraphicRole` mirrors ROLES in
+// cards/registry.ts and ALLOWED_ROLES in backend/api/routes/remotion.py.
 // ---------------------------------------------------------------------------
 
-export type TitleCardPreset = { name: string; card_id: string; props: CardProps };
-export type TitleCardLibrary = { default: string | null; presets: TitleCardPreset[] };
+export type GraphicRole = "title" | "section_header" | "overlay" | "transition";
+export type GraphicPreset = { name: string; card_id: string; props: CardProps };
+export type GraphicLibrary = { default: string | null; presets: GraphicPreset[] };
 
-/** GET /channels/{id}/title-cards — the channel's saved design library. */
-export async function getTitleCards(
+/** GET /channels/{id}/graphics/{role} — the channel's saved design library for
+ *  one role. */
+export async function getGraphics(
   channelId: string,
-): Promise<TitleCardLibrary> {
-  return getJSON<TitleCardLibrary>(
-    `/channels/${encodeURIComponent(channelId)}/title-cards`,
+  role: GraphicRole,
+): Promise<GraphicLibrary> {
+  return getJSON<GraphicLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/graphics/${role}`,
   );
 }
 
-/** POST /channels/{id}/title-cards — upsert a named design; returns the updated
- *  library. */
-export async function saveTitleCard(
+/** POST /channels/{id}/graphics/{role} — upsert a named design; returns the
+ *  updated library. */
+export async function saveGraphic(
   channelId: string,
+  role: GraphicRole,
   name: string,
   cardId: string,
   props: CardProps,
-): Promise<TitleCardLibrary> {
-  return getJSON<TitleCardLibrary>(
-    `/channels/${encodeURIComponent(channelId)}/title-cards`,
+): Promise<GraphicLibrary> {
+  return getJSON<GraphicLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/graphics/${role}`,
     { method: "POST", body: JSON.stringify({ name, card_id: cardId, props }) },
   );
 }
 
-/** DELETE /channels/{id}/title-cards/{name} — remove a named design; returns
- *  the updated library. */
-export async function deleteTitleCard(
+/** DELETE /channels/{id}/graphics/{role}/{name} — remove a named design;
+ *  returns the updated library. */
+export async function deleteGraphic(
   channelId: string,
+  role: GraphicRole,
   name: string,
-): Promise<TitleCardLibrary> {
-  return getJSON<TitleCardLibrary>(
-    `/channels/${encodeURIComponent(channelId)}/title-cards/${encodeURIComponent(name)}`,
+): Promise<GraphicLibrary> {
+  return getJSON<GraphicLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/graphics/${role}/${encodeURIComponent(name)}`,
     { method: "DELETE" },
   );
 }

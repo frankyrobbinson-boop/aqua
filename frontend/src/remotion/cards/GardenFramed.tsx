@@ -79,8 +79,15 @@ export const GardenFramed = (props: CardProps) => {
   const font = resolveFontFamily(props.fontFamily);
   const { style, text } = useTextEntrance(props.animation, props.title);
   const subOpacity = useFadeIn(0.5, 0.7);
+  // Section-header number badge: a soft accent pill above the title, with its
+  // own gentle fade+rise that slightly leads the title. Renders nothing when
+  // `index` is empty, so a card with no index is unchanged.
+  const badgeOpacity = useFadeIn(0, 0.5);
 
   const muted = mix(palette.text, palette.background, 0.28);
+  const idx = props.index?.trim();
+  const badgeBg = mix(palette.accent, palette.background, 0.2);
+  const badgeText = mix(palette.accent, palette.text, 0.55);
 
   return (
     <Background
@@ -96,6 +103,30 @@ export const GardenFramed = (props: CardProps) => {
           textAlign: "center",
         }}
       >
+        {idx ? (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 28,
+              padding: "10px 30px",
+              borderRadius: 999,
+              background: badgeBg,
+              color: badgeText,
+              fontFamily: font,
+              fontWeight: 700,
+              fontSize: 36,
+              lineHeight: 1,
+              letterSpacing: "0.04em",
+              opacity: badgeOpacity,
+              transform: `translateY(${(1 - badgeOpacity) * 10}px)`,
+            }}
+          >
+            {idx}
+          </div>
+        ) : null}
+
         <h1
           style={{
             margin: 0,

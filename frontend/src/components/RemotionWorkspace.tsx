@@ -2,34 +2,49 @@
 
 import { useState } from "react";
 
+import { CardDesigner } from "@/components/CardDesigner";
+import { ChannelSelect } from "@/components/ChannelSelect";
 import { LottieLibrary } from "@/components/LottieLibrary";
-import { RemotionPanel } from "@/components/RemotionPanel";
+import { cardsForRole, ROLES, type CardRole } from "@/remotion/cards/registry";
 
 /**
- * Top-level switch for the /remotion tab: the existing "Cards" title-card
- * designer, or the new "Lottie Library" curation view. Lives in a client
- * component so page.tsx can stay a server component (it owns the metadata +
- * header). RemotionPanel is rendered unchanged under "Cards".
+ * Shell for the /remotion studio. Pins the channel selector at the top (scoping
+ * every designer below it), then a tab row: one tab per card role that has at
+ * least one comp today, plus a global "Lottie library" tab. The body is a
+ * per-role CardDesigner (keyed by role so switching remounts cleanly — one
+ * <Player> at a time) or the shared Lottie library. Lives in a client component
+ * so page.tsx can stay a server component (it owns the metadata + header).
  */
-type Mode = "cards" | "lottie";
 
-const MODES: ReadonlyArray<{ id: Mode; label: string }> = [
-  { id: "cards", label: "Cards" },
-  { id: "lottie", label: "Lottie Library" },
+// A tab is either a card role or the literal Lottie-library view.
+type Section = CardRole | "lottie";
+
+// Role tabs, data-driven: only roles that actually have a comp today (title,
+// section_header, overlay). Transitions are skipped until a comp exists.
+const ROLE_TABS = ROLES.filter((r) => cardsForRole(r.id).length > 0);
+
+const TABS: ReadonlyArray<{ id: Section; label: string }> = [
+  ...ROLE_TABS,
+  { id: "lottie", label: "Lottie library" },
 ];
 
 export function RemotionWorkspace() {
-  const [mode, setMode] = useState<Mode>("cards");
+  const [channel, setChannel] = useState<string | undefined>(undefined);
+  const [activeSection, setActiveSection] = useState<Section>(ROLE_TABS[0].id);
+
   return (
     <div className="space-y-6">
+      {/* Channel — pinned at the top; scopes every designer below it. */}
+      <ChannelSelect value={channel} onChange={setChannel} />
+
       <div className="flex flex-wrap gap-2">
-        {MODES.map(({ id, label }) => {
-          const active = id === mode;
+        {TABS.map(({ id, label }) => {
+          const active = id === activeSection;
           return (
             <button
               key={id}
               type="button"
-              onClick={() => setMode(id)}
+              onClick={() => setActiveSection(id)}
               aria-pressed={active}
               className={`rounded-md border px-3.5 py-2 text-sm font-medium transition-colors ${
                 active
@@ -43,7 +58,15 @@ export function RemotionWorkspace() {
         })}
       </div>
 
-      {mode === "cards" ? <RemotionPanel /> : <LottieLibrary />}
+      {activeSection === "lottie" ? (
+        <LottieLibrary />
+      ) : (
+        <CardDesigner
+          key={activeSection}
+          role={activeSection}
+          channel={channel}
+        />
+      )}
     </div>
   );
 }

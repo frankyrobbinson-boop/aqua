@@ -58,6 +58,10 @@ export type CardProps = {
   /** Word/phrase within the title to emphasize in `palette.accent`. Optional;
    *  GardenPremium-specific (other cards ignore it). */
   highlight?: string;
+  /** Section-header index shown as a badge above the title (e.g. "1" or "#1").
+   *  Optional; GardenFramed/GardenBand render it (other cards ignore it).
+   *  Rendered AS TYPED — include the leading "#" yourself if you want one. */
+  index?: string;
   animation: CardAnimation;
   palette: CardPalette;
   /** Fill treatment. Independent of `decoration` so a card can show a gradient
