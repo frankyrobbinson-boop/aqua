@@ -24,6 +24,13 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// GL backend for the headless Chromium. Tier-B transitions (the
+// @remotion/transitions WebGL shaders, rendered html-in-canvas) need a real GL
+// context to render off-screen; "angle" works on this machine and is harmless
+// for the card renders (they use no WebGL). If a render fails inside GL, the
+// software fallback is "swangle" (see the failure hint in main's catch).
+const CHROMIUM_OPTIONS = { gl: "angle" };
+
 /** Parse `--key=value` argv into a plain object. Splits on the FIRST `=` so
  *  JSON values (which contain no `=`) pass through intact. */
 function parseArgs(argv) {
@@ -152,9 +159,10 @@ async function main() {
     serveUrl,
     id: compId,
     inputProps,
+    chromiumOptions: CHROMIUM_OPTIONS,
   });
 
-  console.log("[render] Rendering media (h264)...");
+  console.log(`[render] Rendering media (h264, gl=${CHROMIUM_OPTIONS.gl})...`);
   let lastRenderPct = -5;
   await renderMedia({
     composition,
@@ -162,6 +170,7 @@ async function main() {
     codec: "h264",
     outputLocation,
     inputProps,
+    chromiumOptions: CHROMIUM_OPTIONS,
     onProgress: ({ progress }) => {
       const pct = Math.floor(progress * 100);
       if (pct >= lastRenderPct + 5) {
@@ -176,6 +185,16 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`[render] FAILED: ${err && err.stack ? err.stack : err}`);
+  const msg = err && err.stack ? err.stack : String(err);
+  console.error(`[render] FAILED: ${msg}`);
+  // Tier-B shader transitions render through a WebGL context (chromiumOptions.gl,
+  // set to "angle" above). Surface a clear hint when a failure looks GL-related
+  // so the fix — swapping to the "swangle" software backend — is obvious.
+  if (/webgl|angle|gl_|context lost|gpu|swiftshader/i.test(msg)) {
+    console.error(
+      `[render] Hint: this looks GL-related. Shader transitions render with ` +
+        `chromiumOptions.gl="${CHROMIUM_OPTIONS.gl}"; "swangle" is a software fallback.`,
+    );
+  }
   process.exitCode = 1;
 });

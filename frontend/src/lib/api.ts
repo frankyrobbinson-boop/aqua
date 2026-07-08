@@ -1,8 +1,10 @@
 /** Thin client for the Aqua FastAPI service. */
 
-// Type-only import: erased at compile time, so this stays a pure client with no
-// runtime dependency on the Remotion bundle. Used by startRemotionRender.
+// Type-only imports: erased at compile time, so this stays a pure client with no
+// runtime dependency on the Remotion bundle. Used by startRemotionRender +
+// the transition-design helpers.
 import type { CardProps } from "@/remotion/cards/types";
+import type { TransitionParams } from "@/remotion/transitions/registry";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -645,6 +647,79 @@ export async function deleteGraphic(
   return getJSON<GraphicLibrary>(
     `/channels/${encodeURIComponent(channelId)}/graphics/${role}/${encodeURIComponent(name)}`,
     { method: "DELETE" },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Per-channel transition designs (the /remotion "Transitions" tab). Reuses the
+// same {name, card_id, props} record as the card graphics library, filed under
+// the "transition" role: `card_id` holds the transition TYPE (see TRANSITION_IDS
+// in remotion/transitions/registry.ts) and `props` holds its TransitionParams.
+// Design + preview only — NOT wired into the render/assembly pipeline.
+// ---------------------------------------------------------------------------
+
+export type TransitionDesign = {
+  name: string;
+  /** The transition type id (registry.ts), stored in the shared `card_id` slot. */
+  card_id: string;
+  props: TransitionParams;
+};
+export type TransitionLibrary = {
+  default: string | null;
+  presets: TransitionDesign[];
+};
+
+/** GET /channels/{id}/graphics/transition — the channel's saved transition
+ *  designs. */
+export async function getTransitionDesigns(
+  channelId: string,
+): Promise<TransitionLibrary> {
+  return getJSON<TransitionLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/graphics/transition`,
+  );
+}
+
+/** POST /channels/{id}/graphics/transition — upsert a named transition design
+ *  ({name, card_id: type, props: params}); returns the updated library. */
+export async function saveTransitionDesign(
+  channelId: string,
+  name: string,
+  type: string,
+  params: TransitionParams,
+): Promise<TransitionLibrary> {
+  return getJSON<TransitionLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/graphics/transition`,
+    {
+      method: "POST",
+      body: JSON.stringify({ name, card_id: type, props: params }),
+    },
+  );
+}
+
+/** DELETE /channels/{id}/graphics/transition/{name} — remove a named transition
+ *  design; returns the updated library. */
+export async function deleteTransitionDesign(
+  channelId: string,
+  name: string,
+): Promise<TransitionLibrary> {
+  return getJSON<TransitionLibrary>(
+    `/channels/${encodeURIComponent(channelId)}/graphics/transition/${encodeURIComponent(name)}`,
+    { method: "DELETE" },
+  );
+}
+
+/** POST /transitions/preview — render the two-clip TransitionPreview stage to a
+ *  SHORT MP4. The only way to preview a Tier-B WebGL shader transition (the live
+ *  browser <Player> can't run those). Returns the task id (for streamTaskLogs)
+ *  and the output filename (for remotionOutUrl), same shape as
+ *  startRemotionRender. */
+export async function renderTransitionPreview(
+  type: string,
+  params: TransitionParams,
+): Promise<{ task_id: string; filename: string }> {
+  return getJSON<{ task_id: string; filename: string }>(
+    "/transitions/preview",
+    { method: "POST", body: JSON.stringify({ type, params }) },
   );
 }
 

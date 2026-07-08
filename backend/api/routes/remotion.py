@@ -60,6 +60,32 @@ ALLOWED_COMPS = frozenset(
 # Keep the three in sync.
 ALLOWED_ROLES = frozenset({"title", "section_header", "overlay", "transition"})
 
+# Mirror of TRANSITION_IDS in frontend/src/remotion/transitions/registry.ts — the
+# transition types a saved "transition"-role design may use (its card_id slot).
+# Keep in sync (same convention as CARD_IDS ↔ ALLOWED_COMPS).
+ALLOWED_TRANSITIONS = frozenset(
+    {
+        # Tier A — CSS/SVG presentations.
+        "crossfade",
+        "slide",
+        "wipe",
+        "clockWipe",
+        "iris",
+        "flip",
+        "flowerSwipe",
+        "flicker",
+        # Tier B — @remotion/transitions WebGL shader presentations.
+        "zoomBlur",
+        "crossZoom",
+        "crosswarp",
+        "filmBurn",
+        "dissolve",
+        "linearBlur",
+        "ripple",
+        "dreamyZoom",
+    }
+)
+
 # Garden defaults, mirroring frontend/src/remotion/cards/defaults.ts.
 _DEFAULT_PALETTE = {
     "background": "#e9f1e4",
@@ -88,6 +114,44 @@ _MAX_LOTTIE_ROWS = 4
 _MAX_LOTTIE_NAME_LEN = 80
 _DEFAULT_LOTTIE_RECOLOR_AMOUNT = 0.8
 
+# Transition-design bounds (saved from the /remotion "Transitions" tab). Mirror
+# the knob ranges the designer exposes. Design + preview only — never a render
+# input; the transition is not wired into the video pipeline.
+_TRANSITION_FRAMES_MIN = 2
+_TRANSITION_FRAMES_MAX = 120
+_DEFAULT_TRANSITION_FRAMES = 30
+_FLICKER_MIN = 1
+_FLICKER_MAX = 20
+_DEFAULT_FLICKER = 6
+_DEFAULT_EDGE_COLOR = "#7bae5a"
+
+# Per-type numeric knobs a transition may carry (flowerSwipe's angle + the Tier-B
+# shader knobs), mirroring the `numericParams` slider ranges in
+# frontend/src/remotion/transitions/registry.ts. Each is CLAMPED to its bounds
+# and KEPT only when present, so a saved design (and the render-preview) honors
+# the user's tweak. Split by storage type: the step-1/step-5 knobs
+# (angle/amplitude/speed) store as ints — matching the designer's whole-number
+# readout — while the sub-integer knobs stay float. Bounds span the widest range
+# any transition exposes for a shared key (e.g. intensity: dissolve 0..2).
+_TRANSITION_INT_KNOBS: dict[str, tuple[int, int]] = {
+    "angle": (-45, 45),
+    "amplitude": (0, 300),
+    "speed": (0, 150),
+}
+_TRANSITION_FLOAT_KNOBS: dict[str, tuple[float, float]] = {
+    "rotation": (0.0, 1.2),
+    "strength": (0.0, 1.0),
+    "seed": (0.0, 10.0),
+    "intensity": (0.0, 2.0),
+    "scale": (1.0, 2.0),
+}
+
+# Render-preview hold (frames) per clip, passed to TransitionPreview so the
+# rendered stage stays short (~1.5–2s at 30fps): total = durationInFrames +
+# 2*hold. Small on purpose — the browser can't preview Tier-B shaders, so this
+# quick render stands in.
+_TRANSITION_PREVIEW_HOLD = 12
+
 # Title-card preset name — must be a safe single URL path segment: 1..60 chars
 # after trim, no "/" and no C0/DEL control characters.
 _PRESET_NAME_MIN = 1
@@ -103,6 +167,15 @@ class RemotionRenderRequest(BaseModel):
 class RemotionRenderResponse(BaseModel):
     task_id: str
     filename: str
+
+
+class TransitionPreviewRequest(BaseModel):
+    """Body for POST /transitions/preview: the transition TYPE (validated against
+    ALLOWED_TRANSITIONS) and its param set (sanitized via
+    _sanitize_transition_design)."""
+
+    type: str
+    params: dict[str, Any] = {}
 
 
 class SaveGraphicRequest(BaseModel):
@@ -282,6 +355,70 @@ def _sanitize_card_design(raw: dict[str, Any]) -> dict[str, Any]:
     return _sanitize_props(raw)
 
 
+def _sanitize_transition_design(raw: dict[str, Any]) -> dict[str, Any]:
+    """Sanitize a SAVED transition design (the /remotion "Transitions" tab).
+    Strict on the safety-relevant bits (payload size, integer clamps, hex color);
+    lenient on the direction/timing enums (the frontend registry falls back to
+    its own defaults on unknown ids). Design + preview only — never a render
+    input. Raises HTTP 422 on the strict failures."""
+    if not isinstance(raw, dict):
+        raise HTTPException(status_code=422, detail="props must be an object")
+
+    # Payload-size guard on the incoming props.
+    try:
+        raw_size = len(json.dumps(raw, ensure_ascii=False).encode("utf-8"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="props is not serializable")
+    if raw_size > _MAX_PROPS_BYTES:
+        raise HTTPException(status_code=422, detail="props payload too large")
+
+    out: dict[str, Any] = {}
+
+    # durationInFrames — integer clamp to [2, 120].
+    try:
+        frames = int(float(raw.get("durationInFrames", _DEFAULT_TRANSITION_FRAMES)))
+    except (TypeError, ValueError):
+        frames = _DEFAULT_TRANSITION_FRAMES
+    out["durationInFrames"] = int(
+        _clamp(frames, _TRANSITION_FRAMES_MIN, _TRANSITION_FRAMES_MAX)
+    )
+
+    # direction / timing — lenient enums with defaults.
+    out["direction"] = _enum_str(raw.get("direction"), "from-left")
+    out["timing"] = _enum_str(raw.get("timing"), "linear")
+
+    # flickerCount — integer clamp to [1, 20].
+    try:
+        flicker = int(float(raw.get("flickerCount", _DEFAULT_FLICKER)))
+    except (TypeError, ValueError):
+        flicker = _DEFAULT_FLICKER
+    out["flickerCount"] = int(_clamp(flicker, _FLICKER_MIN, _FLICKER_MAX))
+
+    # edgeColor — strict #rrggbb, else the garden accent default.
+    edge_color = str(raw.get("edgeColor", ""))
+    out["edgeColor"] = (
+        edge_color if _HEX_RE.match(edge_color) else _DEFAULT_EDGE_COLOR
+    )
+
+    # Per-type numeric knobs — CLAMP + KEEP each one that's present so the tweak
+    # survives a save and reaches the render-preview. A present-but-unparseable
+    # value is dropped (the frontend reseeds it from defaultParams on load).
+    for key, (lo_i, hi_i) in _TRANSITION_INT_KNOBS.items():
+        if key in raw:
+            try:
+                out[key] = int(_clamp(int(float(raw[key])), lo_i, hi_i))
+            except (TypeError, ValueError):
+                pass
+    for key, (lo_f, hi_f) in _TRANSITION_FLOAT_KNOBS.items():
+        if key in raw:
+            try:
+                out[key] = _clamp(float(raw[key]), lo_f, hi_f)
+            except (TypeError, ValueError):
+                pass
+
+    return out
+
+
 def _validate_preset_name(name: str) -> str:
     """Trim + validate a preset name so it's safe as a single URL path segment:
     1..60 chars, no "/", no control characters. Raises HTTP 422 on violation."""
@@ -337,6 +474,54 @@ async def start_remotion_render(
     return RemotionRenderResponse(task_id=task.id, filename=filename)
 
 
+@router.post("/transitions/preview", response_model=RemotionRenderResponse)
+async def start_transition_preview(
+    req: TransitionPreviewRequest,
+) -> RemotionRenderResponse:
+    """Render the two-clip TransitionPreview stage to a SHORT MP4 for the
+    /remotion "Transitions" tab.
+
+    The live browser <Player> can't run the Tier-B WebGL shader transitions, so
+    the designer previews those through this quick render instead. Mirrors
+    /remotion/render (task runner + SSE + uuid file under output/remotion/,
+    served by the /remotion-out mount). The comp is always TransitionPreview —
+    validated HERE by the transition TYPE against ALLOWED_TRANSITIONS; it is
+    intentionally NOT in ALLOWED_COMPS (never a card render, never a pipeline
+    input). A small hold keeps the clip short (~1.5–2s)."""
+    if req.type not in ALLOWED_TRANSITIONS:
+        raise HTTPException(
+            status_code=422, detail=f"unknown transition: {req.type!r}"
+        )
+
+    params = _sanitize_transition_design(req.params)
+
+    REMOTION_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"{uuid.uuid4().hex}.mp4"
+    abs_out = REMOTION_OUT_DIR / filename
+
+    # Props match TransitionPreview's shape ({type, params, holdFrames}); the
+    # short hold is the only render-specific tweak. Root.tsx's calculateMetadata
+    # derives the composition length from these.
+    props = {
+        "type": req.type,
+        "params": params,
+        "holdFrames": _TRANSITION_PREVIEW_HOLD,
+    }
+    cmd = [
+        "node",
+        str(_RENDER_SCRIPT),
+        "--comp=TransitionPreview",
+        f"--props={json.dumps(props)}",
+        f"--out={abs_out}",
+    ]
+    task = start_task(
+        cmd=cmd,
+        cwd=str(FRONTEND_DIR),
+        kind="remotion",
+    )
+    return RemotionRenderResponse(task_id=task.id, filename=filename)
+
+
 # ---------------------------------------------------------------------------
 # Per-channel graphics design library (Phase 1 persistence). Named designs the
 # /remotion designer can save, list, load, and delete, keyed by role. Stored
@@ -362,16 +547,26 @@ def save_graphic(
     channel_id: str, role: str, req: SaveGraphicRequest
 ) -> dict[str, Any]:
     """Upsert a named graphics design under this channel + role; returns the
-    updated library. 422 on an unknown role, an unknown card_id, a bad name, or
-    bad props; 404 on an unknown channel."""
+    updated library. 422 on an unknown role, an unknown card_id / transition
+    type, a bad name, or bad props; 404 on an unknown channel."""
     if role not in ALLOWED_ROLES:
         raise HTTPException(status_code=422, detail=f"unknown role: {role!r}")
-    if req.card_id not in ALLOWED_COMPS:
-        raise HTTPException(
-            status_code=422, detail=f"unknown card_id: {req.card_id!r}"
-        )
     name = _validate_preset_name(req.name)
-    props = _sanitize_card_design(req.props)
+    if role == "transition":
+        # Transition designs reuse the {name, card_id, props} record: card_id is
+        # the transition TYPE (ALLOWED_TRANSITIONS), props is its param set.
+        if req.card_id not in ALLOWED_TRANSITIONS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"unknown transition: {req.card_id!r}",
+            )
+        props = _sanitize_transition_design(req.props)
+    else:
+        if req.card_id not in ALLOWED_COMPS:
+            raise HTTPException(
+                status_code=422, detail=f"unknown card_id: {req.card_id!r}"
+            )
+        props = _sanitize_card_design(req.props)
     try:
         return save_graphics_preset(channel_id, role, name, req.card_id, props)
     except ValueError as exc:

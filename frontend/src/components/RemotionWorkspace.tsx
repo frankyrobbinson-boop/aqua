@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CardDesigner } from "@/components/CardDesigner";
 import { ChannelSelect } from "@/components/ChannelSelect";
 import { LottieLibrary } from "@/components/LottieLibrary";
+import { TransitionDesigner } from "@/components/TransitionDesigner";
 import { cardsForRole, ROLES, type CardRole } from "@/remotion/cards/registry";
 
 /**
@@ -19,9 +20,12 @@ import { cardsForRole, ROLES, type CardRole } from "@/remotion/cards/registry";
 // A tab is either a card role or the literal Lottie-library view.
 type Section = CardRole | "lottie";
 
-// Role tabs, data-driven: only roles that actually have a comp today (title,
-// section_header, overlay). Transitions are skipped until a comp exists.
-const ROLE_TABS = ROLES.filter((r) => cardsForRole(r.id).length > 0);
+// Role tabs, data-driven: roles that have a card comp today (title,
+// section_header, overlay) PLUS "transition", which has its own designer
+// (TransitionDesigner) rather than card comps.
+const ROLE_TABS = ROLES.filter(
+  (r) => r.id === "transition" || cardsForRole(r.id).length > 0,
+);
 
 const TABS: ReadonlyArray<{ id: Section; label: string }> = [
   ...ROLE_TABS,
@@ -60,6 +64,8 @@ export function RemotionWorkspace() {
 
       {activeSection === "lottie" ? (
         <LottieLibrary />
+      ) : activeSection === "transition" ? (
+        <TransitionDesigner channel={channel} />
       ) : (
         <CardDesigner
           key={activeSection}
