@@ -68,6 +68,14 @@ _CLIP_CACHE_VERSION = 10
 # produces a soft dip-through-black between scenes.
 FADE_DUR = 0.15
 
+# Crossfade width (in frames) applied at each section boundary when
+# section_transitions is on. 12 frames == 0.48s at 25 fps; the half-width (6,
+# even) is added to BOTH clips flanking a seam so the blend is frame-exact and
+# symmetric about the original cut while the blended pair still emits exactly
+# Fa+Fb frames (total video length — and therefore the audio + subtitle
+# timelines — stay unchanged). Distinct from FADE_DUR (per-clip dip-to-black).
+SECTION_XFADE_FRAMES = 12
+
 # Mac-only system fonts for the drawtext overlay. Portable font handling
 # (bundle a TTF, fallback to a fontconfig family) is a future-phase concern;
 # the only deployment today is the maintainer's Mac.
@@ -698,6 +706,39 @@ def render_scene_clip(
         }, f)
 
 
+def render_extended_clip(
+    scene: dict,
+    footage_path: str,
+    out: str,
+    *,
+    extra_frames: int,
+    transition: str = "cut",
+    ken_burns: bool = False,
+    overlays: list[dict] | None = None,
+    edit_style: dict | None = None,
+) -> str:
+    """Render one scene clip lengthened by ``extra_frames`` for a section
+    crossfade, to a DISTINCT ``scene_{id}.xfade.mp4`` (its own cache sidecar; the
+    plain ``scene_{id}.mp4`` and its cache are left untouched).
+
+    The two clips flanking a section boundary are each rendered +half-a-crossfade
+    frames so concat_clips_crossfade's ``xfade`` can blend across the seam and
+    still emit exactly Fa+Fb frames. Delegates to render_scene_clip with a
+    frame-bumped scene, so Ken Burns / fade / overlays all animate over the
+    extended clock (the accepted trade-off: a B-side header animates on the
+    +6-frame clip). ``duration`` is updated alongside ``frames`` because
+    render_scene_clip's cache-hit check reads scene['duration']; leaving it stale
+    would spuriously miss the cache on every rerun."""
+    frames = _scene_frame_count(scene) + extra_frames
+    ext_scene = {**scene, "frames": frames, "duration": round(frames / FPS, 3)}
+    render_scene_clip(
+        ext_scene, footage_path, out,
+        transition=transition, ken_burns=ken_burns,
+        overlays=overlays, edit_style=edit_style,
+    )
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Section cards (zero-added-time title cards fronting each section-intro scene)
 #
@@ -1110,6 +1151,158 @@ def concat_clips(project_name: str, clip_paths: list[str]) -> str:
     return silent_video
 
 
+def _section_boundary_seams(windows: list[dict]) -> list[int]:
+    """Left indices ``i`` where ``windows[i]`` and ``windows[i+1]`` sit in
+    different sections (their ``segment_id`` differs) — the seams that get a
+    crossfade. Covers every section change, including hook->body0 and
+    body_last->conclusion (the sentinel segment_ids -1 / -2 differ from the body
+    ids, so those edges are seams too).
+
+    Raises NotImplementedError if two seams are adjacent (consecutive left
+    indices differ by 1), i.e. a section is a single scene: that clip would have
+    to be extended for two crossfades at once, which this step does not support
+    (the <2-scene-section / card-handoff case is a later step)."""
+    seams = [
+        i for i in range(len(windows) - 1)
+        if windows[i].get("segment_id") != windows[i + 1].get("segment_id")
+    ]
+    for a, b in zip(seams, seams[1:]):
+        if b - a == 1:
+            raise NotImplementedError(
+                f"Adjacent section boundaries at clip indices {a} and {b} "
+                f"(a single-scene section): that clip would participate in two "
+                f"crossfades at once, which section transitions do not support."
+            )
+    return seams
+
+
+def concat_clips_crossfade(
+    project_name: str,
+    clip_paths: list[str],
+    footage_paths: dict,
+    *,
+    transition: str = "cut",
+    ken_burns: bool = False,
+) -> str:
+    """Join scene clips, blending a short crossfade at each section boundary.
+
+    A section boundary is a segment_id change between adjacent scenes
+    (_section_boundary_seams). At each seam the two flanking clips are
+    re-rendered +SECTION_XFADE_FRAMES//2 frames (render_extended_clip ->
+    scene_{id}.xfade.mp4) and joined with an ``xfade`` centered on the ORIGINAL
+    cut; every other clip passes through untouched. Because each blended pair
+    still emits exactly Fa+Fb frames, the assembled length — and therefore the
+    audio + subtitle timelines — are unchanged.
+
+    Unlike concat_clips (concat demuxer, stream copy) this re-encodes: the xfade
+    filter can't run on the demuxer, so every input is normalized via the shared
+    _normalize_video_chain and the whole thing runs through one concat FILTER
+    graph. With no seams it delegates to concat_clips. Writes the same
+    video/video_no_audio.mp4 sink as concat_clips (so the downstream mux is
+    unchanged) and returns its path."""
+    windows = load_scene_windows(project_name)
+    seams = _section_boundary_seams(windows)
+    if not seams:
+        # No section boundaries (e.g. a single-segment project) — nothing to
+        # crossfade; fall back to the plain demuxer concat.
+        return concat_clips(project_name, clip_paths)
+
+    if len(clip_paths) != len(windows):
+        raise ValueError(
+            f"clip_paths ({len(clip_paths)}) and scene windows ({len(windows)}) "
+            f"length mismatch — cannot align section-crossfade seams."
+        )
+
+    # Resolve per-scene render params exactly as render_all_scene_clips does so
+    # each extended seam clip matches its plain counterpart (bar the +frames).
+    edl = _load_or_create_edl(
+        project_name, transition=transition, ken_burns=ken_burns,
+    )
+    edl_by_id: dict[int, dict] = {e["id"]: e for e in edl.get("scenes", [])}
+    edit_style = resolve_channel_editing(_project_channel_id(project_name))
+
+    clips_dir = str(PROJECTS_ROOT / project_name / "clips")
+    half = SECTION_XFADE_FRAMES // 2
+
+    # Render the two extended clips flanking each seam, override those two input
+    # slots with the .xfade.mp4 paths, and record the xfade offset: the blend
+    # starts at (Fa - half)/FPS into clip A (A's original frame count is Fa) so
+    # its centre lands on the original cut at frame Fa.
+    input_paths = list(clip_paths)
+    seam_offsets: dict[int, float] = {}
+    for i in seams:
+        for j in (i, i + 1):
+            scene = windows[j]
+            sid = scene["id"]
+            src = footage_paths.get(sid)
+            if not src or not os.path.exists(src):
+                raise FileNotFoundError(f"No footage for scene {sid}")
+            entry = edl_by_id.get(sid, {})
+            out = os.path.join(clips_dir, f"scene_{sid:03d}.xfade.mp4")
+            render_extended_clip(
+                scene, src, out,
+                extra_frames=half,
+                transition=entry.get("transition", transition),
+                ken_burns=entry.get("ken_burns", ken_burns),
+                overlays=entry.get("overlays", []),
+                edit_style=edit_style,
+            )
+            input_paths[j] = out
+        fa = _scene_frame_count(windows[i])
+        seam_offsets[i] = (fa - half) / FPS
+
+    # Build the concat FILTER graph: normalize every input (the EXISTING shared
+    # chain), xfade each seam pair, concat the resulting streams. n_concat =
+    # n_inputs - len(seams) because each seam merges two inputs into one stream.
+    norm = _normalize_video_chain()
+    n = len(input_paths)
+    lines = [f"[{k}:v]{norm}[n{k}]" for k in range(n)]
+    xfade_dur = SECTION_XFADE_FRAMES / FPS
+    seam_set = set(seams)
+    concat_labels: list[str] = []
+    k = 0
+    while k < n:
+        if k in seam_set:
+            lines.append(
+                f"[n{k}][n{k + 1}]xfade=transition=fade:"
+                f"duration={xfade_dur:.3f}:offset={seam_offsets[k]:.3f}[x{k}]"
+            )
+            concat_labels.append(f"[x{k}]")
+            k += 2
+        else:
+            concat_labels.append(f"[n{k}]")
+            k += 1
+    n_concat = len(concat_labels)
+    graph = (
+        ";".join(lines) + ";"
+        + "".join(concat_labels) + f"concat=n={n_concat}:v=1:a=0[outv]"
+    )
+
+    input_args: list[str] = []
+    for p in input_paths:
+        input_args += ["-i", os.path.abspath(p)]
+
+    video_dir = str(PROJECTS_ROOT / project_name / "video")
+    os.makedirs(video_dir, exist_ok=True)
+    silent_video = os.path.join(video_dir, "video_no_audio.mp4")
+    try:
+        subprocess.run([
+            "ffmpeg", "-y", *input_args,
+            "-filter_complex", graph,
+            "-map", "[outv]",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            os.path.abspath(silent_video),
+        ], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+        print(
+            f"ffmpeg failed section-crossfade concat for {project_name}:\n{stderr}"
+        )
+        raise
+
+    return silent_video
+
+
 def mux_audio(
     project_name: str,
     video_path: str,
@@ -1160,6 +1353,7 @@ def assemble(
     transition: str = "cut",
     ken_burns: bool = False,
     section_cards: bool = False,
+    section_transitions: bool = False,
     card_seconds: float = SECTION_CARD_SECONDS,
     card_comp: str = SECTION_CARD_COMP,
     output_name: str = "final.mp4",
@@ -1178,11 +1372,25 @@ def assemble(
     Karaoke cues that play entirely under a card are suppressed. Default False
     renders the plain path (byte-identical to before). card_seconds / card_comp
     set the card length + Remotion comp. output_name: filename inside video/, so
-    a card render can write beside an untouched final.mp4."""
+    a card render can write beside an untouched final.mp4.
+
+    section_transitions: when True (and section_cards is False), blend a short
+    crossfade across each section boundary (segment_id change) via
+    concat_clips_crossfade instead of a hard cut. Duration-neutral (each blended
+    pair still emits Fa+Fb frames), so the audio + subtitle timelines are
+    unchanged. If both section_cards and section_transitions are set, cards win
+    (a card-handoff crossfade is a later step) and section_transitions is ignored
+    with a warning."""
     if transition not in ("cut", "fade"):
         raise ValueError(f"transition must be 'cut' or 'fade', got {transition!r}")
 
     cards = derive_section_cards(project_name) if section_cards else {}
+    if cards and section_transitions:
+        print(
+            "  WARN: section cards and section transitions both requested; "
+            "section cards win (card-handoff crossfade is a later step) — "
+            "ignoring section transitions."
+        )
 
     print("  Assembling audio...")
     audio = assemble_audio(project_name)
@@ -1194,7 +1402,15 @@ def assemble(
     )
 
     print("  Concatenating clips...")
-    silent = concat_clips(project_name, clips)
+    if cards:
+        silent = concat_clips(project_name, clips)
+    elif section_transitions:
+        silent = concat_clips_crossfade(
+            project_name, clips, footage_paths,
+            transition=transition, ken_burns=ken_burns,
+        )
+    else:
+        silent = concat_clips(project_name, clips)
 
     # Windows covered by a section card, so the subtitle builder can suppress any
     # karaoke cue that would otherwise render over a card. Each window is

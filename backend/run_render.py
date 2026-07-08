@@ -80,6 +80,10 @@ def run_render(project_name: str) -> str:
     # and existing callers are unchanged. RENDER_OUTPUT_NAME lets a card render
     # land beside an untouched final.mp4.
     section_cards = os.environ.get("RENDER_SECTION_CARDS", "0") == "1"
+    # Section transitions crossfade each section boundary (segment_id change)
+    # instead of hard-cutting. Duration-neutral, off by default. Distinct from
+    # RENDER_TRANSITION (per-clip fade). If section cards are also on, cards win.
+    section_transitions = os.environ.get("RENDER_SECTION_TRANSITIONS", "0") == "1"
     output_name = os.environ.get("RENDER_OUTPUT_NAME", "final.mp4")
 
     # Ensure a current-version EDL exists before assembly. The EDL is the
@@ -104,12 +108,14 @@ def run_render(project_name: str) -> str:
     print(
         f"\nAssembling video for '{project_name}' ({len(footage_paths)} scenes; "
         f"transition={transition}, ken_burns={ken_burns}, "
-        f"section_cards={section_cards}, output={output_name})..."
+        f"section_cards={section_cards}, section_transitions={section_transitions}, "
+        f"output={output_name})..."
     )
     print("[[STAGE:render:started]]", flush=True)
     final_video = assemble(
         project_name, footage_paths, transition=transition, ken_burns=ken_burns,
-        section_cards=section_cards, output_name=output_name,
+        section_cards=section_cards, section_transitions=section_transitions,
+        output_name=output_name,
     )
     print("[[STAGE:render:completed]]", flush=True)
 
