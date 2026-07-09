@@ -75,15 +75,19 @@ def run_render(project_name: str) -> str:
         print(f"  WARN: RENDER_TRANSITION={transition!r} invalid, falling back to 'cut'")
         transition = "cut"
     ken_burns = os.environ.get("RENDER_KEN_BURNS", "0") == "1"
-    # Section cards front each section-intro scene with a title card that eats
-    # into that scene's own frames (zero added time). Off by default so the CLI
-    # and existing callers are unchanged. RENDER_OUTPUT_NAME lets a card render
-    # land beside an untouched final.mp4.
-    section_cards = os.environ.get("RENDER_SECTION_CARDS", "0") == "1"
-    # Section transitions crossfade each section boundary (segment_id change)
-    # instead of hard-cutting. Duration-neutral, off by default. Distinct from
-    # RENDER_TRANSITION (per-clip fade). If section cards are also on, cards win.
-    section_transitions = os.environ.get("RENDER_SECTION_TRANSITIONS", "0") == "1"
+    # Section cards are EDL-driven now: a card is placed wherever the EDL marks a
+    # scene with one, which happens only for channels that have a section-header
+    # DEFAULT design (opt-in per channel). RENDER_SECTION_CARDS is a kill-switch:
+    # unset → EDL-driven; "=0" forces cards off. RENDER_OUTPUT_NAME lets a card
+    # render land beside an untouched final.mp4.
+    section_cards = os.environ.get("RENDER_SECTION_CARDS") != "0"
+    # Section transitions crossfade INTO each scene the EDL marks with a crossfade
+    # lead_in (the section starts + the conclusion) instead of hard-cutting.
+    # Duration-neutral. Distinct from RENDER_TRANSITION (per-clip fade).
+    # RENDER_SECTION_TRANSITIONS is a kill-switch: unset → EDL-driven; "=0" forces
+    # crossfades off. Cards and crossfades coexist (a section start gets BOTH a
+    # card AND a dissolve into it).
+    section_transitions = os.environ.get("RENDER_SECTION_TRANSITIONS") != "0"
     output_name = os.environ.get("RENDER_OUTPUT_NAME", "final.mp4")
 
     # Ensure a current-version EDL exists before assembly. The EDL is the

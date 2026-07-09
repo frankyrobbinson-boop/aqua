@@ -3,12 +3,23 @@
 Stored at ``<projects_root>/<name>/edl.json`` with schema::
 
     {
-      "version": 2,
+      "version": 3,
       "scenes": [
         {
           "id": 0,
-          "transition": "cut",        # cut | fade
+          "impact": "section_start",  # hook | section_start | conclusion |
+                                       #   key_point | ordinary
+          "transition": "cut",        # cut | fade (intra-clip dip to black)
           "ken_burns": false,
+          "lead_in": {                 # how this scene enters: a plain cut, or a
+            "type": "crossfade",        #   crossfade INTO a section_start /
+            "params": {"frames": 12}    #   conclusion (prior clip dissolves in)
+          },
+          "card": {                    # optional — a section-header title card
+            "role": "section_header",
+            "comp": "GardenFramed",    # Remotion comp (the default preset card_id)
+            "content": {"index": "1", "title": "Bee balm"}
+          },
           "overlays": [                # zero or more on-screen text overlays
             {
               "kind": "header",       # header | callout | counter
@@ -25,7 +36,7 @@ Stored at ``<projects_root>/<name>/edl.json`` with schema::
       ]
     }
 
-V2 replaces V1's single flat ``overlay_text`` / ``overlay_position`` with an
+V2 replaced V1's single flat ``overlay_text`` / ``overlay_position`` with an
 ``overlays`` list so a scene can carry several composited overlays at once —
 a listicle item's first scene shows a ``header`` (item title) + a ``counter``
 (``n / total``), and any scene with on_screen_text shows a ``callout``. Each
@@ -33,6 +44,18 @@ overlay's position + animation are baked in at generation time from the
 channel's editing style (``resolve_channel_editing``); the per-kind *look*
 (fontsize / box / animation timings) is resolved again at render time from the
 same style. SFX, music, custom transition timings, etc. remain future-phase.
+
+V3 adds three fields per scene: ``impact`` (narrative weight — the first scene
+of the hook / each body section / the conclusion), ``lead_in`` (how the scene
+enters — a ``crossfade`` INTO each section_start / conclusion, a ``cut``
+everywhere else; derived per ``impact``), and an
+optional ``card`` (a section-header title card, emitted at each section start
+ONLY when the channel has a section-header DEFAULT design — opt-in per channel).
+A ``card`` stores just its ``comp`` + per-video ``content{index,title}``; the
+card's design ``props`` re-resolve from the channel default at render time
+(assembly_service), and a card's presence DROPS that scene's numbered header +
+counter overlays (the number lives on the card badge instead). ``transition``
+stays the intra-clip dip-to-black string and is NOT overloaded by ``lead_in``.
 
 Generation is purely a function of upstream artifacts (scene_windows,
 scene_plan, outline, script_config, channel editing style) — running
@@ -51,9 +74,16 @@ from pathlib import Path
 from typing import Any
 
 from services.channel_registry import resolve_channel_editing
+from services.graphics_registry import resolve_section_header_default
 from services.paths import PROJECTS_ROOT
 
-EDL_SCHEMA_VERSION = 2
+EDL_SCHEMA_VERSION = 3
+
+# Default crossfade width (in frames) for a section-boundary ``lead_in`` — the
+# dissolve INTO each section_start / conclusion scene. A constant default for now;
+# a channel ``edit_defaults`` block will make the width (and type) configurable
+# per channel in a later step. Assembly (SECTION_XFADE_FRAMES) uses the same 12.
+DEFAULT_LEAD_IN_FRAMES = 12
 
 
 def is_current_version(edl: dict | None) -> bool:
@@ -153,12 +183,19 @@ def generate_default_edl(
     transition: str = "cut",
     ken_burns: bool = False,
 ) -> dict:
-    """Build a per-scene EDL (v2 overlays list) from the project's upstream
-    artifacts.
+    """Build a per-scene EDL (v3) from the project's upstream artifacts.
 
     For every scene: transition + ken_burns are populated from the kwargs
-    (so a render-triggered EDL respects the user's Render-tab choices). Each
-    scene's ``overlays`` list is built from the channel's editing style
+    (so a render-triggered EDL respects the user's Render-tab choices);
+    ``impact`` marks the scene's narrative weight (first scene of the hook /
+    each body section / the conclusion); ``lead_in`` is derived per ``impact`` —
+    a ``crossfade`` (default DEFAULT_LEAD_IN_FRAMES wide) INTO each section_start
+    / conclusion, a ``cut`` everywhere else (the hook is scene 0 with no
+    preceding clip). The first scene of each body
+    section additionally gets a section-header ``card`` — but ONLY when the
+    channel has a section-header DEFAULT design (opt-in per channel); a card
+    DROPS that scene's numbered header + counter overlays. Each scene's
+    ``overlays`` list is built from the channel's editing style
     (``resolve_channel_editing``, keyed off script_config's channel):
 
       * header  — the FIRST scene of each listicle item segment, ``"{N}. {title}"``
@@ -213,13 +250,21 @@ def generate_default_edl(
 
     listicle = _is_listicle(script_config)
 
-    # Header text per body-item segment; the FIRST scene of each item segment
-    # gets a "{N}. {title}" header. Listicle-only, and only when headers are
-    # enabled. total_items feeds the counter's "{n} / {total}" text and is the
-    # same source used for the titles (len of the segment list).
-    overlay_for_segment: dict[int, str] = {}
+    # Section-header card design for this channel. A ``card`` is emitted at each
+    # section start ONLY when the channel has a section-header DEFAULT preset
+    # (opt-in per channel); otherwise no card is emitted and the listicle
+    # header/counter overlays behave exactly as before. Resolved once — the card
+    # stores only the comp + per-video content{index,title}; the design props
+    # re-resolve from this same default at render time (assembly_service).
+    section_header_default = resolve_section_header_default(channel_id)
+
+    # Body segment titles (segment_id -> title). Feeds BOTH the listicle
+    # "{N}. {title}" header text AND the section-header card content, so it's
+    # resolved whenever either is needed. total_items feeds the listicle
+    # counter's "{n} / {total}" text (len of the segment list).
+    seg_titles: dict[int, str] = {}
     total_items = 0
-    if listicle:
+    if listicle or section_header_default is not None:
         segments: list | None = None
         if script_draft is not None:
             segments = script_draft.get("segments", [])
@@ -229,30 +274,36 @@ def generate_default_edl(
                 print(
                     f"WARNING: edl_service: script_draft.json missing for "
                     f"{project_name!r}; falling back to outline.json sections "
-                    f"for header/counter text."
+                    f"for header/card text."
                 )
                 segments = outline.get("sections", [])
             else:
                 print(
                     f"WARNING: edl_service: neither script_draft.json nor "
                     f"outline.json found for {project_name!r}; generating EDL "
-                    f"without header/counter overlays."
+                    f"without header/counter/card text."
                 )
-
         if segments is not None:
             total_items = len(segments)
-            if header_style.get("enabled", True):
-                titles = _listicle_segment_titles(segments)
-                # Item segments are body segment_ids 0..N-1 (hook=-1,
-                # conclusion=-2 don't get item headers). 1-indexed display.
-                for seg_id, title in titles.items():
-                    if seg_id < 0 or not title:
-                        continue
-                    overlay_for_segment[seg_id] = f"{seg_id + 1}. {title}"
+            seg_titles = _listicle_segment_titles(segments)
+
+    # Listicle "{N}. {title}" header text per body-item segment (listicle only,
+    # header enabled). The card path (below) supersedes this on section-start
+    # scenes when the channel has a section-header default.
+    overlay_for_segment: dict[int, str] = {}
+    if listicle and header_style.get("enabled", True):
+        # Item segments are body segment_ids 0..N-1 (hook=-1, conclusion=-2
+        # don't get item headers). 1-indexed display.
+        for seg_id, title in seg_titles.items():
+            if seg_id < 0 or not title:
+                continue
+            overlay_for_segment[seg_id] = f"{seg_id + 1}. {title}"
 
     # Build each scene's overlays list. Deterministic: same inputs → same EDL.
-    # ``stamped`` tracks segments already given a header so only the FIRST scene
-    # of each item segment carries it.
+    # ``first_seen`` tracks the first scene of each segment_id (for ``impact``
+    # and the section-start card); ``stamped`` tracks segments whose header/card
+    # is already placed so only the FIRST scene of an item segment carries it.
+    first_seen: set[int] = set()
     stamped: set[int] = set()
     scenes: list[dict] = []
     for scene in scene_windows:
@@ -260,10 +311,56 @@ def generate_default_edl(
         seg_id = scene.get("segment_id")
         overlays: list[dict] = []
 
-        # header — first scene of each item segment (listicle only).
+        # impact — narrative weight. The FIRST scene of the hook (segment_id -1),
+        # of each body section (>= 0), and of the conclusion (-2). ``key_point``
+        # is never auto-assigned (override-only, later); else ``ordinary``.
+        is_first_of_segment = seg_id is not None and seg_id not in first_seen
+        if seg_id is not None:
+            first_seen.add(seg_id)
+        if is_first_of_segment and seg_id == -1:
+            impact = "hook"
+        elif is_first_of_segment and seg_id == -2:
+            impact = "conclusion"
+        elif is_first_of_segment and seg_id >= 0:
+            impact = "section_start"
+        else:
+            impact = "ordinary"
+
+        # lead_in — how this scene ENTERS from the previous one. A section start
+        # or the conclusion dissolves in via a crossfade (the previous section's
+        # footage blends INTO this scene, which at a section start is its header
+        # card); the hook (scene 0 — no preceding clip) and every ordinary scene
+        # hard-cut. Width is the constant default for now (channel edit_defaults
+        # makes it configurable later). ``transition`` (intra-clip dip) is separate
+        # and NOT overloaded by this.
+        if impact in ("section_start", "conclusion"):
+            lead_in = {"type": "crossfade", "params": {"frames": DEFAULT_LEAD_IN_FRAMES}}
+        else:
+            lead_in = {"type": "cut"}
+
+        # card — section-header title card at each section start, ONLY when the
+        # channel has a section-header default. Stores the comp + per-video
+        # content{index,title}; props re-resolve at render. A card OWNS the
+        # item-intro scene: its badge carries the number+title, so the numbered
+        # header + counter overlays are dropped for that scene (and the segment
+        # is ``stamped`` so a later scene of it doesn't pick the header back up).
+        card: dict | None = None
+        if impact == "section_start" and section_header_default is not None:
+            title = seg_titles.get(seg_id) or (scene.get("segment_title") or "").strip()
+            if title:
+                card = {
+                    "role": "section_header",
+                    "comp": section_header_default["comp"],
+                    "content": {"index": str(seg_id + 1), "title": title},
+                }
+                stamped.add(seg_id)
+
+        # header — first scene of each item segment (listicle only), unless a
+        # card already labels this segment's intro scene.
         has_header = False
         if (
-            seg_id is not None
+            card is None
+            and seg_id is not None
             and seg_id in overlay_for_segment
             and seg_id not in stamped
         ):
@@ -278,9 +375,11 @@ def generate_default_edl(
             stamped.add(seg_id)
             has_header = True
 
-        # counter — every body-item scene (listicle only).
+        # counter — every body-item scene (listicle only), except a scene that
+        # got a card (the card badge carries the number).
         if (
-            listicle
+            card is None
+            and listicle
             and counter_style.get("enabled", True)
             and seg_id is not None
             and seg_id >= 0
@@ -295,10 +394,16 @@ def generate_default_edl(
             })
 
         # callout — on_screen_text on any scene, unless this scene already
-        # carries a header (see docstring: the header owns the item-intro
-        # scene; the on_screen_text there restates the title).
+        # carries a header OR a card (both own the item-intro scene; the
+        # on_screen_text there restates the title, so a callout would double-
+        # label). With no card this is byte-identical to before.
         on_screen = (scene.get("on_screen_text") or "").strip()
-        if on_screen and callout_style.get("enabled", True) and not has_header:
+        if (
+            on_screen
+            and callout_style.get("enabled", True)
+            and not has_header
+            and card is None
+        ):
             overlays.append({
                 "kind": "callout",
                 "text": on_screen,
@@ -308,12 +413,17 @@ def generate_default_edl(
                 "duration": callout_style["duration"],
             })
 
-        scenes.append({
+        entry: dict = {
             "id": sid,
+            "impact": impact,
             "transition": transition,
             "ken_burns": ken_burns,
+            "lead_in": lead_in,
             "overlays": overlays,
-        })
+        }
+        if card is not None:
+            entry["card"] = card
+        scenes.append(entry)
 
     return {
         "version": EDL_SCHEMA_VERSION,

@@ -6,12 +6,12 @@ from pathlib import Path
 from services.channel_registry import resolve_channel_editing
 from services.edl_service import (
     EDL_SCHEMA_VERSION,
-    _listicle_segment_titles,
     generate_default_edl,
     is_current_version,
     load_edl,
     save_edl,
 )
+from services.graphics_registry import resolve_section_header_default
 from services.paths import PROJECTS_ROOT
 from services.scene_timing_service import load_scene_windows, load_audio_timeline
 from services.subtitle_service import build_subtitles
@@ -773,31 +773,32 @@ def render_section_card(
     *,
     duration: float = SECTION_CARD_SECONDS,
     comp: str = SECTION_CARD_COMP,
+    props: dict | None = None,
 ) -> str:
     """Render one Remotion section-header card to a silent MP4 at ``out_path``.
 
     Reuses the SAME renderer the /remotion tab drives (frontend
-    scripts/render-remotion.mjs) via subprocess, cwd=<frontend>. A COMPLETE prop
-    set is passed (index + title + the garden defaults) so nothing falls back to
-    the designer's demo props; ``subtitle`` is explicitly blanked so the card
-    shows only the numbered section title. The raw card renders at the comp's
-    native 30 fps; _normalize_card_to_clip resamples it to the canonical
-    25 fps / 1920x1080 / yuv420p / SAR 1:1 shape and caps it to exact frames."""
-    props = {
-        "index": str(index),
-        "title": title,
-        "subtitle": "",  # title-only card (blank the designer demo subtitle)
-        "durationInSeconds": float(duration),
-        "animation": "rise",
-        "palette": {"background": "#e9f1e4", "text": "#2f4a34", "accent": "#7bae5a"},
-        "background": "gradient",
-        "decoration": {"set": "leaves", "density": "low"},
-        "fontFamily": "nunito",
-    }
+    scripts/render-remotion.mjs) via subprocess, cwd=<frontend>. ``props`` is the
+    channel's resolved section-header default design (resolve_section_header_-
+    default); this function copies it and overrides ``index`` + ``title`` from
+    the EDL card content, blanks ``subtitle`` so the card shows only the numbered
+    section title, and forces ``durationInSeconds`` to the card's frame-quantized
+    length so the animation is timed to what's actually shown. Everything else
+    (palette / background / decoration / fontFamily / animation) comes from the
+    preset, so nothing falls back to the designer's demo props. ``props=None``
+    passes only the overridden keys and lets the comp supply its own defaults.
+    The raw card renders at the comp's native 30 fps; _normalize_card_to_clip
+    resamples it to the canonical 25 fps / 1920x1080 / yuv420p / SAR 1:1 shape
+    and caps it to exact frames."""
+    card_props = dict(props or {})
+    card_props["index"] = str(index)
+    card_props["title"] = title
+    card_props["subtitle"] = ""  # title-only card (blank any preset subtitle)
+    card_props["durationInSeconds"] = float(duration)
     cmd = [
         "node", str(RENDER_SCRIPT),
         f"--comp={comp}",
-        f"--props={json.dumps(props)}",
+        f"--props={json.dumps(card_props)}",
         f"--out={out_path}",
     ]
     try:
@@ -839,31 +840,44 @@ def _normalize_card_to_clip(raw_path: str, frames: int, out_path: str) -> str:
     return out_path
 
 
-def _concat_segments_copy(segs: list[str], output_path: str, base: str) -> str:
+def _concat_segments_copy(
+    segs: list[str], output_path: str, base: str, *, reencode: bool = False,
+) -> str:
     """Join already-canonical segments with the concat demuxer (stream copy).
 
     Both the card segment and the footage segment are encoded to the identical
     canonical shape (1920x1080 / 25 fps / yuv420p tv-range / SAR 1:1 / tb
     1/12800), so a stream copy preserves every frame with no re-encode. If the
     demuxer ever refuses the seam, fall back to a concat-filter re-encode of just
-    this 2-segment join (re-normalizing each input) and note it."""
-    concat_txt = base + ".concat.txt"
-    with open(concat_txt, "w") as f:
-        for p in segs:
-            f.write(f"file '{os.path.abspath(p)}'\n")
-    try:
-        subprocess.run([
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_txt,
-            "-c", "copy", os.path.abspath(output_path),
-        ], check=True, capture_output=True)
-        return output_path
-    except subprocess.CalledProcessError as e:
-        stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
-        print(
-            "  Section-card seam rejected by concat demuxer copy "
-            f"({stderr[-400:].strip()!r}); falling back to concat-filter "
-            "re-encode of the 2-segment join."
-        )
+    this 2-segment join (re-normalizing each input) and note it.
+
+    ``reencode=True`` skips the stream-copy attempt and goes straight to the
+    concat-filter re-encode. Required when the result will later be DECODED by
+    another filter graph (the section crossfade's xfade/concat filters): the
+    concat-demuxer stream copy leaves the joined h264's DTS layout such that a
+    downstream decode-based filter reads the internal card→footage seam as EOF
+    and silently drops the rest (and any clip concatenated before it). The
+    re-encode regenerates a clean, single-segment stream those filters consume in
+    full. The demuxer concat path (concat_clips) reads packets without decoding,
+    so it is immune and keeps the fast lossless copy (default ``reencode=False``)."""
+    if not reencode:
+        concat_txt = base + ".concat.txt"
+        with open(concat_txt, "w") as f:
+            for p in segs:
+                f.write(f"file '{os.path.abspath(p)}'\n")
+        try:
+            subprocess.run([
+                "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_txt,
+                "-c", "copy", os.path.abspath(output_path),
+            ], check=True, capture_output=True)
+            return output_path
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+            print(
+                "  Section-card seam rejected by concat demuxer copy "
+                f"({stderr[-400:].strip()!r}); falling back to concat-filter "
+                "re-encode of the 2-segment join."
+            )
 
     input_args: list[str] = []
     for p in segs:
@@ -892,14 +906,20 @@ def render_section_intro_clip(
     title: str,
     card_seconds: float = SECTION_CARD_SECONDS,
     card_comp: str = SECTION_CARD_COMP,
+    card_props: dict | None = None,
     transition: str = "cut",
     ken_burns: bool = False,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
+    reencode: bool = False,
 ) -> str:
     """Render a section-intro scene as ``[card | card_frames] ++ [footage |
     footage_frames]`` where ``card_frames + footage_frames == scene['frames']``
     EXACTLY, written to ``output_path`` (``scene_{sid:03d}.card.mp4``).
+
+    ``reencode`` is forwarded to _concat_segments_copy: pass True when the result
+    feeds a later decode-based filter graph (the section crossfade) so the joined
+    clip is a clean single-segment stream (see _concat_segments_copy).
 
     ``card_frames = min(round(card_seconds * FPS), scene_frames)``: the card eats
     into the scene's own frames and NEVER spans into the next scene, so the total
@@ -908,7 +928,9 @@ def render_section_intro_clip(
     segment renders through the normal render_scene_clip path (Ken Burns / fade /
     any remaining overlays apply) at the shortened frame count, with the header +
     counter overlays already stripped by the caller — the card now carries the
-    section number (its badge) + the title. The card hard-cuts into the footage;
+    section number (its badge) + the title. ``card_comp`` + ``card_props`` are the
+    channel's resolved section-header design (comp + props); render_section_card
+    overlays ``index`` + ``title`` onto them. The card hard-cuts into the footage;
     the scene's own transition is passed to the footage segment."""
     scene_frames = _scene_frame_count(scene)
     card_frames = min(round(card_seconds * FPS), scene_frames)
@@ -919,7 +941,10 @@ def render_section_intro_clip(
     card_seg = base + ".cardseg.mp4"
     foot_seg = base + ".footseg.mp4"
 
-    render_section_card(index, title, raw_card, duration=card_seconds, comp=card_comp)
+    render_section_card(
+        index, title, raw_card,
+        duration=card_seconds, comp=card_comp, props=card_props,
+    )
     _normalize_card_to_clip(raw_card, card_frames, card_seg)
 
     segs = [card_seg]
@@ -931,43 +956,40 @@ def render_section_intro_clip(
         )
         segs.append(foot_seg)
 
-    _concat_segments_copy(segs, output_path, base)
+    _concat_segments_copy(segs, output_path, base, reencode=reencode)
     return output_path
 
 
-def derive_section_cards(project_name: str) -> dict[int, dict]:
-    """Map ``scene_id -> {"index": str, "title": str}`` for the FIRST scene of
-    each body segment (``segment_id >= 0``) — the section-intro scenes that get a
-    card.
+def _cards_from_edl(edl: dict, channel_id: str | None) -> dict[int, dict]:
+    """Map ``scene_id -> {"index", "title", "comp", "props"}`` for every EDL
+    scene carrying a section-header ``card`` — the section-intro scenes that get a
+    title card.
 
-    Titles come from script_draft.json's segment list via the SAME
-    ``_listicle_segment_titles`` logic the EDL header text uses; when
-    script_draft is absent/unreadable we fall back to each window's own
-    ``segment_title``. ``index`` is the 1-based segment number
-    (``segment_id + 1``), matching the EDL's ``"{N}. {title}"`` header. A segment
-    with no resolvable title yields no card (skipped)."""
-    windows = load_scene_windows(project_name)
-    seg_titles: dict[int, str] = {}
-    draft_path = PROJECTS_ROOT / project_name / "script_draft.json"
-    if draft_path.exists():
-        try:
-            with draft_path.open() as f:
-                draft = json.load(f)
-            seg_titles = _listicle_segment_titles(draft.get("segments", []))
-        except (OSError, json.JSONDecodeError):
-            seg_titles = {}
-
+    The EDL persists only each card's ``comp`` + per-video ``content{index,
+    title}``; the render-time design ``props`` (and comp) RE-RESOLVE here from the
+    channel's section-header default (resolve_section_header_default) so a design
+    edit re-renders the cards without regenerating the EDL. Returns ``{}`` when
+    the channel has no section-header default — its EDL cards, if any, are inert,
+    matching the EDL generator, which only emits cards when a default is set. A
+    card whose content has no title is skipped."""
+    default = resolve_section_header_default(channel_id)
+    if not default:
+        return {}
     cards: dict[int, dict] = {}
-    seen: set[int] = set()
-    for s in windows:
-        seg = s.get("segment_id")
-        if seg is None or seg < 0 or seg in seen:
+    for entry in edl.get("scenes", []):
+        card = entry.get("card")
+        if not card or card.get("role") != "section_header":
             continue
-        seen.add(seg)
-        title = seg_titles.get(seg) or (s.get("segment_title") or "").strip()
+        content = card.get("content") or {}
+        title = (content.get("title") or "").strip()
         if not title:
             continue
-        cards[s["id"]] = {"index": str(seg + 1), "title": title}
+        cards[entry["id"]] = {
+            "index": str(content.get("index", "")),
+            "title": title,
+            "comp": default["comp"],
+            "props": default["props"],
+        }
     return cards
 
 
@@ -1038,13 +1060,16 @@ def render_all_scene_clips(
     absent). The transition + ken_burns kwargs here are *defaults* passed
     into auto-generation; once an EDL exists, the EDL is authoritative.
 
-    ``section_cards`` (optional): ``{scene_id: {"index", "title"}}`` from
-    derive_section_cards. Each listed scene is rendered as a title card fronting a
-    shortened footage segment (render_section_intro_clip → scene_{sid}.card.mp4)
-    instead of a plain clip, and that ``.card.mp4`` path is returned in its slot
-    so the downstream concat picks it up. ``None`` (default) renders every scene
-    the plain way — byte-identical to the pre-card path. ``card_seconds`` /
-    ``card_comp`` set the card length + Remotion comp."""
+    ``section_cards`` (optional): ``{scene_id: {"index", "title", "comp",
+    "props"}}`` from ``_cards_from_edl``. Each listed scene is rendered as a title
+    card fronting a shortened footage segment (render_section_intro_clip →
+    scene_{sid}.card.mp4) instead of a plain clip, and that ``.card.mp4`` path is
+    returned in its slot so the downstream concat picks it up. Each card's
+    ``comp`` + ``props`` (the channel's resolved section-header design) drive the
+    look and ``index`` + ``title`` fill the badge. ``None`` (default) renders
+    every scene the plain way — byte-identical to the pre-card path.
+    ``card_seconds`` sets the card length; ``card_comp`` is only a fallback when a
+    card omits its own comp."""
     windows = load_scene_windows(project_name)
     edl = _load_or_create_edl(
         project_name, transition=transition, ken_burns=ken_burns,
@@ -1098,7 +1123,8 @@ def render_all_scene_clips(
             render_section_intro_clip(
                 scene, src, out_card,
                 index=card["index"], title=card["title"],
-                card_seconds=card_seconds, card_comp=card_comp,
+                card_seconds=card_seconds, card_comp=card.get("comp", card_comp),
+                card_props=card.get("props"),
                 transition=per_scene_transition, ken_burns=per_scene_ken_burns,
                 overlays=footage_overlays, edit_style=edit_style,
             )
@@ -1151,20 +1177,30 @@ def concat_clips(project_name: str, clip_paths: list[str]) -> str:
     return silent_video
 
 
-def _section_boundary_seams(windows: list[dict]) -> list[int]:
-    """Left indices ``i`` where ``windows[i]`` and ``windows[i+1]`` sit in
-    different sections (their ``segment_id`` differs) — the seams that get a
-    crossfade. Covers every section change, including hook->body0 and
-    body_last->conclusion (the sentinel segment_ids -1 / -2 differ from the body
-    ids, so those edges are seams too).
+def _lead_in_seams(windows: list[dict], edl_by_id: dict[int, dict]) -> list[int]:
+    """Left indices ``i`` where the NEXT scene (``windows[i+1]``) enters via a
+    crossfade — its EDL ``lead_in.type`` is not ``"cut"``. A crossfade INTO the
+    scene at list position ``i+1`` becomes a seam between clips ``i`` and ``i+1``,
+    so the two flanking clips are extended and blended. Scene 0 has no preceding
+    clip, so its lead_in (always a cut for the hook) can never open a seam.
+
+    The EDL derives a crossfade lead_in at every section_start + the conclusion
+    (edl_service), so this reproduces the section-boundary seam set the previous
+    hardcoded segment_id-change scan produced — now sourced from the EDL so the
+    edit decisions live in one place (the EDL), configurable per scene.
 
     Raises NotImplementedError if two seams are adjacent (consecutive left
     indices differ by 1), i.e. a section is a single scene: that clip would have
     to be extended for two crossfades at once, which this step does not support
     (the <2-scene-section / card-handoff case is a later step)."""
     seams = [
-        i for i in range(len(windows) - 1)
-        if windows[i].get("segment_id") != windows[i + 1].get("segment_id")
+        idx - 1
+        for idx in range(1, len(windows))
+        if (
+            (edl_by_id.get(windows[idx]["id"], {}).get("lead_in") or {})
+            .get("type", "cut")
+            != "cut"
+        )
     ]
     for a, b in zip(seams, seams[1:]):
         if b - a == 1:
@@ -1176,6 +1212,18 @@ def _section_boundary_seams(windows: list[dict]) -> list[int]:
     return seams
 
 
+def _count_video_frames(path: str) -> int:
+    """Exact video frame count from the container's sample table (instant — no
+    decode). ffmpeg-written libx264 mp4 always carries an accurate ``nb_frames``,
+    so this matches a ``-count_frames`` decode without the decode cost."""
+    out = subprocess.run([
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=nb_frames", "-of", "default=nk=1:nw=1",
+        os.path.abspath(path),
+    ], check=True, capture_output=True, text=True).stdout.strip()
+    return int(out)
+
+
 def concat_clips_crossfade(
     project_name: str,
     clip_paths: list[str],
@@ -1183,28 +1231,49 @@ def concat_clips_crossfade(
     *,
     transition: str = "cut",
     ken_burns: bool = False,
+    section_cards: dict | None = None,
+    card_seconds: float = SECTION_CARD_SECONDS,
+    card_comp: str = SECTION_CARD_COMP,
 ) -> str:
-    """Join scene clips, blending a short crossfade at each section boundary.
+    """Join scene clips, blending a short crossfade INTO each scene the EDL marks
+    with a crossfade ``lead_in`` (the section starts + the conclusion —
+    _lead_in_seams). At each seam the two flanking clips are re-rendered
+    +SECTION_XFADE_FRAMES//2 frames and joined with an ``xfade`` centered on the
+    ORIGINAL cut; every other clip passes through untouched. Because each blended
+    pair still emits exactly Fa+Fb frames, the assembled length — and therefore
+    the audio + subtitle timelines — are unchanged.
 
-    A section boundary is a segment_id change between adjacent scenes
-    (_section_boundary_seams). At each seam the two flanking clips are
-    re-rendered +SECTION_XFADE_FRAMES//2 frames (render_extended_clip ->
-    scene_{id}.xfade.mp4) and joined with an ``xfade`` centered on the ORIGINAL
-    cut; every other clip passes through untouched. Because each blended pair
-    still emits exactly Fa+Fb frames, the assembled length — and therefore the
-    audio + subtitle timelines — are unchanged.
+    ``section_cards`` (optional; ``{scene_id: {"index","title","comp","props"}}``
+    from _cards_from_edl): a flanking clip that is one of these section-intro CARD
+    scenes is re-rendered CARD-FRONTED (render_section_intro_clip ->
+    scene_{id}.card.xfade.mp4) rather than plain, so the previous section's footage
+    dissolves INTO the header card — cards and crossfades COEXIST. The +half frames
+    lengthen only that clip's footage segment (card_frames stays the card's own
+    budget, so the blend lands wholly on the card and the card is otherwise
+    untouched), so the pair still emits Fa+Fb frames. A plain flanking clip goes
+    to scene_{id}.xfade.mp4 as before. ``None`` renders every seam plain.
 
     Unlike concat_clips (concat demuxer, stream copy) this re-encodes: the xfade
     filter can't run on the demuxer, so every input is normalized via the shared
     _normalize_video_chain and the whole thing runs through one concat FILTER
-    graph. With no seams it delegates to concat_clips. Writes the same
+    graph. With no crossfade lead_ins it delegates to concat_clips. Writes the same
     video/video_no_audio.mp4 sink as concat_clips (so the downstream mux is
     unchanged) and returns its path."""
     windows = load_scene_windows(project_name)
-    seams = _section_boundary_seams(windows)
+
+    # Resolve per-scene render params exactly as render_all_scene_clips does so
+    # each extended seam clip matches its plain counterpart (bar the +frames).
+    # Loaded up front because the crossfade SEAMS are now derived from the EDL
+    # (each scene's ``lead_in``), not from a segment_id scan.
+    edl = _load_or_create_edl(
+        project_name, transition=transition, ken_burns=ken_burns,
+    )
+    edl_by_id: dict[int, dict] = {e["id"]: e for e in edl.get("scenes", [])}
+    seams = _lead_in_seams(windows, edl_by_id)
     if not seams:
-        # No section boundaries (e.g. a single-segment project) — nothing to
-        # crossfade; fall back to the plain demuxer concat.
+        # No crossfade lead_ins (e.g. a single-segment project, or the EDL marks
+        # every scene as a cut) — nothing to blend; fall back to the plain
+        # demuxer concat.
         return concat_clips(project_name, clip_paths)
 
     if len(clip_paths) != len(windows):
@@ -1213,21 +1282,20 @@ def concat_clips_crossfade(
             f"length mismatch — cannot align section-crossfade seams."
         )
 
-    # Resolve per-scene render params exactly as render_all_scene_clips does so
-    # each extended seam clip matches its plain counterpart (bar the +frames).
-    edl = _load_or_create_edl(
-        project_name, transition=transition, ken_burns=ken_burns,
-    )
-    edl_by_id: dict[int, dict] = {e["id"]: e for e in edl.get("scenes", [])}
     edit_style = resolve_channel_editing(_project_channel_id(project_name))
+    cards = section_cards or {}
 
     clips_dir = str(PROJECTS_ROOT / project_name / "clips")
     half = SECTION_XFADE_FRAMES // 2
 
     # Render the two extended clips flanking each seam, override those two input
-    # slots with the .xfade.mp4 paths, and record the xfade offset: the blend
+    # slots with the extended paths, and record the xfade offset: the blend
     # starts at (Fa - half)/FPS into clip A (A's original frame count is Fa) so
-    # its centre lands on the original cut at frame Fa.
+    # its centre lands on the original cut at frame Fa. A flanking clip that is a
+    # section-intro CARD scene is re-rendered CARD-FRONTED (render_section_intro_-
+    # clip -> .card.xfade.mp4) so the previous footage dissolves INTO the card;
+    # the +half lengthens only its footage segment (card_frames stays the card's
+    # budget, so the whole blend lands on the card), and it still totals Fb+half.
     input_paths = list(clip_paths)
     seam_offsets: dict[int, float] = {}
     for i in seams:
@@ -1238,15 +1306,50 @@ def concat_clips_crossfade(
             if not src or not os.path.exists(src):
                 raise FileNotFoundError(f"No footage for scene {sid}")
             entry = edl_by_id.get(sid, {})
-            out = os.path.join(clips_dir, f"scene_{sid:03d}.xfade.mp4")
-            render_extended_clip(
-                scene, src, out,
-                extra_frames=half,
-                transition=entry.get("transition", transition),
-                ken_burns=entry.get("ken_burns", ken_burns),
-                overlays=entry.get("overlays", []),
-                edit_style=edit_style,
-            )
+            per_transition = entry.get("transition", transition)
+            per_ken_burns = entry.get("ken_burns", ken_burns)
+            overlays = entry.get("overlays", [])
+            card = cards.get(sid)
+            if card:
+                # Card scene on a seam: extend the CARD-FRONTED clip (not a plain
+                # one) so the blend lands on the card. Bumping the scene's frame
+                # count by +half feeds render_section_intro_clip a longer footage
+                # segment while card_frames is unchanged. Header/counter overlays
+                # are stripped (the card badge carries the number + title), as in
+                # render_all_scene_clips' card path.
+                out = os.path.join(clips_dir, f"scene_{sid:03d}.card.xfade.mp4")
+                ext_frames = _scene_frame_count(scene) + half
+                ext_scene = {
+                    **scene,
+                    "frames": ext_frames,
+                    "duration": round(ext_frames / FPS, 3),
+                }
+                footage_overlays = [
+                    o for o in overlays if o.get("kind") not in ("header", "counter")
+                ]
+                render_section_intro_clip(
+                    ext_scene, src, out,
+                    index=card["index"], title=card["title"],
+                    card_seconds=card_seconds,
+                    card_comp=card.get("comp", card_comp),
+                    card_props=card.get("props"),
+                    transition=per_transition, ken_burns=per_ken_burns,
+                    overlays=footage_overlays, edit_style=edit_style,
+                    # Re-encode the joined card clip (not stream-copy): it is
+                    # decoded again by the xfade/concat filters below, which drop
+                    # frames off a concat-demuxer copy (see _concat_segments_copy).
+                    reencode=True,
+                )
+            else:
+                out = os.path.join(clips_dir, f"scene_{sid:03d}.xfade.mp4")
+                render_extended_clip(
+                    scene, src, out,
+                    extra_frames=half,
+                    transition=per_transition,
+                    ken_burns=per_ken_burns,
+                    overlays=overlays,
+                    edit_style=edit_style,
+                )
             input_paths[j] = out
         fa = _scene_frame_count(windows[i])
         seam_offsets[i] = (fa - half) / FPS
@@ -1299,6 +1402,22 @@ def concat_clips_crossfade(
             f"ffmpeg failed section-crossfade concat for {project_name}:\n{stderr}"
         )
         raise
+
+    # Guard the duration-neutral invariant. Each blended pair emits exactly Fa+Fb
+    # frames, so the crossfaded video must still hold the quantized total (sum of
+    # per-scene frames == the audio/subtitle clock). The xfade/concat FILTER can
+    # exit 0 yet silently drop frames on a malformed input (e.g. a concat-demuxer
+    # copy whose DTS layout reads as early EOF — see _concat_segments_copy), so
+    # verify here and fail loudly rather than ship a truncated, audio-desynced cut.
+    expected_frames = sum(_scene_frame_count(s) for s in windows)
+    actual_frames = _count_video_frames(silent_video)
+    if actual_frames != expected_frames:
+        raise RuntimeError(
+            f"Section-crossfade concat for {project_name!r} produced "
+            f"{actual_frames} frames but the scene timeline totals "
+            f"{expected_frames} — a filter silently dropped frames. Refusing to "
+            f"ship a truncated/desynced video."
+        )
 
     return silent_video
 
@@ -1366,31 +1485,37 @@ def assemble(
     exists yet; once an EDL is present, its per-scene values are
     authoritative and these kwargs are ignored.
 
-    section_cards: when True, front each section-intro scene (first scene of each
-    body segment) with a title card that eats into THAT scene's own frames — the
-    total length, and therefore the audio + subtitle timelines, are unchanged.
-    Karaoke cues that play entirely under a card are suppressed. Default False
-    renders the plain path (byte-identical to before). card_seconds / card_comp
-    set the card length + Remotion comp. output_name: filename inside video/, so
-    a card render can write beside an untouched final.mp4.
+    section_cards: when True, place a section-header title card on every scene the
+    EDL marks with a ``card`` (the section-intro scenes) — but only when the
+    channel has a section-header DEFAULT design; otherwise the EDL carries no
+    cards and this is a no-op plain render. Each card eats into THAT scene's own
+    frames, so the total length — and therefore the audio + subtitle timelines —
+    is unchanged. Karaoke cues that play entirely under a card are suppressed.
+    False forces cards off (byte-identical to the plain path). card_seconds sets
+    the card length; card_comp is a fallback comp (each card resolves its own from
+    the channel default). output_name: filename inside video/, so a card render
+    can write beside an untouched final.mp4.
 
-    section_transitions: when True (and section_cards is False), blend a short
-    crossfade across each section boundary (segment_id change) via
-    concat_clips_crossfade instead of a hard cut. Duration-neutral (each blended
-    pair still emits Fa+Fb frames), so the audio + subtitle timelines are
-    unchanged. If both section_cards and section_transitions are set, cards win
-    (a card-handoff crossfade is a later step) and section_transitions is ignored
-    with a warning."""
+    section_transitions: when True, blend a short crossfade INTO every scene the
+    EDL marks with a crossfade ``lead_in`` (the section starts + the conclusion)
+    via concat_clips_crossfade instead of a hard cut. Duration-neutral (each
+    blended pair still emits Fa+Fb frames), so the audio + subtitle timelines are
+    unchanged. Cards and crossfades COEXIST: a section start is BOTH a card-fronted
+    clip AND the incoming side of a crossfade, so the previous section's footage
+    dissolves INTO the header card. False forces crossfades off (plain hard-cut
+    concat)."""
     if transition not in ("cut", "fade"):
         raise ValueError(f"transition must be 'cut' or 'fade', got {transition!r}")
 
-    cards = derive_section_cards(project_name) if section_cards else {}
-    if cards and section_transitions:
-        print(
-            "  WARN: section cards and section transitions both requested; "
-            "section cards win (card-handoff crossfade is a later step) — "
-            "ignoring section transitions."
+    # Cards are EDL-driven: build the map from the EDL's per-scene ``card``
+    # fields (re-resolving each card's design from the channel's section-header
+    # default). ``section_cards=False`` is the kill-switch — forces cards off.
+    cards: dict[int, dict] = {}
+    if section_cards:
+        edl = _load_or_create_edl(
+            project_name, transition=transition, ken_burns=ken_burns,
         )
+        cards = _cards_from_edl(edl, _project_channel_id(project_name))
 
     print("  Assembling audio...")
     audio = assemble_audio(project_name)
@@ -1402,12 +1527,17 @@ def assemble(
     )
 
     print("  Concatenating clips...")
-    if cards:
-        silent = concat_clips(project_name, clips)
-    elif section_transitions:
+    if section_transitions:
+        # Cards and crossfades coexist: the clips list already carries the
+        # card-fronted section-intro clips (render_all_scene_clips), and
+        # concat_clips_crossfade blends INTO them at each crossfade lead_in — a
+        # section start gets BOTH a card AND a dissolve into it. With no crossfade
+        # lead_ins this internally falls back to a plain concat.
         silent = concat_clips_crossfade(
             project_name, clips, footage_paths,
             transition=transition, ken_burns=ken_burns,
+            section_cards=cards or None,
+            card_seconds=card_seconds, card_comp=card_comp,
         )
     else:
         silent = concat_clips(project_name, clips)
