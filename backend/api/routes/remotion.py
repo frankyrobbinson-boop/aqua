@@ -121,6 +121,7 @@ _MAX_SUBTITLE_LEN = 200
 _MAX_EYEBROW_LEN = 40
 _MAX_HIGHLIGHT_LEN = 60
 _MAX_INDEX_LEN = 12
+_MAX_ITEMNOUN_LEN = 40
 
 # GardenBloom-only Lottie config bounds. These fields flow through
 # _sanitize_props so BOTH the MP4 render and a saved design keep them: the render
@@ -264,6 +265,16 @@ def _sanitize_props(raw: dict[str, Any]) -> dict[str, Any]:
         ix = str(index).strip()[:_MAX_INDEX_LEN]
         if ix:
             out["index"] = ix
+
+    # itemNoun — optional section-header item noun (Flower / Mistake / …) that
+    # pairs with the index to render a "{itemNoun} #{index}." label (floral
+    # two-tier header + the Garden badge prefix). Trimmed + length-capped, kept
+    # only when non-empty. Mirrors `index`.
+    item_noun = raw.get("itemNoun")
+    if item_noun is not None:
+        noun = str(item_noun).strip()[:_MAX_ITEMNOUN_LEN]
+        if noun:
+            out["itemNoun"] = noun
 
     # durationInSeconds — clamp to [2, 20].
     try:

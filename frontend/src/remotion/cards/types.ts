@@ -62,6 +62,12 @@ export type CardProps = {
    *  Optional; GardenFramed/GardenBand render it (other cards ignore it).
    *  Rendered AS TYPED — include the leading "#" yourself if you want one. */
   index?: string;
+  /** Singular noun of the listed subject (e.g. "Flower", "Mistake") paired with
+   *  `index` to render a "{itemNoun} #{index}." label. Optional; the floral
+   *  section cards render it as a two-tier header (label above the subject) and
+   *  GardenFramed/GardenBand prefix it onto the badge. Empty/absent falls back to
+   *  the bare index, so a card with no itemNoun is unchanged. */
+  itemNoun?: string;
   animation: CardAnimation;
   palette: CardPalette;
   /** Fill treatment. Independent of `decoration` so a card can show a gradient

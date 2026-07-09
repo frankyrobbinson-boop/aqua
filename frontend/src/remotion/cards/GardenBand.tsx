@@ -124,6 +124,12 @@ export const GardenBand = (props: CardProps) => {
 
   const muted = mix(palette.text, palette.background, 0.28);
   const idx = props.index?.trim();
+  const noun = props.itemNoun?.trim();
+  // Prefix the item noun onto the badge ("Flower #1") when present; a bare index
+  // (as typed) otherwise, so a card with no itemNoun is unchanged. A leading "#"
+  // the user may have typed into the index is stripped in the noun form so it
+  // reads "Flower #1", never "Flower ##1". Kept a modest kicker (no size change).
+  const badgeLabel = noun && idx ? `${noun} #${idx.replace(/^#/, "")}` : idx;
   const badgeBg = mix(palette.accent, palette.background, 0.2);
   const badgeText = mix(palette.accent, palette.text, 0.55);
 
@@ -161,7 +167,7 @@ export const GardenBand = (props: CardProps) => {
               transform: `translateY(${(1 - badgeOpacity) * 10}px)`,
             }}
           >
-            {idx}
+            {badgeLabel}
           </div>
         ) : null}
 

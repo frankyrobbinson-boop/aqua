@@ -25,7 +25,7 @@ Answer the frame's two questions first, and write the answer as `title_promise` 
 - **Plan the stitches - backward only.** Shared ground between items (same trick, same spot in the yard, one fills the gap another leaves) gets noted in `purpose` so the script can call back. Never a forward reference to an unrevealed item; the bookmark is the only forward pointer.
 - **Teach repeated procedure once.** If a step repeats across items, name in `key_material` the ONE section that teaches it in full.
 - **Hook names no items.** It opens the want, claims these {item_count} exist, and points the bookmark at the peak. It must not preview any item's name, signature trait, or unlock.
-- **`section.title` is the literal item name, nothing else** - downstream stages key off this exact string.
+- **`section.title` is the literal item name in its natural spoken display form, nothing else** - plural where a gardener naturally says it that way ("Zinnias", "Coneflowers", "Black-Eyed Susans"), but a species or cultivar name that doesn't pluralize stays as-is ("Autumn Joy", "Baptisia"). Downstream stages key off this exact string.
 
 # Output
 

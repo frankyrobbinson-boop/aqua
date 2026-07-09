@@ -94,26 +94,48 @@ def save_preset(
     return lib
 
 
-def resolve_section_header_default(channel_id: str | None) -> dict | None:
-    """Resolve the channel's DEFAULT section-header design to a renderable
-    ``{"comp", "props"}`` pair, or ``None`` when no default is set (or it names
-    a preset that isn't present in the library).
+def resolve_section_header_default(channel_id: str | None) -> list[dict] | None:
+    """Resolve the channel's section-header design(s) to a ROTATION SET — an
+    ordered list of renderable ``{"comp", "props"}`` pairs cycled across a
+    video's section starts — or ``None`` when the channel has no section-header
+    design.
 
-    ``comp`` is the default preset's ``card_id`` (the Remotion comp to render)
-    and ``props`` its saved design props. This is the opt-in switch for
+    Two shapes in ``section_headers.json`` produce the set (``rotation`` wins
+    when present and non-empty):
+
+      * ``rotation`` — an ordered list of preset NAMES; the set is those presets
+        in that order (names not present in the library are skipped). The k-th
+        section start takes entry ``k % len`` (edl_service), so consecutive
+        sections show DIFFERENT designs, wrapping when there are more sections
+        than presets.
+      * ``default`` — a single preset NAME (the plain single-design switch); the
+        set is that one preset, a 1-element rotation, so a channel with only a
+        ``default`` still works exactly as before (every section the same).
+
+    Each entry's ``comp`` is a preset's ``card_id`` (the Remotion comp) and
+    ``props`` its saved design props. This is the opt-in switch for
     section-header cards: the EDL generator emits a section-header ``card`` at
-    each section start only when this returns non-None, and assembly re-resolves
-    it at render time so a design edit re-renders the cards without an EDL
-    regen. ``channel_id=None`` resolves the registry default channel (matching
-    ``resolve_channel_editing``)."""
+    each section start only when this returns a non-empty set, and assembly
+    re-resolves the set at render time so a design edit (or a rotation change)
+    re-renders the cards without an EDL regen. ``channel_id=None`` resolves the
+    registry default channel (matching ``resolve_channel_editing``).
+
+    (Unlike ``resolve_title_card_default``, which returns a single pair — the
+    mid-hook title card never rotates.)"""
     lib = load_library(channel_id, "section_header")
-    default_name = lib.get("default")
-    if not default_name:
+    by_name = {p.get("name"): p for p in (lib.get("presets") or [])}
+    rotation = lib.get("rotation")
+    if rotation:
+        names = [n for n in rotation if n in by_name]
+    else:
+        default_name = lib.get("default")
+        names = [default_name] if default_name in by_name else []
+    if not names:
         return None
-    for preset in lib.get("presets") or []:
-        if preset.get("name") == default_name:
-            return {"comp": preset["card_id"], "props": preset.get("props") or {}}
-    return None
+    return [
+        {"comp": by_name[n]["card_id"], "props": by_name[n].get("props") or {}}
+        for n in names
+    ]
 
 
 def resolve_title_card_default(channel_id: str | None) -> dict | None:

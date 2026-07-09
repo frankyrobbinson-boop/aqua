@@ -774,6 +774,7 @@ def render_section_card(
     title: str,
     out_path: str,
     *,
+    item_noun: str = "",
     duration: float = SECTION_CARD_SECONDS,
     comp: str = SECTION_CARD_COMP,
     props: dict | None = None,
@@ -783,18 +784,21 @@ def render_section_card(
     Reuses the SAME renderer the /remotion tab drives (frontend
     scripts/render-remotion.mjs) via subprocess, cwd=<frontend>. ``props`` is the
     channel's resolved section-header default design (resolve_section_header_-
-    default); this function copies it and overrides ``index`` + ``title`` from
-    the EDL card content, blanks ``subtitle`` so the card shows only the numbered
-    section title, and forces ``durationInSeconds`` to the card's frame-quantized
-    length so the animation is timed to what's actually shown. Everything else
-    (palette / background / decoration / fontFamily / animation) comes from the
-    preset, so nothing falls back to the designer's demo props. ``props=None``
-    passes only the overridden keys and lets the comp supply its own defaults.
-    The raw card renders at the comp's native 30 fps; _normalize_card_to_clip
-    resamples it to the canonical 25 fps / 1920x1080 / yuv420p / SAR 1:1 shape
-    and caps it to exact frames."""
+    default); this function copies it and overrides ``index`` + ``itemNoun`` +
+    ``title`` from the EDL card content, blanks ``subtitle`` so the card shows
+    only the numbered section title, and forces ``durationInSeconds`` to the
+    card's frame-quantized length so the animation is timed to what's actually
+    shown. ``item_noun`` (e.g. "Flower" / "Mistake") lets the card render a
+    "{itemNoun} #{index}." label; empty is fine (the card shows the bare index).
+    Everything else (palette / background / decoration / fontFamily / animation)
+    comes from the preset, so nothing falls back to the designer's demo props.
+    ``props=None`` passes only the overridden keys and lets the comp supply its
+    own defaults. The raw card renders at the comp's native 30 fps;
+    _normalize_card_to_clip resamples it to the canonical 25 fps / 1920x1080 /
+    yuv420p / SAR 1:1 shape and caps it to exact frames."""
     card_props = dict(props or {})
     card_props["index"] = str(index)
+    card_props["itemNoun"] = item_noun
     card_props["title"] = title
     card_props["subtitle"] = ""  # title-only card (blank any preset subtitle)
     card_props["durationInSeconds"] = float(duration)
@@ -907,6 +911,7 @@ def render_section_intro_clip(
     *,
     index: str,
     title: str,
+    item_noun: str = "",
     card_seconds: float = SECTION_CARD_SECONDS,
     card_comp: str = SECTION_CARD_COMP,
     card_props: dict | None = None,
@@ -933,8 +938,10 @@ def render_section_intro_clip(
     counter overlays already stripped by the caller — the card now carries the
     section number (its badge) + the title. ``card_comp`` + ``card_props`` are the
     channel's resolved section-header design (comp + props); render_section_card
-    overlays ``index`` + ``title`` onto them. The card hard-cuts into the footage;
-    the scene's own transition is passed to the footage segment."""
+    overlays ``index`` + ``item_noun`` + ``title`` onto them (``item_noun`` drives
+    the card's "{itemNoun} #{index}." label; empty shows the bare index). The card
+    hard-cuts into the footage; the scene's own transition is passed to the
+    footage segment."""
     scene_frames = _scene_frame_count(scene)
     card_frames = min(round(card_seconds * FPS), scene_frames)
     footage_frames = scene_frames - card_frames
@@ -946,6 +953,7 @@ def render_section_intro_clip(
 
     render_section_card(
         index, title, raw_card,
+        item_noun=item_noun,
         duration=card_seconds, comp=card_comp, props=card_props,
     )
     _normalize_card_to_clip(raw_card, card_frames, card_seg)
@@ -964,40 +972,63 @@ def render_section_intro_clip(
 
 
 def _cards_from_edl(edl: dict, channel_id: str | None) -> dict[int, dict]:
-    """Map ``scene_id -> {"index", "title", "comp", "props"}`` for every EDL
-    scene carrying a ``card`` — the section-intro scenes (``role:"section_header"``)
-    and the mid-hook title scene (``role:"title"``).
+    """Map ``scene_id -> {"index", "item_noun", "title", "comp", "props"}`` for
+    every EDL scene carrying a ``card`` — the section-intro scenes
+    (``role:"section_header"``) and the mid-hook title scene (``role:"title"``).
 
     The EDL persists only each card's ``comp`` + per-video ``content`` (a section
-    card's ``{index,title}``, a title card's ``{title}``); the render-time design
-    ``props`` (and comp) RE-RESOLVE here from the channel's DEFAULT for that card's
-    ROLE (resolve_section_header_default / resolve_title_card_default) so a design
-    edit re-renders the cards without regenerating the EDL. Each role's default is
-    resolved once; a card whose role has no channel default is SKIPPED (inert),
-    matching the EDL generator, which only emits a role's cards when that role's
-    default is set. A title card carries no index (its content has only a title),
-    so ``index`` resolves to "". A card whose content has no title is skipped."""
-    role_defaults = {
-        "section_header": resolve_section_header_default(channel_id),
-        "title": resolve_title_card_default(channel_id),
-    }
+    card's ``{index,item_noun,title}``, a title card's ``{title}``); the
+    render-time design ``props`` (and comp) RE-RESOLVE here from the channel's
+    DEFAULT for that card's ROLE so a design edit re-renders the cards without
+    regenerating the EDL. Section headers resolve to a ROTATION SET (an ordered
+    list of {comp,props}, resolve_section_header_default); each section card
+    re-picks its rotated design by section POSITION — its ``index`` minus one,
+    which equals the seg_id the EDL generator rotated on — as ``pos % len``, so
+    the per-section comps match generation AND track a rotation edit without an
+    EDL regen. The title card resolves to a single {comp,props}
+    (resolve_title_card_default) and never rotates. A card whose role has no
+    channel default is SKIPPED (inert), matching the EDL generator, which only
+    emits a role's cards when that role's default is set. A title card carries no
+    index/item_noun (its content has only a title), so both resolve to "". A card
+    whose content has no title is skipped."""
+    # Section headers → rotation set (list); title card → single {comp,props}.
+    # Both re-resolve here so a design edit (or a rotation change) re-renders the
+    # cards without an EDL regen.
+    section_rotation = resolve_section_header_default(channel_id)  # list | None
+    title_default = resolve_title_card_default(channel_id)          # dict | None
     cards: dict[int, dict] = {}
     for entry in edl.get("scenes", []):
         card = entry.get("card")
         if not card:
             continue
-        default = role_defaults.get(card.get("role"))
-        if not default:
-            continue
         content = card.get("content") or {}
         title = (content.get("title") or "").strip()
         if not title:
             continue
+        role = card.get("role")
+        if role == "section_header":
+            if not section_rotation:
+                continue
+            # Re-pick the rotated design by section position (index-1 == the
+            # generator's seg_id) so it matches what generate_default_edl
+            # assigned and wraps identically past the end of the set.
+            try:
+                pos = int(str(content.get("index", "")).strip()) - 1
+            except ValueError:
+                pos = 0
+            design = section_rotation[pos % len(section_rotation)]
+        elif role == "title":
+            if not title_default:
+                continue
+            design = title_default
+        else:
+            continue
         cards[entry["id"]] = {
             "index": str(content.get("index", "")),
+            "item_noun": (content.get("item_noun") or "").strip(),
             "title": title,
-            "comp": default["comp"],
-            "props": default["props"],
+            "comp": design["comp"],
+            "props": design["props"],
         }
     return cards
 
@@ -1134,6 +1165,7 @@ def render_all_scene_clips(
             render_section_intro_clip(
                 scene, src, out_card,
                 index=card["index"], title=card["title"],
+                item_noun=card.get("item_noun", ""),
                 card_seconds=card_seconds, card_comp=card.get("comp", card_comp),
                 card_props=card.get("props"),
                 transition=per_scene_transition, ken_burns=per_scene_ken_burns,
@@ -1341,6 +1373,7 @@ def concat_clips_crossfade(
                 render_section_intro_clip(
                     ext_scene, src, out,
                     index=card["index"], title=card["title"],
+                    item_noun=card.get("item_noun", ""),
                     card_seconds=card_seconds,
                     card_comp=card.get("comp", card_comp),
                     card_props=card.get("props"),

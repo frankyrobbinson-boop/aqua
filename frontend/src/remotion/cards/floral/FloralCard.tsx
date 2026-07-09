@@ -37,6 +37,11 @@ const TEXTURE_SRC = "cardstyle/texture.jpg";
 const BOTANICALS_DIR = "cardstyle/botanicals/";
 // Soft taupe body default when `bodyColor` isn't supplied.
 const DEFAULT_BODY_COLOR = "#7f7268";
+// Two-tier SUBJECT tier color — a plum a shade DARKER than the label (which
+// takes the card's `palette.text` plum), so the item name reads as a quieter
+// second tier beneath the big label. A constant (not palette-derived) so the
+// darker-than-label relationship holds regardless of the preset palette.
+const SUBJECT_COLOR = "#6f3557";
 // Idle sway speed (rad/s of composition time), matching the garden vines' calm.
 const SWAY_SPEED = 0.8;
 
@@ -73,21 +78,41 @@ export const FloralCard = (props: CardProps) => {
   const { palette } = props;
   const font = resolveFontFamily(props.fontFamily);
   const variant = resolveFloralVariant(props.variant);
-  const { style: titleStyle, text: titleText } = useTextEntrance(
-    props.animation,
-    props.title,
-  );
-  const bodyOpacity = useFadeIn(0.5, 0.7);
   const bodyColor = props.bodyColor || DEFAULT_BODY_COLOR;
   const isCenter = variant.layout === "center";
   const isRight = variant.layout === "right";
-  // Content (heading-left/right) titles can be long section labels (e.g.
-  // "Number 1: Bee balm"), not just the short source titles — cap the heading
-  // size by length and let the browser BALANCE the wrap, so a long item name
-  // splits into even lines instead of orphaning a word. Title (center) cards
-  // keep the big hero size.
+
+  // Two-tier section header: when an `index` is present the card announces the
+  // item in two stacked tiers — a big animated LABEL ("{itemNoun} #{index}",
+  // e.g. "Flower #1", no trailing period) over a SUBJECT a size down and a plum
+  // shade darker (the item name in `title`). A title/hook card (no index) stays
+  // a single hero line, unchanged: `label` is then just the title, so the SAME
+  // useTextEntrance animates it.
+  const idx = props.index?.trim();
+  const noun = props.itemNoun?.trim();
+  const isTwoTier = Boolean(idx);
+  const label = isTwoTier
+    ? `${noun ? `${noun} ` : ""}#${idx}`
+    : props.title;
+  const { style: titleStyle, text: titleText } = useTextEntrance(
+    props.animation,
+    label,
+  );
+  // Subject fades in a touch after the label lands; body later still.
+  const subjectOpacity = useFadeIn(0.3, 0.6);
+  const bodyOpacity = useFadeIn(0.5, 0.7);
+
+  // Single-line hero size (title/hook cards): cap by length and let the browser
+  // BALANCE the wrap so a long promise splits into even lines. Title (center)
+  // cards keep the big hero size.
   const contentFontSize =
     props.title.trim().length > 26 ? 74 : props.title.trim().length > 16 ? 88 : 104;
+  // Two-tier subject size (the item name) — its own length cap so a long name
+  // wraps in the column; the label sits a tier LARGER above it. Both tiers are
+  // sized up hard (label 160, subject 88/108/128) so the header reads big.
+  const subjectLen = props.title.trim().length;
+  const subjectFontSize = subjectLen > 26 ? 88 : subjectLen > 16 ? 108 : 128;
+  const LABEL_FONT_SIZE = 160;
 
   return (
     <AbsoluteFill style={{ backgroundColor: palette.background }}>
@@ -120,8 +145,12 @@ export const FloralCard = (props: CardProps) => {
               margin: 0,
               fontFamily: font,
               fontWeight: 400,
-              fontSize: isCenter ? 180 : contentFontSize,
-              lineHeight: isCenter ? 1.0 : 1.05,
+              fontSize: isTwoTier
+                ? LABEL_FONT_SIZE
+                : isCenter
+                  ? 180
+                  : contentFontSize,
+              lineHeight: isTwoTier ? 1.02 : isCenter ? 1.0 : 1.05,
               letterSpacing: "-0.01em",
               textWrap: "balance",
               color: palette.text,
@@ -130,6 +159,25 @@ export const FloralCard = (props: CardProps) => {
           >
             {titleText}
           </h1>
+
+          {isTwoTier ? (
+            <div
+              style={{
+                margin: isRight ? "18px 0 0 auto" : "18px 0 0",
+                maxWidth: isCenter ? undefined : 760,
+                fontFamily: font,
+                fontWeight: 400,
+                fontSize: subjectFontSize,
+                lineHeight: 1.05,
+                letterSpacing: "-0.01em",
+                textWrap: "balance",
+                color: SUBJECT_COLOR,
+                opacity: subjectOpacity,
+              }}
+            >
+              {props.title}
+            </div>
+          ) : null}
 
           {props.subtitle ? (
             <p

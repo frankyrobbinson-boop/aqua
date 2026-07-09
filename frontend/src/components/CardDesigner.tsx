@@ -489,6 +489,22 @@ export function CardDesigner({
             </Field>
           )}
 
+          {/* Item noun — pairs with the index for a "{itemNoun} #{index}." label
+              (floral two-tier header + the Garden badge prefix). Section-only. */}
+          {role === "section_header" && (
+            <Field label="Item noun" htmlFor="card-item-noun">
+              <input
+                id="card-item-noun"
+                type="text"
+                value={props.itemNoun ?? ""}
+                onChange={(e) => update("itemNoun", e.target.value)}
+                maxLength={40}
+                placeholder="e.g. Flower or Mistake..."
+                className={FIELD_CLASS}
+              />
+            </Field>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <Field label="Animation" htmlFor="card-animation">
               <Select

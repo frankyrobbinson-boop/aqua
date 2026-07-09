@@ -155,6 +155,11 @@ class _ConclusionPayload(BaseModel):
 class ScriptDraftPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str
+    # title_spoken + item_noun default to "" so editor saves of scripts that
+    # carry them (every script generated since those fields were added) don't
+    # trip extra="forbid" with a 422; both mirror SCRIPT_SCHEMA.
+    title_spoken: str = ""
+    item_noun: str = ""
     hook: _HookPayload
     segments: list[_SegmentPayload]
     conclusion: _ConclusionPayload

@@ -23,7 +23,7 @@ One continuous thread, not a montage. Pick the strongest single image from the o
 
 # Sections
 
-One per outline item, each written as its turn. **Open each section by announcing it — its number and title as one short, standalone line: `Number {N}: {title}.` — where N is the 1-based position and the title matches `segments[i].title` exactly, so it matches the on-screen card.** Then a natural beat before the next sentence. Naming the section is not giving away the fix: after the beat, open on the belief or the failure and let the section still build to its reveal — the counterintuitive truth and its one-phrase mechanism. Land the reveal, prove it with plain cause-and-effect, then give the fix as action - what to do, when, what to touch, with the real numbers. `key_material` is a pantry, not a checklist - use what serves the turn and leave the rest out. When the landing lands, the section ends.
+One per outline item, each written as its turn. **Open each section by announcing it as TWO short sentences — the word Mistake with its number, then its title: `Mistake number {N}. {title}.` — where N is the 1-based position and the title matches `segments[i].title` exactly, so it matches the on-screen card. Set the top-level `item_noun` field to "Mistake".** Then a natural beat before the next sentence. Naming the section is not giving away the fix: after the beat, open on the belief or the failure and let the section still build to its reveal — the counterintuitive truth and its one-phrase mechanism. Land the reveal, prove it with plain cause-and-effect, then give the fix as action - what to do, when, what to touch, with the real numbers. `key_material` is a pantry, not a checklist - use what serves the turn and leave the rest out. When the landing lands, the section ends.
 
 Aim around ~{words_per_segment} words each, but let peaks run long and light ones run short; total near ~{total_word_target}. Later sections make the promise feel more true than earlier ones. Stitch backward when the outline planned it ("if you took the first secret seriously and planted deep...") - never forward, never naming an unrevealed item. Supporting sections can simply end; if you tease forward, keep one tease live at a time and resolve it before the conclusion - but never the throughline; that stays open and leaves with the viewer. Each segment needs `visual_notes`: one short line on mood and subject.
 
@@ -42,6 +42,7 @@ Return ONLY valid JSON parsable by `json.loads()`. No markdown, no backticks, no
 {
   "title": "",
   "title_spoken": "",
+  "item_noun": "",
   "hook": { "narration": "" },
   "segments": [ { "title": "", "narration": "", "visual_notes": "" } ],
   "conclusion": { "narration": "" }

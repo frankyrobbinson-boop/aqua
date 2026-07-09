@@ -3,7 +3,7 @@
 Stored at ``<projects_root>/<name>/edl.json`` with schema::
 
     {
-      "version": 4,
+      "version": 5,
       "scenes": [
         {
           "id": 0,
@@ -18,7 +18,7 @@ Stored at ``<projects_root>/<name>/edl.json`` with schema::
           "card": {                    # optional — a section-header OR mid-hook
             "role": "section_header",   #   title card ("section_header" | "title")
             "comp": "GardenFramed",    # Remotion comp (the default preset card_id)
-            "content": {"index": "1", "title": "Bee balm"}
+            "content": {"index": "1", "item_noun": "Flower", "title": "Bee balm"}
           },
           "overlays": [                # zero or more on-screen text overlays
             {
@@ -71,6 +71,15 @@ only when the channel has a ``title`` DEFAULT design) and stores just its
 card OWNS its hook scene the same way a section card owns a section intro — its
 duplicate callout is dropped.
 
+V5 adds ``item_noun`` to a section-header card's ``content`` (alongside
+``index`` + ``title``) — the singular noun of the listed subject the script
+model fills at the top level (``Flower`` / ``Perennial`` / ``Mistake`` / …). It
+lets the card render a ``"{item_noun} #{index}."`` label (the floral two-tier
+header + the Garden badge prefix) instead of a bare number. Resolved from
+``script_draft["item_noun"]`` (empty when the script predates the field or the
+type doesn't set it — the card then falls back to the bare index, unchanged).
+The mid-hook ``title`` card is untouched (it carries only a title).
+
 Generation is purely a function of upstream artifacts (scene_windows,
 scene_plan, outline, script_config, channel editing style) — running
 ``generate_default_edl`` twice on unchanged inputs yields identical output.
@@ -95,7 +104,7 @@ from services.graphics_registry import (
 )
 from services.paths import PROJECTS_ROOT
 
-EDL_SCHEMA_VERSION = 4
+EDL_SCHEMA_VERSION = 5
 
 # Default crossfade width (in frames) for a section-boundary ``lead_in`` — the
 # dissolve INTO each section_start / conclusion scene. A constant default for now;
@@ -305,13 +314,17 @@ def generate_default_edl(
 
     listicle = _is_listicle(script_config)
 
-    # Section-header card design for this channel. A ``card`` is emitted at each
-    # section start ONLY when the channel has a section-header DEFAULT preset
-    # (opt-in per channel); otherwise no card is emitted and the listicle
-    # header/counter overlays behave exactly as before. Resolved once — the card
-    # stores only the comp + per-video content{index,title}; the design props
-    # re-resolve from this same default at render time (assembly_service).
-    section_header_default = resolve_section_header_default(channel_id)
+    # Section-header card design(s) for this channel — a ROTATION SET (an ordered
+    # list of {comp, props}) or None. A ``card`` is emitted at each section start
+    # ONLY when the channel has a section-header design (opt-in per channel);
+    # otherwise no card is emitted and the listicle header/counter overlays behave
+    # exactly as before. The k-th section start (its 0-based seg_id) takes rotation
+    # entry ``seg_id % len``, so consecutive sections show DIFFERENT designs
+    # (wrapping when there are more sections than presets); a single-default
+    # channel is a 1-element set (every section the same, as before). Each card
+    # stores only its rotated comp + per-video content{index,item_noun,title}; the
+    # design props (and the rotation) re-resolve at render time (assembly_service).
+    section_header_rotation = resolve_section_header_default(channel_id)
 
     # Mid-hook title card design for this channel — same opt-in switch model as
     # the section header. A ``title`` card is emitted at the ONE hook scene whose
@@ -333,13 +346,20 @@ def generate_default_edl(
                 f"(a mid-scene card would misalign with the narration)."
             )
 
+    # item_noun — the singular noun of the listed subject (Flower / Perennial /
+    # Mistake / …), a top-level field the script model fills. Stamped into each
+    # section-header card's content so the card can render a
+    # "{item_noun} #{index}." label; empty when the script predates the field or
+    # the type doesn't set it (the card then shows the bare index, unchanged).
+    item_noun = ((script_draft or {}).get("item_noun") or "").strip()
+
     # Body segment titles (segment_id -> title). Feeds BOTH the listicle
     # "{N}. {title}" header text AND the section-header card content, so it's
     # resolved whenever either is needed. total_items feeds the listicle
     # counter's "{n} / {total}" text (len of the segment list).
     seg_titles: dict[int, str] = {}
     total_items = 0
-    if listicle or section_header_default is not None:
+    if listicle or section_header_rotation:
         segments: list | None = None
         if script_draft is not None:
             segments = script_draft.get("segments", [])
@@ -429,13 +449,21 @@ def generate_default_edl(
                 "comp": title_card_default["comp"],
                 "content": {"title": title_spoken},
             }
-        if card is None and impact == "section_start" and section_header_default is not None:
+        if card is None and impact == "section_start" and section_header_rotation:
             title = seg_titles.get(seg_id) or (scene.get("segment_title") or "").strip()
             if title:
+                # Rotate through the section-header set by segment position so
+                # each section start gets a different design (wraps past the end).
+                # seg_id is the 0-based body-segment id, == this card's index-1.
+                design = section_header_rotation[seg_id % len(section_header_rotation)]
                 card = {
                     "role": "section_header",
-                    "comp": section_header_default["comp"],
-                    "content": {"index": str(seg_id + 1), "title": title},
+                    "comp": design["comp"],
+                    "content": {
+                        "index": str(seg_id + 1),
+                        "item_noun": item_noun,
+                        "title": title,
+                    },
                 }
                 stamped.add(seg_id)
 

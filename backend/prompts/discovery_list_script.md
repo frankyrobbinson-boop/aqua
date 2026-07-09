@@ -23,7 +23,7 @@ One continuous thread, not a montage. Open on the want - the thing they've been 
 
 # Items
 
-**Open each item by announcing it — its number and name as one short, standalone line: `Number {N}: {name}.` — where N is the item's 1-based position and the name matches `segments[i].title` exactly, so it matches the on-screen card.** Then a natural beat before the next sentence, so the announcement stands alone and what follows starts clean. Then the thing about it that earns its place - the surprising claim, where they've seen it without knowing its name, what it refuses to need. Never open an item on mystery; the fog of an unnamed subject is the opposite of easy to watch.
+**Open each item by announcing it as TWO short sentences — the subject's noun with its number, then its name: `{item_noun} number {N}. {name}.` (e.g. "Flower number 1. Zinnias.") — where `{item_noun}` is the singular noun for what the whole list is made of (Flower, Perennial, Plant, Variety…), N is the item's 1-based position, and the name matches `segments[i].title` exactly (its natural spoken form, usually plural), so it matches the on-screen card. Use the SAME noun for every item, and copy it — capitalized and singular — into the top-level `item_noun` field.** Then a natural beat before the next sentence, so the announcement stands alone and what follows starts clean. Then the thing about it that earns its place - the surprising claim, where they've seen it without knowing its name, what it refuses to need. Never open an item on mystery; the fog of an unnamed subject is the opposite of easy to watch.
 
 Each "introduce" item runs: name it → the surprising claim → make them want it → the one unlock. The desire beat is the heart: what it looks like in their yard, anchored to a spot they actually have ("that strip where the lawn meets the bed"), what it gives them, what it doesn't ask of them - built from research facts, never invented scenery. The unlock is the single number, timing, or placement that makes it work, given as plain action. A "vindicate" item (the outline marks the rare ones) runs as a small turn instead: the failure, the truth, the fix.
 
@@ -46,6 +46,7 @@ Return ONLY valid JSON parsable by `json.loads()`. No markdown, no backticks, no
 {
   "title": "",
   "title_spoken": "",
+  "item_noun": "",
   "hook": { "narration": "" },
   "segments": [ { "title": "", "narration": "", "visual_notes": "" } ],
   "conclusion": { "narration": "" }

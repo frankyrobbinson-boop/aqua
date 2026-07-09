@@ -103,6 +103,15 @@ const FLORAL_BASE: Partial<CardProps> = {
 // title (the title-only slides 1 + 15 boot with it blank).
 const FLORAL_SAMPLE_BODY =
   "A short line of supporting context that reads as body copy.";
+// Floral SECTION-header seed: the shared floral look PLUS the two-tier item
+// header (an "{itemNoun} #{index}." label over the slide's own title as the
+// subject). Only the section slides (2–14) spread this; the title slides (1, 15)
+// stay on FLORAL_BASE with no index, so they render a single centered hero.
+const FLORAL_SECTION_BASE: Partial<CardProps> = {
+  ...FLORAL_BASE,
+  index: "1",
+  itemNoun: "Flower",
+};
 
 /**
  * Per-card starting overrides, merged onto CARD_DEFAULTS by Root.tsx's
@@ -114,15 +123,17 @@ export const CARD_DEFAULT_OVERRIDES: Partial<
   Record<string, Partial<CardProps>>
 > = {
   // The two section-header cards boot as a recognizable numbered section header
-  // (badge above a short label) so the designer opens looking like real output.
-  // Palette/decoration stay inherited from CARD_DEFAULTS.
+  // (a "Flower #1" badge above a short label) so the designer opens looking like
+  // real output. Palette/decoration stay inherited from CARD_DEFAULTS.
   GardenFramed: {
     index: "1",
+    itemNoun: "Flower",
     title: "Hydrangeas",
     subtitle: "Big blooms, all summer",
   },
   GardenBand: {
     index: "1",
+    itemNoun: "Flower",
     title: "Hydrangeas",
     subtitle: "Big blooms, all summer",
   },
@@ -167,20 +178,22 @@ export const CARD_DEFAULT_OVERRIDES: Partial<
   // layout variant (the `variant` values match the FLORAL_VARIANTS keys) and
   // seeded with its source-slide heading. Title slides (1, 15) are title-only
   // (blank subtitle, per the title-card polish); the section / overlay slides
-  // (2–14) seed a sample body for the overlay preview.
+  // (2–14) spread FLORAL_SECTION_BASE so they boot as a two-tier item header (a
+  // "Flower #1." label over the slide's title) and seed a sample body for the
+  // overlay preview.
   FloralSlide01: { ...FLORAL_BASE, variant: "FloralSlide01", title: "Flora.", subtitle: "" }, // centered title
-  FloralSlide02: { ...FLORAL_BASE, variant: "FloralSlide02", title: "Definition of Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
-  FloralSlide03: { ...FLORAL_BASE, variant: "FloralSlide03", title: "Biological Diversity.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
-  FloralSlide04: { ...FLORAL_BASE, variant: "FloralSlide04", title: "Ecological Function.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
-  FloralSlide05: { ...FLORAL_BASE, variant: "FloralSlide05", title: "Endemic Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
-  FloralSlide06: { ...FLORAL_BASE, variant: "FloralSlide06", title: "Economic Importance.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
-  FloralSlide07: { ...FLORAL_BASE, variant: "FloralSlide07", title: "Medicinal Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
-  FloralSlide08: { ...FLORAL_BASE, variant: "FloralSlide08", title: "Flora Conservation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
-  FloralSlide09: { ...FLORAL_BASE, variant: "FloralSlide09", title: "Human Impact.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
-  FloralSlide10: { ...FLORAL_BASE, variant: "FloralSlide10", title: "Flora and Culture.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
-  FloralSlide11: { ...FLORAL_BASE, variant: "FloralSlide11", title: "Aquatic Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
-  FloralSlide12: { ...FLORAL_BASE, variant: "FloralSlide12", title: "Flowers and Pollination.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
-  FloralSlide13: { ...FLORAL_BASE, variant: "FloralSlide13", title: "Flora Adaptation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
-  FloralSlide14: { ...FLORAL_BASE, variant: "FloralSlide14", title: "Flora Reforestation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide02: { ...FLORAL_SECTION_BASE, variant: "FloralSlide02", title: "Definition of Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide03: { ...FLORAL_SECTION_BASE, variant: "FloralSlide03", title: "Biological Diversity.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide04: { ...FLORAL_SECTION_BASE, variant: "FloralSlide04", title: "Ecological Function.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide05: { ...FLORAL_SECTION_BASE, variant: "FloralSlide05", title: "Endemic Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide06: { ...FLORAL_SECTION_BASE, variant: "FloralSlide06", title: "Economic Importance.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide07: { ...FLORAL_SECTION_BASE, variant: "FloralSlide07", title: "Medicinal Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide08: { ...FLORAL_SECTION_BASE, variant: "FloralSlide08", title: "Flora Conservation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide09: { ...FLORAL_SECTION_BASE, variant: "FloralSlide09", title: "Human Impact.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide10: { ...FLORAL_SECTION_BASE, variant: "FloralSlide10", title: "Flora and Culture.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide11: { ...FLORAL_SECTION_BASE, variant: "FloralSlide11", title: "Aquatic Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide12: { ...FLORAL_SECTION_BASE, variant: "FloralSlide12", title: "Flowers and Pollination.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide13: { ...FLORAL_SECTION_BASE, variant: "FloralSlide13", title: "Flora Adaptation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide14: { ...FLORAL_SECTION_BASE, variant: "FloralSlide14", title: "Flora Reforestation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
   FloralSlide15: { ...FLORAL_BASE, variant: "FloralSlide15", title: "Thanks.", subtitle: "" }, // centered title
 };
