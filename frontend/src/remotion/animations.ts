@@ -161,3 +161,49 @@ export function useFadeIn(delaySeconds = 0, durationSeconds = 0.7): number {
     easing: Easing.out(Easing.ease),
   });
 }
+
+/** Direction a layer drifts as it settles in — the way it's HEADING (e.g. "up"
+ *  starts slightly low and rises into place). */
+export type LayerEntranceDir = "up" | "down" | "left" | "right";
+
+/**
+ * Reusable per-layer entrance for stacked image layers (the floral cards place
+ * each botanical cluster with its own staggered call). Fades in while drifting
+ * `driftPx` in `dir` and scaling up from `fromScale`, starting `delaySeconds` in
+ * over `durationSeconds`. Same bezier ease-out + clamped, frame-based
+ * interpolate as the title entrances, so preview == render and every layer
+ * settles and holds. Returns a `{opacity, transform}` to spread on the layer;
+ * the transform is `translate(...) scale(...)` (compose any sway around it).
+ */
+export function useLayerEntrance(
+  delaySeconds: number,
+  {
+    durationSeconds = 0.7,
+    driftPx = 16,
+    dir = "up",
+    fromScale = 0.98,
+  }: {
+    durationSeconds?: number;
+    driftPx?: number;
+    dir?: LayerEntranceDir;
+    fromScale?: number;
+  } = {},
+): { opacity: number; transform: string } {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const start = Math.round(delaySeconds * fps);
+  const end = start + Math.max(1, Math.round(durationSeconds * fps));
+  const ease = clampEase(Easing.out(Easing.cubic));
+
+  const opacity = interpolate(frame, [start, end], [0, 1], ease);
+  const scale = interpolate(frame, [start, end], [fromScale, 1], ease);
+  // Remaining drift: 1 at the start of the window, 0 once settled.
+  const remaining = interpolate(frame, [start, end], [1, 0], ease);
+  const dx = (dir === "left" ? 1 : dir === "right" ? -1 : 0) * driftPx * remaining;
+  const dy = (dir === "up" ? 1 : dir === "down" ? -1 : 0) * driftPx * remaining;
+
+  return {
+    opacity,
+    transform: `translate(${dx}px, ${dy}px) scale(${scale})`,
+  };
+}

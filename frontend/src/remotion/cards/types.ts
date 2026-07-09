@@ -104,4 +104,14 @@ export type CardProps = {
    *  backend sanitizer drops it). GardenBloom layers these over the botanicals;
    *  other cards ignore them. */
   lottieData?: Array<LottieRuntimeEntry | null>;
+  /** Which floral-style layout + botanical layer set to render — a key into the
+   *  floral variants table (see cards/floral/variants.ts). FloralCard-only
+   *  (other cards ignore it); lenient, falls back to the default variant on an
+   *  unknown id. */
+  variant?: string;
+  /** Body/description text color — a `#rrggbb` hex, INDEPENDENT of palette.text
+   *  (which colors the title). The floral card style draws its body (the
+   *  `subtitle` text) in THIS color (a soft taupe); other cards ignore it.
+   *  Strict-hex precedent: same as `foliageColor`. */
+  bodyColor?: string;
 };

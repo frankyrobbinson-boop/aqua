@@ -1,0 +1,200 @@
+{
+  "texture": "texture.jpg",
+  "textureSize": {
+    "w": 2560,
+    "h": 1440
+  },
+  "cream": "#efe8dc",
+  "botanicals": [
+    {
+      "file": "slide01-01.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0.2083,
+        "h": 0.5991
+      }
+    },
+    {
+      "file": "slide01-02.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.2414,
+        "y": 0,
+        "w": 0.4073,
+        "h": 0.3292
+      }
+    },
+    {
+      "file": "slide01-03.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.6823,
+        "y": 0,
+        "w": 0.049,
+        "h": 0.1417
+      }
+    },
+    {
+      "file": "slide01-04.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.7188,
+        "y": 0,
+        "w": 0.0461,
+        "h": 0.2343
+      }
+    },
+    {
+      "file": "slide01-05.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.7615,
+        "y": 0,
+        "w": 0.0367,
+        "h": 0.1019
+      }
+    },
+    {
+      "file": "slide01-06.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.807,
+        "y": 0,
+        "w": 0.193,
+        "h": 0.2681
+      }
+    },
+    {
+      "file": "slide01-07.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.8924,
+        "y": 0.2648,
+        "w": 0.1076,
+        "h": 0.162
+      }
+    },
+    {
+      "file": "slide01-08.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.9758,
+        "y": 0.4338,
+        "w": 0.0242,
+        "h": 0.1407
+      }
+    },
+    {
+      "file": "slide01-09.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.788,
+        "y": 0.4514,
+        "w": 0.212,
+        "h": 0.5486
+      }
+    },
+    {
+      "file": "slide01-10.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0,
+        "y": 0.6449,
+        "w": 0.1385,
+        "h": 0.3551
+      }
+    },
+    {
+      "file": "slide01-11.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.706,
+        "y": 0.7486,
+        "w": 0.149,
+        "h": 0.2514
+      }
+    },
+    {
+      "file": "slide01-12.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.1424,
+        "y": 0.7542,
+        "w": 0.2411,
+        "h": 0.2458
+      }
+    },
+    {
+      "file": "slide01-13.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.4878,
+        "y": 0.813,
+        "w": 0.1586,
+        "h": 0.187
+      }
+    },
+    {
+      "file": "slide01-14.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.6909,
+        "y": 0.8375,
+        "w": 0.0987,
+        "h": 0.1625
+      }
+    },
+    {
+      "file": "slide01-15.png",
+      "sourceSlide": 1,
+      "bbox": {
+        "x": 0.4182,
+        "y": 0.8843,
+        "w": 0.074,
+        "h": 0.1157
+      }
+    },
+    {
+      "file": "slide02-01.png",
+      "sourceSlide": 2,
+      "bbox": {
+        "x": 0.5802,
+        "y": 0,
+        "w": 0.2391,
+        "h": 0.4116
+      }
+    },
+    {
+      "file": "slide02-02.png",
+      "sourceSlide": 2,
+      "bbox": {
+        "x": 0.8302,
+        "y": 0,
+        "w": 0.1698,
+        "h": 0.4884
+      }
+    },
+    {
+      "file": "slide02-03.png",
+      "sourceSlide": 2,
+      "bbox": {
+        "x": 0.6484,
+        "y": 0.4551,
+        "w": 0.3516,
+        "h": 0.5449
+      }
+    },
+    {
+      "file": "slide02-04.png",
+      "sourceSlide": 2,
+      "bbox": {
+        "x": 0.5547,
+        "y": 0.6236,
+        "w": 0.0904,
+        "h": 0.3764
+      }
+    }
+  ]
+}

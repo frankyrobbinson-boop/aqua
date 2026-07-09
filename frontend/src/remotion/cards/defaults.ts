@@ -24,6 +24,7 @@ export const FONT_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
   { id: "fraunces", label: "Fraunces · serif" },
   { id: "poppins", label: "Poppins · geometric" },
   { id: "worksans", label: "Work Sans · clean sans" },
+  { id: "questrial", label: "Questrial · airy sans" },
   { id: "lora", label: "Lora · warm serif" },
   { id: "playfairdisplay", label: "Playfair Display · elegant serif" },
   { id: "dmserifdisplay", label: "DM Serif Display · bold serif" },
@@ -141,5 +142,36 @@ export const CARD_DEFAULT_OVERRIDES: Partial<
     // the highlight word + the SVG blooms). Defaults to the SAME accent rose so
     // the look is unchanged until the user picks a new color.
     lottieRecolorColor: "#e2917f",
+  },
+  // The floral card style — FloralCard + the floral variants table, its own
+  // cream paper-texture look (independent of the garden palette). Both slides
+  // boot in Questrial on the same plum-on-cream palette with a soft-taupe body
+  // (`bodyColor`); each keys into its own layout variant (see cards/floral/
+  // variants.ts — the `variant` values match the FLORAL_VARIANTS keys).
+  FloralSlide01: {
+    // Slide 1 — "Flora." centered hero, botanicals framing the border.
+    variant: "FloralSlide01",
+    fontFamily: "questrial",
+    title: "Flora.",
+    palette: {
+      background: "#efe8dc", // cream paper (matches the texture)
+      text: "#6b4763", // plum title
+      accent: "#9c7f92", // coordinating mauve (FloralCard ignores accent)
+    },
+    bodyColor: "#7f7268", // soft taupe body
+  },
+  FloralSlide02: {
+    // Slide 2 — numbered section header, heading anchored left with the
+    // botanicals massed down the right. No body (a clean section title).
+    variant: "FloralSlide02",
+    fontFamily: "questrial",
+    title: "Number 1: Bee balm",
+    subtitle: "",
+    palette: {
+      background: "#efe8dc",
+      text: "#6b4763",
+      accent: "#9c7f92",
+    },
+    bodyColor: "#7f7268",
   },
 };

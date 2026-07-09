@@ -17,6 +17,7 @@ import { loadFont as loadMerriweather } from "@remotion/google-fonts/Merriweathe
 import { loadFont as loadNunito } from "@remotion/google-fonts/Nunito";
 import { loadFont as loadPlayfairDisplay } from "@remotion/google-fonts/PlayfairDisplay";
 import { loadFont as loadPoppins } from "@remotion/google-fonts/Poppins";
+import { loadFont as loadQuestrial } from "@remotion/google-fonts/Questrial";
 import { loadFont as loadQuicksand } from "@remotion/google-fonts/Quicksand";
 import { loadFont as loadWorkSans } from "@remotion/google-fonts/WorkSans";
 
@@ -57,6 +58,12 @@ const dmSerifDisplay = loadDMSerifDisplay("normal", {
   weights: ["400"],
   subsets: ["latin"],
 });
+// Questrial ships a single weight (400 normal); load just that. Signature font
+// of the floral card style.
+const questrial = loadQuestrial("normal", {
+  weights: ["400"],
+  subsets: ["latin"],
+});
 const caveat = loadCaveat("normal", {
   weights: ["400", "700"],
   subsets: ["latin"],
@@ -77,6 +84,7 @@ const FONT_FAMILY_BY_ID: Record<string, string> = {
   lora: lora.fontFamily,
   playfairdisplay: playfairDisplay.fontFamily,
   dmserifdisplay: dmSerifDisplay.fontFamily,
+  questrial: questrial.fontFamily,
   caveat: caveat.fontFamily,
   merriweather: merriweather.fontFamily,
 };

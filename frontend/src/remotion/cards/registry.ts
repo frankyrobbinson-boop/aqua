@@ -12,6 +12,7 @@
  */
 import type { ComponentType } from "react";
 
+import { FloralCard } from "./floral/FloralCard";
 import { GardenBand } from "./GardenBand";
 import { GardenBloom } from "./GardenBloom";
 import { GardenCentered } from "./GardenCentered";
@@ -26,7 +27,17 @@ export type CardDefinition = {
   id: string;
   label: string;
   description: string;
+  /** Primary slot this card fills — and, unless `roles` is set, its sole
+   *  membership in the role picker (see cardsForRole). */
   role: CardRole;
+  /** Visual STYLE family this card belongs to, for cards that ship as a themed
+   *  set (e.g. "floral"). Undefined for the original garden cards.
+   *  Informational for now. */
+  style?: string;
+  /** Every slot this card may fill, when it serves MORE than its primary `role`
+   *  (e.g. a section header that doubles as an overlay). Defaults to `[role]`;
+   *  cardsForRole() matches against this set. */
+  roles?: CardRole[];
   component: ComponentType<CardProps>;
 };
 
@@ -68,6 +79,25 @@ export const CARDS: readonly CardDefinition[] = [
     role: "title",
     component: GardenBloom,
   },
+  {
+    id: "FloralSlide01",
+    label: "Floral 1 · Title",
+    description:
+      "Floral paper-texture title — a centered hero framed by a botanical border that settles inward.",
+    role: "title",
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide02",
+    label: "Floral 2 · Section",
+    description:
+      "Floral paper-texture section header — a left-anchored heading with botanicals massed down the right.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
 ];
 
 export const CARD_IDS: readonly string[] = CARDS.map((c) => c.id);
@@ -81,7 +111,8 @@ export const ROLES: ReadonlyArray<{ id: CardRole; label: string }> = [
   { id: "transition", label: "Transitions" },
 ];
 
-/** Cards available for a given role (the designer filters its picker by role). */
+/** Cards available for a given role (the designer filters its picker by role).
+ *  A card advertises the roles it serves via `roles` (defaulting to `[role]`). */
 export function cardsForRole(role: CardRole): readonly CardDefinition[] {
-  return CARDS.filter((c) => c.role === role);
+  return CARDS.filter((c) => (c.roles ?? [c.role]).includes(role));
 }

@@ -47,11 +47,15 @@ _RENDER_SCRIPT = FRONTEND_DIR / "scripts" / "render-remotion.mjs"
 # when adding or removing a card. Only these ids may be rendered.
 ALLOWED_COMPS = frozenset(
     {
+        # Garden style.
         "GardenCentered",
         "GardenFramed",
         "GardenBand",
         "GardenPremium",
         "GardenBloom",
+        # Floral style (FloralCard + the floral variants).
+        "FloralSlide01",
+        "FloralSlide02",
     }
 )
 
@@ -324,10 +328,27 @@ def _sanitize_props(raw: dict[str, Any]) -> dict[str, Any]:
         foliage_color if _HEX_RE.match(foliage_color) else palette_out["text"]
     )
 
+    # bodyColor — the floral card style's body/description color, INDEPENDENT of
+    # the text (which colors the title). Strict #rrggbb; falls back to the
+    # sanitized text color when missing/invalid (FloralCard applies its own soft
+    # taupe default when the prop is absent). foliageColor precedent; bakes into
+    # the MP4 render, so the render path honors it too.
+    body_color = str(raw.get("bodyColor", ""))
+    out["bodyColor"] = (
+        body_color if _HEX_RE.match(body_color) else palette_out["text"]
+    )
+
     # style enums — lenient pass-through with defaults.
     out["animation"] = _enum_str(raw.get("animation"), "rise")
     out["background"] = _enum_str(raw.get("background"), "gradient")
     out["fontFamily"] = _enum_str(raw.get("fontFamily"), "nunito")
+
+    # variant — the floral card style's layout + botanical-layer set (a key into
+    # FloralCard's variants table). FloralCard-only; lenient enum, KEPT only when
+    # present (garden cards don't send it). Unknown/invalid ids fall back to the
+    # default variant frontend-side, so "FloralSlide01" is a safe placeholder.
+    if "variant" in raw:
+        out["variant"] = _enum_str(raw.get("variant"), "FloralSlide01")
 
     decoration_in = raw.get("decoration")
     if not isinstance(decoration_in, dict):
