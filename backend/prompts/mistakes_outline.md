@@ -16,7 +16,7 @@ Answer the frame's two questions first, and write the answer as `title_promise` 
 # Sections: plan exactly {item_count}, one per mistake/secret
 
 - **No preamble section, no summary section.** Section 1 is item 1; the last section is the last item.
-- **Each section is a turn.** Plan four beats: the belief or failure it opens on (NOT the secret itself - in this genre the reveal is withheld until the turn); the counterintuitive truth + its one-phrase mechanism; the payoff in the promise's currency; and the single FEELING it delivers, named in `purpose`. No two adjacent sections deliver the same feeling.
+- **Each section is a turn.** Plan four beats: the belief or failure it opens on (the title names the secret upfront, but the fix and its mechanism - the *why* - are what's withheld until the turn); the counterintuitive truth + its one-phrase mechanism; the payoff in the promise's currency; and the single FEELING it delivers, named in `purpose`. No two adjacent sections deliver the same feeling.
 - **One promise, {item_count} proofs.** Each item is another way the title's promise comes true, not a separate problem with its own errand. The single act the viewer goes and does lives only in the conclusion, on the peak item.
 - **Vary the shape.** Some sections open on a scene, some on a flat myth-bust, some on a confession, some on the rival who succeeds effortlessly. Be creative - if every section opens the same way, the viewer pattern-matches by section three.
 - **Order for retention.** Open strong, best item second OR deep as the withheld payoff, weakest buried in the middle, close strong.

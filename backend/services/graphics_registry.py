@@ -116,6 +116,28 @@ def resolve_section_header_default(channel_id: str | None) -> dict | None:
     return None
 
 
+def resolve_title_card_default(channel_id: str | None) -> dict | None:
+    """Resolve the channel's DEFAULT title-card design to a renderable
+    ``{"comp", "props"}`` pair, or ``None`` when no default is set (or it names
+    a preset that isn't present in the library).
+
+    ``comp`` is the default preset's ``card_id`` (the Remotion comp to render)
+    and ``props`` its saved design props. This is the opt-in switch for the
+    mid-hook title card: the EDL generator emits a title ``card`` at the hook
+    scene whose narration opens with the spoken title only when this returns
+    non-None, and assembly re-resolves it at render time so a design edit
+    re-renders the card without an EDL regen. ``channel_id=None`` resolves the
+    registry default channel (matching ``resolve_channel_editing``)."""
+    lib = load_library(channel_id, "title")
+    default_name = lib.get("default")
+    if not default_name:
+        return None
+    for preset in lib.get("presets") or []:
+        if preset.get("name") == default_name:
+            return {"comp": preset["card_id"], "props": preset.get("props") or {}}
+    return None
+
+
 def delete_preset(channel_id: str, role: str, name: str) -> dict:
     """Remove the named preset from ``role`` (raises ``ValueError`` if absent —
     the route maps that to 404). If it was that role's channel default, null the

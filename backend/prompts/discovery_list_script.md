@@ -19,11 +19,11 @@ If a sample is provided, study how it MOVES before you write: how every sentence
 
 # Hook (~{hook_word_target} words)
 
-One continuous thread, not a montage. Open on the want - the thing they've been living without, made visible with the gap_image - then the claim that these {item_count} exist and why nobody handed them over. State the title's actual promise plainly inside the first ~300 words. The promise points at their yard, never at the runtime: no "by the end of this video you'll know." Name no items and preview no item's trait or trick; if a bookmark is set, tease its importance, never its content. Roll straight into item 1.
+One continuous thread, not a montage. Open on the want - the thing they've been living without, made visible with the gap_image - then the claim that these {item_count} exist and why nobody handed them over. State the title's actual promise plainly inside the first ~300 words. Write that promise as ONE short, clean, standalone sentence — a full stop before it and after it, never tucked behind a colon or fused to the sentence beside it — dropped where it naturally lands in the hook, not forced to the opening line. Copy that one sentence, verbatim and unchanged, into the top-level `title_spoken` field so an on-screen card can mirror the spoken line word for word. The promise points at their yard, never at the runtime: no "by the end of this video you'll know." Name no items and preview no item's trait or trick; if a bookmark is set, tease its importance, never its content. Roll straight into item 1.
 
 # Items
 
-**Name the plant in the first sentence or two.** Then the thing about it that earns its place - the surprising claim, where they've seen it without knowing its name, what it refuses to need. Never open an item on mystery; the fog of an unnamed subject is the opposite of easy to watch.
+**Open each item by announcing it — its number and name as one short, standalone line: `Number {N}: {name}.` — where N is the item's 1-based position and the name matches `segments[i].title` exactly, so it matches the on-screen card.** Then a natural beat before the next sentence, so the announcement stands alone and what follows starts clean. Then the thing about it that earns its place - the surprising claim, where they've seen it without knowing its name, what it refuses to need. Never open an item on mystery; the fog of an unnamed subject is the opposite of easy to watch.
 
 Each "introduce" item runs: name it → the surprising claim → make them want it → the one unlock. The desire beat is the heart: what it looks like in their yard, anchored to a spot they actually have ("that strip where the lawn meets the bed"), what it gives them, what it doesn't ask of them - built from research facts, never invented scenery. The unlock is the single number, timing, or placement that makes it work, given as plain action. A "vindicate" item (the outline marks the rare ones) runs as a small turn instead: the failure, the truth, the fix.
 
@@ -45,6 +45,7 @@ Return ONLY valid JSON parsable by `json.loads()`. No markdown, no backticks, no
 
 {
   "title": "",
+  "title_spoken": "",
   "hook": { "narration": "" },
   "segments": [ { "title": "", "narration": "", "visual_notes": "" } ],
   "conclusion": { "narration": "" }

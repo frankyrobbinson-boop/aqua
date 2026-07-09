@@ -3,7 +3,7 @@
 Stored at ``<projects_root>/<name>/edl.json`` with schema::
 
     {
-      "version": 3,
+      "version": 4,
       "scenes": [
         {
           "id": 0,
@@ -15,8 +15,8 @@ Stored at ``<projects_root>/<name>/edl.json`` with schema::
             "type": "crossfade",        #   crossfade INTO a section_start /
             "params": {"frames": 12}    #   conclusion (prior clip dissolves in)
           },
-          "card": {                    # optional — a section-header title card
-            "role": "section_header",
+          "card": {                    # optional — a section-header OR mid-hook
+            "role": "section_header",   #   title card ("section_header" | "title")
             "comp": "GardenFramed",    # Remotion comp (the default preset card_id)
             "content": {"index": "1", "title": "Bee balm"}
           },
@@ -57,6 +57,20 @@ card's design ``props`` re-resolve from the channel default at render time
 counter overlays (the number lives on the card badge instead). ``transition``
 stays the intra-clip dip-to-black string and is NOT overloaded by ``lead_in``.
 
+V4 adds a second ``card`` role — an opt-in mid-hook ``title`` card
+(``role:"title"``). It is emitted at the ONE hook scene (``segment_id == -1``)
+whose narration OPENS WITH the script's ``title_spoken`` (a reworded on-screen
+mirror of the spoken title): the scene's leading normalized tokens must equal
+``title_spoken``'s first K=min(len,12) tokens (``_find_title_scene_id``). This
+front-alignment GATE means the card ships only when the spoken title actually
+starts a hook scene, so card and voiceover begin together; if ``title_spoken``
+lands only mid-scene the card is DROPPED and a warning logged (never a
+misaligned card). Like the section-header card it is opt-in per channel (emitted
+only when the channel has a ``title`` DEFAULT design) and stores just its
+``comp`` + ``content{title}`` (no index; props re-resolve at render). A title
+card OWNS its hook scene the same way a section card owns a section intro — its
+duplicate callout is dropped.
+
 Generation is purely a function of upstream artifacts (scene_windows,
 scene_plan, outline, script_config, channel editing style) — running
 ``generate_default_edl`` twice on unchanged inputs yields identical output.
@@ -69,15 +83,19 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any
 
 from services.channel_registry import resolve_channel_editing
-from services.graphics_registry import resolve_section_header_default
+from services.graphics_registry import (
+    resolve_section_header_default,
+    resolve_title_card_default,
+)
 from services.paths import PROJECTS_ROOT
 
-EDL_SCHEMA_VERSION = 3
+EDL_SCHEMA_VERSION = 4
 
 # Default crossfade width (in frames) for a section-boundary ``lead_in`` — the
 # dissolve INTO each section_start / conclusion scene. A constant default for now;
@@ -177,6 +195,38 @@ def _is_listicle(script_config: dict | None) -> bool:
     return (script_config.get("video_type") or "").strip().lower() in _NUMBERED_LIST_TYPES
 
 
+def _norm_tokens(text: str) -> list[str]:
+    """Lowercase ``[a-z0-9]+`` tokens of ``text`` — the normalized token
+    sequence used to align ``title_spoken`` against a hook scene's leading
+    narration (case / punctuation / whitespace insensitive)."""
+    return re.findall(r"[a-z0-9]+", (text or "").lower())
+
+
+def _find_title_scene_id(scene_windows: list, title_spoken: str) -> int | None:
+    """Return the id of the HOOK scene (``segment_id == -1``) whose narration
+    OPENS WITH ``title_spoken`` — its LEADING normalized tokens equal
+    ``title_spoken``'s first K=min(len,12) tokens — else ``None``.
+
+    This is the front-alignment gate for the mid-hook title card: the card is
+    emitted ONLY at a hook scene that STARTS with the spoken title, so the
+    on-screen card and the voiceover begin together. A ``title_spoken`` that
+    lands only mid-scene (nowhere at the front of a hook scene) returns None, so
+    the caller drops the card rather than ship a misaligned one. K is capped at
+    12 tokens so a long spoken title still matches on its opening without needing
+    the whole sentence to sit inside one scene."""
+    key = _norm_tokens(title_spoken)
+    if not key:
+        return None
+    k = min(len(key), 12)
+    prefix = key[:k]
+    for scene in scene_windows:
+        if scene.get("segment_id") != -1:
+            continue
+        if _norm_tokens(scene.get("narration", ""))[:k] == prefix:
+            return scene["id"]
+    return None
+
+
 def generate_default_edl(
     project_name: str,
     *,
@@ -194,7 +244,12 @@ def generate_default_edl(
     preceding clip). The first scene of each body
     section additionally gets a section-header ``card`` — but ONLY when the
     channel has a section-header DEFAULT design (opt-in per channel); a card
-    DROPS that scene's numbered header + counter overlays. Each scene's
+    DROPS that scene's numbered header + counter overlays. Separately, the ONE
+    hook scene whose narration OPENS WITH the script's ``title_spoken`` gets a
+    mid-hook ``title`` card — but ONLY when the channel has a ``title`` DEFAULT
+    design AND a hook scene actually STARTS with the spoken title (the
+    front-alignment gate, ``_find_title_scene_id``); if ``title_spoken`` lands
+    only mid-scene no card is emitted and a warning is logged. Each scene's
     ``overlays`` list is built from the channel's editing style
     (``resolve_channel_editing``, keyed off script_config's channel):
 
@@ -257,6 +312,26 @@ def generate_default_edl(
     # stores only the comp + per-video content{index,title}; the design props
     # re-resolve from this same default at render time (assembly_service).
     section_header_default = resolve_section_header_default(channel_id)
+
+    # Mid-hook title card design for this channel — same opt-in switch model as
+    # the section header. A ``title`` card is emitted at the ONE hook scene whose
+    # narration OPENS WITH the script's ``title_spoken`` (the reworded on-screen
+    # mirror of the spoken title) and ONLY when the channel has a ``title``
+    # DEFAULT preset. Resolve the default + the target hook scene id up front. If
+    # a title default + title_spoken are both present but NO hook scene STARTS
+    # with the spoken title (it lands only mid-scene), emit NO card and warn — a
+    # card firing mid-narration would desync from the voiceover.
+    title_card_default = resolve_title_card_default(channel_id)
+    title_spoken = ((script_draft or {}).get("title_spoken") or "").strip()
+    title_scene_id: int | None = None
+    if title_card_default is not None and title_spoken:
+        title_scene_id = _find_title_scene_id(scene_windows, title_spoken)
+        if title_scene_id is None:
+            print(
+                f"WARNING: edl_service: title_spoken for {project_name!r} does "
+                f"not OPEN any hook scene (segment_id -1) — no title card emitted "
+                f"(a mid-scene card would misalign with the narration)."
+            )
 
     # Body segment titles (segment_id -> title). Feeds BOTH the listicle
     # "{N}. {title}" header text AND the section-header card content, so it's
@@ -338,14 +413,23 @@ def generate_default_edl(
         else:
             lead_in = {"type": "cut"}
 
-        # card — section-header title card at each section start, ONLY when the
-        # channel has a section-header default. Stores the comp + per-video
-        # content{index,title}; props re-resolve at render. A card OWNS the
-        # item-intro scene: its badge carries the number+title, so the numbered
-        # header + counter overlays are dropped for that scene (and the segment
-        # is ``stamped`` so a later scene of it doesn't pick the header back up).
+        # card — at most one per scene, resolved in priority order. FIRST the
+        # mid-hook ``title`` card: the single hook scene the gate aligned to
+        # (title_scene_id) carries it, storing just comp + content{title} (no
+        # index; props re-resolve at render). THEN the section-header card at
+        # each section start (only when a section-header default exists), storing
+        # comp + content{index,title}. A card OWNS its scene: its badge carries
+        # the label, so the numbered header + counter + callout overlays are
+        # dropped for that scene (the section case also ``stamps`` the segment so
+        # a later scene of it doesn't pick the header back up).
         card: dict | None = None
-        if impact == "section_start" and section_header_default is not None:
+        if title_scene_id is not None and sid == title_scene_id:
+            card = {
+                "role": "title",
+                "comp": title_card_default["comp"],
+                "content": {"title": title_spoken},
+            }
+        if card is None and impact == "section_start" and section_header_default is not None:
             title = seg_titles.get(seg_id) or (scene.get("segment_title") or "").strip()
             if title:
                 card = {

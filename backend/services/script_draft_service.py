@@ -27,6 +27,7 @@ SCRIPT_SCHEMA = {
     "type": "object",
     "properties": {
         "title": {"type": "string"},
+        "title_spoken": {"type": "string"},
         "hook": {
             "type": "object",
             "properties": {
@@ -57,7 +58,7 @@ SCRIPT_SCHEMA = {
             "additionalProperties": False
         }
     },
-    "required": ["title", "hook", "segments", "conclusion"],
+    "required": ["title", "title_spoken", "hook", "segments", "conclusion"],
     "additionalProperties": False
 }
 

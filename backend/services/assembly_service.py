@@ -11,7 +11,10 @@ from services.edl_service import (
     load_edl,
     save_edl,
 )
-from services.graphics_registry import resolve_section_header_default
+from services.graphics_registry import (
+    resolve_section_header_default,
+    resolve_title_card_default,
+)
 from services.paths import PROJECTS_ROOT
 from services.scene_timing_service import load_scene_windows, load_audio_timeline
 from services.subtitle_service import build_subtitles
@@ -962,23 +965,29 @@ def render_section_intro_clip(
 
 def _cards_from_edl(edl: dict, channel_id: str | None) -> dict[int, dict]:
     """Map ``scene_id -> {"index", "title", "comp", "props"}`` for every EDL
-    scene carrying a section-header ``card`` — the section-intro scenes that get a
-    title card.
+    scene carrying a ``card`` — the section-intro scenes (``role:"section_header"``)
+    and the mid-hook title scene (``role:"title"``).
 
-    The EDL persists only each card's ``comp`` + per-video ``content{index,
-    title}``; the render-time design ``props`` (and comp) RE-RESOLVE here from the
-    channel's section-header default (resolve_section_header_default) so a design
-    edit re-renders the cards without regenerating the EDL. Returns ``{}`` when
-    the channel has no section-header default — its EDL cards, if any, are inert,
-    matching the EDL generator, which only emits cards when a default is set. A
-    card whose content has no title is skipped."""
-    default = resolve_section_header_default(channel_id)
-    if not default:
-        return {}
+    The EDL persists only each card's ``comp`` + per-video ``content`` (a section
+    card's ``{index,title}``, a title card's ``{title}``); the render-time design
+    ``props`` (and comp) RE-RESOLVE here from the channel's DEFAULT for that card's
+    ROLE (resolve_section_header_default / resolve_title_card_default) so a design
+    edit re-renders the cards without regenerating the EDL. Each role's default is
+    resolved once; a card whose role has no channel default is SKIPPED (inert),
+    matching the EDL generator, which only emits a role's cards when that role's
+    default is set. A title card carries no index (its content has only a title),
+    so ``index`` resolves to "". A card whose content has no title is skipped."""
+    role_defaults = {
+        "section_header": resolve_section_header_default(channel_id),
+        "title": resolve_title_card_default(channel_id),
+    }
     cards: dict[int, dict] = {}
     for entry in edl.get("scenes", []):
         card = entry.get("card")
-        if not card or card.get("role") != "section_header":
+        if not card:
+            continue
+        default = role_defaults.get(card.get("role"))
+        if not default:
             continue
         content = card.get("content") or {}
         title = (content.get("title") or "").strip()
@@ -1116,10 +1125,12 @@ def render_all_scene_clips(
             footage_overlays = [
                 o for o in overlays if o.get("kind") not in ("header", "counter")
             ]
-            print(
-                f"  Rendering section card + clip: scene {sid} "
-                f"({card['index']}. {card['title']})..."
+            # Title cards carry no index; omit the "{index}. " prefix then.
+            label = (
+                f"{card['index']}. {card['title']}"
+                if card["index"] else card["title"]
             )
+            print(f"  Rendering section card + clip: scene {sid} ({label})...")
             render_section_intro_clip(
                 scene, src, out_card,
                 index=card["index"], title=card["title"],
