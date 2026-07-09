@@ -73,7 +73,6 @@ ALLOWED_TRANSITIONS = frozenset(
         "iris",
         "flip",
         "flowerSwipe",
-        "flicker",
         # Tier B — @remotion/transitions WebGL shader presentations.
         "zoomBlur",
         "crossZoom",
@@ -120,9 +119,6 @@ _DEFAULT_LOTTIE_RECOLOR_AMOUNT = 0.8
 _TRANSITION_FRAMES_MIN = 2
 _TRANSITION_FRAMES_MAX = 120
 _DEFAULT_TRANSITION_FRAMES = 30
-_FLICKER_MIN = 1
-_FLICKER_MAX = 20
-_DEFAULT_FLICKER = 6
 _DEFAULT_EDGE_COLOR = "#7bae5a"
 
 # Per-type numeric knobs a transition may carry (flowerSwipe's angle + the Tier-B
@@ -386,13 +382,6 @@ def _sanitize_transition_design(raw: dict[str, Any]) -> dict[str, Any]:
     # direction / timing — lenient enums with defaults.
     out["direction"] = _enum_str(raw.get("direction"), "from-left")
     out["timing"] = _enum_str(raw.get("timing"), "linear")
-
-    # flickerCount — integer clamp to [1, 20].
-    try:
-        flicker = int(float(raw.get("flickerCount", _DEFAULT_FLICKER)))
-    except (TypeError, ValueError):
-        flicker = _DEFAULT_FLICKER
-    out["flickerCount"] = int(_clamp(flicker, _FLICKER_MIN, _FLICKER_MAX))
 
     # edgeColor — strict #rrggbb, else the garden accent default.
     edge_color = str(raw.get("edgeColor", ""))

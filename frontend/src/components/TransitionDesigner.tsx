@@ -50,9 +50,6 @@ const TIMING_OPTIONS: ReadonlyArray<{ id: string; label: string }> = [
 // stage always has real content on both sides of the overlap.
 const DURATION_MIN = 6;
 const DURATION_MAX = 60;
-// Flicker step bounds (the "settle on B" strobe count).
-const FLICKER_MIN = 2;
-const FLICKER_MAX = 12;
 
 // Format a numeric-knob value for its readout: 2 decimals for sub-integer steps
 // (rotation, strength…), whole numbers otherwise (angle, amplitude…).
@@ -150,8 +147,8 @@ type PreviewRun = {
 
 /**
  * Transitions designer: the transition-type picker, the controls (duration,
- * timing, direction when supported, plus per-transition knobs — flicker steps,
- * flower edge color, shader knobs), and the per-channel saved-design library.
+ * timing, direction when supported, plus per-transition knobs — flower edge
+ * color, shader knobs), and the per-channel saved-design library.
  * The preview branches on the transition's tier: Tier A (CSS/SVG) previews live
  * in a looping <Player>; Tier B (WebGL shaders, which the browser can't run)
  * previews via a short MP4 render (POST /transitions/preview) with SSE logs.
@@ -303,7 +300,6 @@ export function TransitionDesigner({
   // Two clips overlapped by the transition — the length the Player loops over.
   const previewFrames = previewDurationInFrames(params);
   const showEdgeColor = def.paramKeys.includes("edgeColor");
-  const showFlicker = def.paramKeys.includes("flickerCount");
   const previewing = submitting || previewRun?.status === "running";
   const previewVideoUrl =
     previewRun?.status === "completed" ? remotionOutUrl(previewRun.filename) : null;
@@ -388,28 +384,6 @@ export function TransitionDesigner({
               <div />
             )}
           </div>
-
-          {showFlicker && (
-            <Field label="Flicker steps" htmlFor="transition-flicker">
-              <div className="flex items-center gap-3">
-                <input
-                  id="transition-flicker"
-                  type="range"
-                  min={FLICKER_MIN}
-                  max={FLICKER_MAX}
-                  step={1}
-                  value={params.flickerCount}
-                  onChange={(e) =>
-                    update("flickerCount", Number(e.target.value))
-                  }
-                  className="flex-1 accent-accent"
-                />
-                <span className="w-10 text-right text-sm font-medium tabular-nums text-foreground">
-                  {params.flickerCount}
-                </span>
-              </div>
-            </Field>
-          )}
 
           {showEdgeColor && (
             <Field label="Edge color">

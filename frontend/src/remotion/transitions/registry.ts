@@ -32,15 +32,15 @@ import { slide, type SlideDirection } from "@remotion/transitions/slide";
 import { wipe, type WipeDirection } from "@remotion/transitions/wipe";
 import { zoomBlur } from "@remotion/transitions/zoom-blur";
 
-import { flicker, flowerSwipe } from "./presentations";
+import { flowerSwipe } from "./presentations";
 
 /** Timing curve applied to any transition. */
 export type TransitionTimingId = "linear" | "spring";
 
-/** The optional per-transition knobs beyond duration/direction/timing, gated per
- *  definition via `paramKeys` (these have bespoke controls: a strobe-count slider
- *  and a color picker). Generic numeric knobs go through `numericParams`. */
-export type TransitionParamKey = "flickerCount" | "edgeColor";
+/** The optional per-transition knob beyond duration/direction/timing, gated per
+ *  definition via `paramKeys` (this has a bespoke control: a color picker).
+ *  Generic numeric knobs go through `numericParams`. */
+export type TransitionParamKey = "edgeColor";
 
 /** Numeric knobs a transition exposes as a bounded slider in the designer. Each
  *  is a numeric key of `TransitionParams`; a definition lists the ones it uses
@@ -64,8 +64,6 @@ export type TransitionParams = {
   durationInFrames: number;
   /** Edge/direction for slide/wipe/flip (ignored by the rest). */
   direction: string;
-  /** flicker: how many on/off steps before settling on B. */
-  flickerCount: number;
   /** flowerSwipe: color of the botanical reveal edge (`#rrggbb`). */
   edgeColor: string;
   /** flowerSwipe: tilt of the diagonal reveal edge, in degrees. */
@@ -107,7 +105,7 @@ export type TransitionDefinition = {
   label: string;
   description: string;
   /** Rendering tier. "A" = pure CSS/SVG (fade/slide/wipe/flip/clockWipe/iris/
-   *  flowerSwipe/flicker) — renders anywhere. "B" = a WebGL shader
+   *  flowerSwipe) — renders anywhere. "B" = a WebGL shader
    *  (html-in-canvas): the browser preview needs Chrome and a headless render
    *  needs a GL backend (chromiumOptions.gl). Surfaced as a hint in the designer. */
   tier: "A" | "B";
@@ -131,7 +129,6 @@ const BASE_PARAMS: TransitionParams = {
   timing: "linear",
   durationInFrames: 30,
   direction: "from-left",
-  flickerCount: 6,
   edgeColor: "#7bae5a",
   // flowerSwipe: a gentle diagonal tilt (deg).
   angle: -24,
@@ -285,19 +282,6 @@ export const TRANSITIONS: readonly TransitionDefinition[] = [
       presentation: widen(
         flowerSwipe({ angle: params.angle, edgeColor: params.edgeColor }),
       ),
-      timing: buildTiming(params),
-    }),
-  },
-  {
-    id: "flicker",
-    label: "Flicker",
-    description: "A and B strobe counter-phase in quick steps, settling on B.",
-    tier: "A",
-    supportsDirection: false,
-    paramKeys: ["flickerCount"],
-    defaultParams: { ...BASE_PARAMS },
-    build: ({ params }) => ({
-      presentation: widen(flicker({ count: params.flickerCount })),
       timing: buildTiming(params),
     }),
   },

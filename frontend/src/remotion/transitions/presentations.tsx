@@ -1,5 +1,5 @@
 /**
- * Two custom @remotion/transitions presentations for the /remotion "Transitions"
+ * One custom @remotion/transitions presentation for the /remotion "Transitions"
  * tab, alongside the built-in fade/slide/wipe/clockWipe/flip:
  *
  *   - flowerSwipe: the entering clip B is revealed behind a soft, DIAGONAL edge (a
@@ -7,8 +7,6 @@
  *     `presentationProgress`), with a curtain of real delphinium cut-outs
  *     (public/transitions/delphinium.png) riding the leading edge and a faint
  *     `edgeColor` tint blending the cut.
- *   - flicker: the exiting A and entering B trade visibility in `count` quick
- *     counter-phase steps, always settling on B.
  *
  * Plain Remotion (no "use client"): a presentation component is rendered by
  * TransitionSeries for BOTH the exiting and entering clip (see
@@ -130,34 +128,5 @@ export const flowerSwipe = (
   props: FlowerSwipeProps,
 ): TransitionPresentation<FlowerSwipeProps> => ({
   component: FlowerSwipePresentation,
-  props,
-});
-
-// --- flicker ---------------------------------------------------------------
-
-export type FlickerProps = {
-  /** How many on/off steps the two clips trade before settling on B. */
-  count: number;
-};
-
-const FlickerPresentation: FC<
-  TransitionPresentationComponentProps<FlickerProps>
-> = ({ presentationProgress, presentationDirection, children, passedProps }) => {
-  const count = Math.max(1, Math.round(passedProps.count));
-  // Split the transition into `count` segments; alternate which clip shows,
-  // arranged so the LAST segment (and thus progress 1) always lands on B.
-  const seg = Math.min(count - 1, Math.floor(presentationProgress * count));
-  const showB = (count - 1 - seg) % 2 === 0;
-  const visible =
-    presentationDirection === "entering" ? showB : !showB;
-  return (
-    <AbsoluteFill style={{ opacity: visible ? 1 : 0 }}>{children}</AbsoluteFill>
-  );
-};
-
-export const flicker = (
-  props: FlickerProps,
-): TransitionPresentation<FlickerProps> => ({
-  component: FlickerPresentation,
   props,
 });
