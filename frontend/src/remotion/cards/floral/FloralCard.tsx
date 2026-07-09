@@ -9,10 +9,10 @@
  *     shared useTextEntrance, and
  *   - the body (the `subtitle`, taupe) via useFadeIn when present.
  *
- * Two archetypes: "center" frames a centered hero title with the botanicals as a
- * border; "left" anchors the title (and optional body) on the left with the
- * botanicals massed on the right. Its own cream canvas, independent of the app
- * theme. Siblings imported by RELATIVE path (no `@/*` alias in the Remotion
+ * Three archetypes: "center" frames a centered hero title with the botanicals as
+ * a border; "left"/"right" anchor the title (and optional body) on that side with
+ * the botanicals massed on the OTHER. Its own cream canvas, independent of the
+ * app theme. Siblings imported by RELATIVE path (no `@/*` alias in the Remotion
  * bundle).
  */
 import {
@@ -80,6 +80,14 @@ export const FloralCard = (props: CardProps) => {
   const bodyOpacity = useFadeIn(0.5, 0.7);
   const bodyColor = props.bodyColor || DEFAULT_BODY_COLOR;
   const isCenter = variant.layout === "center";
+  const isRight = variant.layout === "right";
+  // Content (heading-left/right) titles can be long section labels (e.g.
+  // "Number 1: Bee balm"), not just the short source titles — cap the heading
+  // size by length and let the browser BALANCE the wrap, so a long item name
+  // splits into even lines instead of orphaning a word. Title (center) cards
+  // keep the big hero size.
+  const contentFontSize =
+    props.title.trim().length > 26 ? 74 : props.title.trim().length > 16 ? 88 : 104;
 
   return (
     <AbsoluteFill style={{ backgroundColor: palette.background }}>
@@ -101,20 +109,21 @@ export const FloralCard = (props: CardProps) => {
       <AbsoluteFill
         style={{
           justifyContent: "center",
-          alignItems: isCenter ? "center" : "flex-start",
-          textAlign: isCenter ? "center" : "left",
-          padding: isCenter ? "0 320px" : "0 0 0 120px",
+          alignItems: isCenter ? "center" : isRight ? "flex-end" : "flex-start",
+          textAlign: isCenter ? "center" : isRight ? "right" : "left",
+          padding: isCenter ? "0 320px" : isRight ? "0 120px 0 0" : "0 0 0 120px",
         }}
       >
-        <div style={{ maxWidth: isCenter ? undefined : 780 }}>
+        <div style={{ maxWidth: isCenter ? undefined : 820 }}>
           <h1
             style={{
               margin: 0,
               fontFamily: font,
               fontWeight: 400,
-              fontSize: isCenter ? 180 : 108,
-              lineHeight: isCenter ? 1.0 : 1.06,
+              fontSize: isCenter ? 180 : contentFontSize,
+              lineHeight: isCenter ? 1.0 : 1.05,
               letterSpacing: "-0.01em",
+              textWrap: "balance",
               color: palette.text,
               ...titleStyle,
             }}
@@ -125,7 +134,7 @@ export const FloralCard = (props: CardProps) => {
           {props.subtitle ? (
             <p
               style={{
-                margin: isCenter ? "34px 0 0" : "30px 0 0",
+                margin: isCenter ? "34px 0 0" : isRight ? "30px 0 0 auto" : "30px 0 0",
                 maxWidth: isCenter ? undefined : 720,
                 fontFamily: font,
                 fontWeight: 400,

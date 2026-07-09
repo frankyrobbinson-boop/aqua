@@ -195,6 +195,706 @@
         "w": 0.0904,
         "h": 0.3764
       }
+    },
+    {
+      "file": "slide03-01.png",
+      "sourceSlide": 3,
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0.269,
+        "h": 0.6912
+      }
+    },
+    {
+      "file": "slide03-02.png",
+      "sourceSlide": 3,
+      "bbox": {
+        "x": 0.232,
+        "y": 0.162,
+        "w": 0.187,
+        "h": 0.838
+      }
+    },
+    {
+      "file": "slide03-03.png",
+      "sourceSlide": 3,
+      "bbox": {
+        "x": 0,
+        "y": 0.7282,
+        "w": 0.2411,
+        "h": 0.2718
+      }
+    },
+    {
+      "file": "slide04-01.png",
+      "sourceSlide": 4,
+      "bbox": {
+        "x": 0.6732,
+        "y": 0,
+        "w": 0.3268,
+        "h": 0.5449
+      }
+    },
+    {
+      "file": "slide04-02.png",
+      "sourceSlide": 4,
+      "bbox": {
+        "x": 0.5659,
+        "y": 0.5083,
+        "w": 0.2073,
+        "h": 0.2157
+      }
+    },
+    {
+      "file": "slide04-03.png",
+      "sourceSlide": 4,
+      "bbox": {
+        "x": 0.4943,
+        "y": 0.5375,
+        "w": 0.5057,
+        "h": 0.4625
+      }
+    },
+    {
+      "file": "slide05-01.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0.276,
+        "y": 0,
+        "w": 0.0375,
+        "h": 0.2005
+      }
+    },
+    {
+      "file": "slide05-02.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0.3086,
+        "y": 0,
+        "w": 0.0654,
+        "h": 0.2662
+      }
+    },
+    {
+      "file": "slide05-03.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0.3336,
+        "y": 0,
+        "w": 0.0508,
+        "h": 0.1185
+      }
+    },
+    {
+      "file": "slide05-04.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0,
+        "y": 0.0556,
+        "w": 0.2349,
+        "h": 0.4
+      }
+    },
+    {
+      "file": "slide05-05.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0.2685,
+        "y": 0.2972,
+        "w": 0.0708,
+        "h": 0.1269
+      }
+    },
+    {
+      "file": "slide05-06.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0.1792,
+        "y": 0.381,
+        "w": 0.2411,
+        "h": 0.3838
+      }
+    },
+    {
+      "file": "slide05-07.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0,
+        "y": 0.5407,
+        "w": 0.2133,
+        "h": 0.438
+      }
+    },
+    {
+      "file": "slide05-08.png",
+      "sourceSlide": 5,
+      "bbox": {
+        "x": 0.2094,
+        "y": 0.7292,
+        "w": 0.2292,
+        "h": 0.2708
+      }
+    },
+    {
+      "file": "slide06-01.png",
+      "sourceSlide": 6,
+      "bbox": {
+        "x": 0.6654,
+        "y": 0,
+        "w": 0.3346,
+        "h": 1
+      }
+    },
+    {
+      "file": "slide06-02.png",
+      "sourceSlide": 6,
+      "bbox": {
+        "x": 0.5005,
+        "y": 0.5366,
+        "w": 0.276,
+        "h": 0.4634
+      }
+    },
+    {
+      "file": "slide07-01.png",
+      "sourceSlide": 7,
+      "bbox": {
+        "x": 0.1656,
+        "y": 0,
+        "w": 0.2258,
+        "h": 0.8269
+      }
+    },
+    {
+      "file": "slide07-02.png",
+      "sourceSlide": 7,
+      "bbox": {
+        "x": 0,
+        "y": 0.0764,
+        "w": 0.1492,
+        "h": 0.606
+      }
+    },
+    {
+      "file": "slide07-03.png",
+      "sourceSlide": 7,
+      "bbox": {
+        "x": 0,
+        "y": 0.6829,
+        "w": 0.2086,
+        "h": 0.3171
+      }
+    },
+    {
+      "file": "slide07-04.png",
+      "sourceSlide": 7,
+      "bbox": {
+        "x": 0.2146,
+        "y": 0.7903,
+        "w": 0.2294,
+        "h": 0.2097
+      }
+    },
+    {
+      "file": "slide08-01.png",
+      "sourceSlide": 8,
+      "bbox": {
+        "x": 0.5932,
+        "y": 0,
+        "w": 0.1146,
+        "h": 0.3208
+      }
+    },
+    {
+      "file": "slide08-02.png",
+      "sourceSlide": 8,
+      "bbox": {
+        "x": 0.7044,
+        "y": 0,
+        "w": 0.2956,
+        "h": 0.4139
+      }
+    },
+    {
+      "file": "slide08-03.png",
+      "sourceSlide": 8,
+      "bbox": {
+        "x": 0.4857,
+        "y": 0.4181,
+        "w": 0.5143,
+        "h": 0.5819
+      }
+    },
+    {
+      "file": "slide09-01.png",
+      "sourceSlide": 9,
+      "bbox": {
+        "x": 0.1909,
+        "y": 0,
+        "w": 0.2518,
+        "h": 0.55
+      }
+    },
+    {
+      "file": "slide09-02.png",
+      "sourceSlide": 9,
+      "bbox": {
+        "x": 0,
+        "y": 0.0463,
+        "w": 0.2326,
+        "h": 0.4731
+      }
+    },
+    {
+      "file": "slide09-03.png",
+      "sourceSlide": 9,
+      "bbox": {
+        "x": 0.2854,
+        "y": 0.431,
+        "w": 0.1466,
+        "h": 0.569
+      }
+    },
+    {
+      "file": "slide09-04.png",
+      "sourceSlide": 9,
+      "bbox": {
+        "x": 0.0255,
+        "y": 0.5611,
+        "w": 0.2354,
+        "h": 0.4389
+      }
+    },
+    {
+      "file": "slide10-01.png",
+      "sourceSlide": 10,
+      "bbox": {
+        "x": 0.8036,
+        "y": 0.0088,
+        "w": 0.1964,
+        "h": 0.5269
+      }
+    },
+    {
+      "file": "slide10-02.png",
+      "sourceSlide": 10,
+      "bbox": {
+        "x": 0.5042,
+        "y": 0.1204,
+        "w": 0.2977,
+        "h": 0.5852
+      }
+    },
+    {
+      "file": "slide10-03.png",
+      "sourceSlide": 10,
+      "bbox": {
+        "x": 0.712,
+        "y": 0.5907,
+        "w": 0.288,
+        "h": 0.4093
+      }
+    },
+    {
+      "file": "slide10-04.png",
+      "sourceSlide": 10,
+      "bbox": {
+        "x": 0.5227,
+        "y": 0.6634,
+        "w": 0.1474,
+        "h": 0.3366
+      }
+    },
+    {
+      "file": "slide10-05.png",
+      "sourceSlide": 10,
+      "bbox": {
+        "x": 0.6161,
+        "y": 0.8968,
+        "w": 0.1187,
+        "h": 0.1032
+      }
+    },
+    {
+      "file": "slide10-06.png",
+      "sourceSlide": 10,
+      "bbox": {
+        "x": 0.4594,
+        "y": 0.9014,
+        "w": 0.1021,
+        "h": 0.0986
+      }
+    },
+    {
+      "file": "slide11-01.png",
+      "sourceSlide": 11,
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0.2073,
+        "h": 0.2093
+      }
+    },
+    {
+      "file": "slide11-02.png",
+      "sourceSlide": 11,
+      "bbox": {
+        "x": 0.2307,
+        "y": 0,
+        "w": 0.0516,
+        "h": 0.1944
+      }
+    },
+    {
+      "file": "slide11-03.png",
+      "sourceSlide": 11,
+      "bbox": {
+        "x": 0.2891,
+        "y": 0,
+        "w": 0.0164,
+        "h": 0.1931
+      }
+    },
+    {
+      "file": "slide11-04.png",
+      "sourceSlide": 11,
+      "bbox": {
+        "x": 0.3211,
+        "y": 0,
+        "w": 0.0964,
+        "h": 0.1542
+      }
+    },
+    {
+      "file": "slide11-05.png",
+      "sourceSlide": 11,
+      "bbox": {
+        "x": 0.0109,
+        "y": 0.2259,
+        "w": 0.187,
+        "h": 0.7741
+      }
+    },
+    {
+      "file": "slide11-06.png",
+      "sourceSlide": 11,
+      "bbox": {
+        "x": 0.2359,
+        "y": 0.2394,
+        "w": 0.2039,
+        "h": 0.3514
+      }
+    },
+    {
+      "file": "slide11-07.png",
+      "sourceSlide": 11,
+      "bbox": {
+        "x": 0.1477,
+        "y": 0.5727,
+        "w": 0.3206,
+        "h": 0.4273
+      }
+    },
+    {
+      "file": "slide12-01.png",
+      "sourceSlide": 12,
+      "bbox": {
+        "x": 0.6849,
+        "y": 0,
+        "w": 0.2562,
+        "h": 0.394
+      }
+    },
+    {
+      "file": "slide12-02.png",
+      "sourceSlide": 12,
+      "bbox": {
+        "x": 0.801,
+        "y": 0,
+        "w": 0.0346,
+        "h": 0.0407
+      }
+    },
+    {
+      "file": "slide12-03.png",
+      "sourceSlide": 12,
+      "bbox": {
+        "x": 0.751,
+        "y": 0.2079,
+        "w": 0.249,
+        "h": 0.7912
+      }
+    },
+    {
+      "file": "slide12-04.png",
+      "sourceSlide": 12,
+      "bbox": {
+        "x": 0.5602,
+        "y": 0.4546,
+        "w": 0.2,
+        "h": 0.5454
+      }
+    },
+    {
+      "file": "slide12-05.png",
+      "sourceSlide": 12,
+      "bbox": {
+        "x": 0.6979,
+        "y": 0.9713,
+        "w": 0.0453,
+        "h": 0.0287
+      }
+    },
+    {
+      "file": "slide13-01.png",
+      "sourceSlide": 13,
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0.0573,
+        "h": 0.1741
+      }
+    },
+    {
+      "file": "slide13-02.png",
+      "sourceSlide": 13,
+      "bbox": {
+        "x": 0.076,
+        "y": 0,
+        "w": 0.2581,
+        "h": 0.3611
+      }
+    },
+    {
+      "file": "slide13-03.png",
+      "sourceSlide": 13,
+      "bbox": {
+        "x": 0,
+        "y": 0.2375,
+        "w": 0.2143,
+        "h": 0.319
+      }
+    },
+    {
+      "file": "slide13-04.png",
+      "sourceSlide": 13,
+      "bbox": {
+        "x": 0,
+        "y": 0.2648,
+        "w": 0.0242,
+        "h": 0.0421
+      }
+    },
+    {
+      "file": "slide13-05.png",
+      "sourceSlide": 13,
+      "bbox": {
+        "x": 0.1984,
+        "y": 0.4273,
+        "w": 0.1362,
+        "h": 0.5727
+      }
+    },
+    {
+      "file": "slide13-06.png",
+      "sourceSlide": 13,
+      "bbox": {
+        "x": 0,
+        "y": 0.5722,
+        "w": 0.1854,
+        "h": 0.3991
+      }
+    },
+    {
+      "file": "slide14-01.png",
+      "sourceSlide": 14,
+      "bbox": {
+        "x": 0.5711,
+        "y": 0,
+        "w": 0.2029,
+        "h": 0.287
+      }
+    },
+    {
+      "file": "slide14-02.png",
+      "sourceSlide": 14,
+      "bbox": {
+        "x": 0.7565,
+        "y": 0.056,
+        "w": 0.2435,
+        "h": 0.6278
+      }
+    },
+    {
+      "file": "slide14-03.png",
+      "sourceSlide": 14,
+      "bbox": {
+        "x": 0.4852,
+        "y": 0.5731,
+        "w": 0.3042,
+        "h": 0.4269
+      }
+    },
+    {
+      "file": "slide14-04.png",
+      "sourceSlide": 14,
+      "bbox": {
+        "x": 0.7742,
+        "y": 0.712,
+        "w": 0.2258,
+        "h": 0.288
+      }
+    },
+    {
+      "file": "slide15-01.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0,
+        "y": 0,
+        "w": 0.4091,
+        "h": 0.5991
+      }
+    },
+    {
+      "file": "slide15-02.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.4456,
+        "y": 0,
+        "w": 0.2031,
+        "h": 0.219
+      }
+    },
+    {
+      "file": "slide15-03.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.6823,
+        "y": 0,
+        "w": 0.049,
+        "h": 0.1417
+      }
+    },
+    {
+      "file": "slide15-04.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.7188,
+        "y": 0,
+        "w": 0.0461,
+        "h": 0.2343
+      }
+    },
+    {
+      "file": "slide15-05.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.7615,
+        "y": 0,
+        "w": 0.0367,
+        "h": 0.1019
+      }
+    },
+    {
+      "file": "slide15-06.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.807,
+        "y": 0,
+        "w": 0.193,
+        "h": 0.2681
+      }
+    },
+    {
+      "file": "slide15-07.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.8924,
+        "y": 0.2648,
+        "w": 0.1076,
+        "h": 0.162
+      }
+    },
+    {
+      "file": "slide15-08.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.9758,
+        "y": 0.4338,
+        "w": 0.0242,
+        "h": 0.1407
+      }
+    },
+    {
+      "file": "slide15-09.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.788,
+        "y": 0.4514,
+        "w": 0.212,
+        "h": 0.5486
+      }
+    },
+    {
+      "file": "slide15-10.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0,
+        "y": 0.6449,
+        "w": 0.1385,
+        "h": 0.3551
+      }
+    },
+    {
+      "file": "slide15-11.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.706,
+        "y": 0.7486,
+        "w": 0.149,
+        "h": 0.2514
+      }
+    },
+    {
+      "file": "slide15-12.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.1424,
+        "y": 0.7542,
+        "w": 0.2411,
+        "h": 0.2458
+      }
+    },
+    {
+      "file": "slide15-13.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.4878,
+        "y": 0.813,
+        "w": 0.1586,
+        "h": 0.187
+      }
+    },
+    {
+      "file": "slide15-14.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.6909,
+        "y": 0.8375,
+        "w": 0.0987,
+        "h": 0.1625
+      }
+    },
+    {
+      "file": "slide15-15.png",
+      "sourceSlide": 15,
+      "bbox": {
+        "x": 0.4182,
+        "y": 0.8843,
+        "w": 0.074,
+        "h": 0.1157
+      }
     }
   ]
 }

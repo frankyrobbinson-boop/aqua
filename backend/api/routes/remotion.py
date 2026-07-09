@@ -53,9 +53,22 @@ ALLOWED_COMPS = frozenset(
         "GardenBand",
         "GardenPremium",
         "GardenBloom",
-        # Floral style (FloralCard + the floral variants).
+        # Floral style (FloralCard + the floral variants) — 15-slide deck.
         "FloralSlide01",
         "FloralSlide02",
+        "FloralSlide03",
+        "FloralSlide04",
+        "FloralSlide05",
+        "FloralSlide06",
+        "FloralSlide07",
+        "FloralSlide08",
+        "FloralSlide09",
+        "FloralSlide10",
+        "FloralSlide11",
+        "FloralSlide12",
+        "FloralSlide13",
+        "FloralSlide14",
+        "FloralSlide15",
     }
 )
 

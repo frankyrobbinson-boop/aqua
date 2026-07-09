@@ -98,6 +98,135 @@ export const CARDS: readonly CardDefinition[] = [
     style: "floral",
     component: FloralCard,
   },
+  {
+    id: "FloralSlide03",
+    label: "Floral 3 · Section",
+    description:
+      "Floral paper-texture section header — a right-anchored heading with botanicals massed down the left.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide04",
+    label: "Floral 4 · Section",
+    description:
+      "Floral paper-texture section header — a left-anchored heading with botanicals massed down the right.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide05",
+    label: "Floral 5 · Section",
+    description:
+      "Floral paper-texture section header — a right-anchored heading with botanicals massed down the left.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide06",
+    label: "Floral 6 · Section",
+    description:
+      "Floral paper-texture section header — a left-anchored heading with botanicals massed down the right.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide07",
+    label: "Floral 7 · Section",
+    description:
+      "Floral paper-texture section header — a right-anchored heading with botanicals massed down the left.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide08",
+    label: "Floral 8 · Section",
+    description:
+      "Floral paper-texture section header — a left-anchored heading with botanicals massed down the right.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide09",
+    label: "Floral 9 · Section",
+    description:
+      "Floral paper-texture section header — a right-anchored heading with botanicals massed down the left.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide10",
+    label: "Floral 10 · Section",
+    description:
+      "Floral paper-texture section header — a left-anchored heading with botanicals massed down the right.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide11",
+    label: "Floral 11 · Section",
+    description:
+      "Floral paper-texture section header — a right-anchored heading with botanicals massed down the left.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide12",
+    label: "Floral 12 · Section",
+    description:
+      "Floral paper-texture section header — a left-anchored heading with botanicals massed down the right.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide13",
+    label: "Floral 13 · Section",
+    description:
+      "Floral paper-texture section header — a right-anchored heading with botanicals massed down the left.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide14",
+    label: "Floral 14 · Section",
+    description:
+      "Floral paper-texture section header — a left-anchored heading with botanicals massed down the right.",
+    role: "section_header",
+    roles: ["section_header", "overlay"],
+    style: "floral",
+    component: FloralCard,
+  },
+  {
+    id: "FloralSlide15",
+    label: "Floral 15 · Title",
+    description:
+      "Floral paper-texture closing title — a centered hero framed by a botanical border that settles inward.",
+    role: "title",
+    style: "floral",
+    component: FloralCard,
+  },
 ];
 
 export const CARD_IDS: readonly string[] = CARDS.map((c) => c.id);

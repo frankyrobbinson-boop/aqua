@@ -24,8 +24,7 @@
  * Deterministic (no timestamps / randomness) so re-running is reproducible.
  * Uses the hoisted `sharp` in frontend/node_modules.
  *
- * NOTE: only the two pilot slides (1 + 2) are wired up so far; add more to SLIDES
- * as they are designed.
+ * All 15 slides of the "Floral Slides" deck are wired up in SLIDES below.
  */
 import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -75,25 +74,65 @@ const MIN_AREA = 5000;
 /**
  * Per-slide config: source slide number + the text-safe rectangles (normalized
  * [x0, y0, x1, y1] over the slide) whose pixels are zeroed before segmentation so
- * the SVG's OWN outlined title/body glyphs are never captured as "flowers":
- *   - slide 1 ("Flora.", centered): one central box over the hero title; the
- *     botanicals all sit around the border, clear of it.
- *   - slide 2 ("Definition of Flora.", left): a heading box (both title lines,
- *     including the trailing period) plus a narrower body box under it; the
- *     botanicals are massed down the right, clear of both.
+ * the SVG's OWN outlined title/body glyphs are never captured as "flowers". Each
+ * rect set was tuned against the slide render so every glyph is covered and no
+ * botanical is clipped. Three archetypes across the 15-slide deck:
+ *   - centered title (slides 1 "Flora." + 15 "Thanks."): one central box over the
+ *     hero title; the botanicals ring the border, clear of it.
+ *   - heading-left (even content slides 2,4,6,8,10,12,14): a heading box (both
+ *     title lines incl. the trailing period) plus a narrower body box under it,
+ *     both on the left; the botanicals mass down the right.
+ *   - heading-right (odd content slides 3,5,7,9,11,13): the mirror — heading +
+ *     body boxes on the right; the botanicals mass down the left.
+ * A few heading boxes are shortened vertically to clear a flower that rises into
+ * the text column (e.g. slide 12's anthurium, slide 8's orchid, slide 14's
+ * clematis).
  */
 const SLIDES = [
-  {
-    n: 1,
-    textSafe: [[0.26, 0.33, 0.72, 0.66]],
-  },
-  {
-    n: 2,
-    textSafe: [
-      [0.0, 0.0, 0.58, 0.47],
-      [0.0, 0.47, 0.44, 0.9],
-    ],
-  },
+  // Slide 1 — "Flora." centered hero.
+  { n: 1, textSafe: [[0.26, 0.33, 0.72, 0.66]] },
+  // Slide 2 — "Definition of Flora." heading-left.
+  { n: 2, textSafe: [[0.0, 0.0, 0.58, 0.47], [0.0, 0.47, 0.44, 0.9]] },
+  // Slide 3 — "Biological Diversity." heading-right.
+  { n: 3, textSafe: [[0.44, 0.18, 1.0, 0.62], [0.44, 0.62, 0.84, 0.9]] },
+  // Slide 4 — "Ecological Function." heading-left. Middle rect is a line-1 patch
+  // catching the final "l" of "Ecological" (it overshoots the heading box); the
+  // patch stops at y0.42, above the yellow flower (y>0.5).
+  { n: 4, textSafe: [[0.0, 0.1, 0.54, 0.6], [0.53, 0.1, 0.59, 0.42], [0.0, 0.6, 0.44, 0.86]] },
+  // Slide 5 — "Endemic Flora." heading-right.
+  { n: 5, textSafe: [[0.44, 0.1, 1.0, 0.6], [0.5, 0.6, 0.9, 0.86]] },
+  // Slide 6 — "Economic Importance." heading-left. Heading box widened to x0.63
+  // to catch the "e." tail of "Importance." and shortened to y0.53 to clear the
+  // yellow rose below; the body box rises to 0.53 to keep the body top covered.
+  { n: 6, textSafe: [[0.0, 0.14, 0.63, 0.53], [0.0, 0.53, 0.44, 0.86]] },
+  // Slide 7 — "Medicinal Flora." heading-right.
+  { n: 7, textSafe: [[0.44, 0.16, 1.0, 0.64], [0.46, 0.64, 0.86, 0.9]] },
+  // Slide 8 — "Flora Conservation." heading-left. Main heading box stops above
+  // the pink orchid (y0.5); the middle patch catches the "on." tail of
+  // "Conservation." in the clear band above the orchid; body box rises to 0.5.
+  { n: 8, textSafe: [[0.0, 0.08, 0.62, 0.5], [0.6, 0.35, 0.73, 0.51], [0.0, 0.5, 0.44, 0.86]] },
+  // Slide 9 — "Human Impact." heading-right.
+  { n: 9, textSafe: [[0.46, 0.18, 1.0, 0.64], [0.5, 0.64, 0.9, 0.9]] },
+  // Slide 10 — "Flora and Culture." heading-left. Middle rect is a line-1 patch
+  // catching the "nd" tail of "and", above the orange flower cluster (y<0.34).
+  { n: 10, textSafe: [[0.0, 0.1, 0.5, 0.6], [0.5, 0.1, 0.58, 0.34], [0.0, 0.6, 0.42, 0.86]] },
+  // Slide 11 — "Aquatic Flora." heading-right.
+  { n: 11, textSafe: [[0.44, 0.12, 1.0, 0.6], [0.5, 0.6, 0.9, 0.88]] },
+  // Slide 12 — "Flowers and Pollination." heading-left. Main heading box stops
+  // above the central anthurium (y0.5); the middle patch catches the "d" of "and"
+  // (line 1, above the anthurium); body box rises to 0.5.
+  { n: 12, textSafe: [[0.0, 0.1, 0.58, 0.5], [0.58, 0.1, 0.67, 0.34], [0.0, 0.5, 0.44, 0.86]] },
+  // Slide 13 — "Flora Adaptation." heading-right. This heading sits a touch
+  // further left than the other right-aligned slides, so the boxes start at
+  // x0.38/0.42 to catch the left edges of "F"/"A"; the magenta flowers end by
+  // x~0.33, so they stay clear.
+  { n: 13, textSafe: [[0.38, 0.16, 1.0, 0.62], [0.42, 0.62, 0.88, 0.9]] },
+  // Slide 14 — "Flora Reforestation." heading-left (long word). Main box to x0.64;
+  // the middle patch catches the "n." tail of "Reforestation." (the purple
+  // clematis is lower, y>0.57, so it clears); body box rises to 0.5.
+  { n: 14, textSafe: [[0.0, 0.18, 0.64, 0.54], [0.64, 0.3, 0.72, 0.54], [0.0, 0.5, 0.42, 0.86]] },
+  // Slide 15 — "Thanks." centered hero.
+  { n: 15, textSafe: [[0.26, 0.33, 0.74, 0.66]] },
 ];
 
 const pad2 = (n) => String(n).padStart(2, "0");

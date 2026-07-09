@@ -86,6 +86,24 @@ export const CARD_DEFAULTS: CardProps = {
   durationInSeconds: 5,
 };
 
+// Shared floral look: Questrial on the locked plum-on-cream palette with a soft
+// taupe body (`bodyColor`). Every floral slide's override spreads this, then adds
+// its own `variant` + seed `title` (its source-slide heading) + `subtitle`.
+const FLORAL_BASE: Partial<CardProps> = {
+  fontFamily: "questrial",
+  palette: {
+    background: "#efe8dc", // cream paper (matches the texture)
+    text: "#6b4763", // plum title
+    accent: "#9c7f92", // coordinating mauve (FloralCard ignores accent)
+  },
+  bodyColor: "#7f7268", // soft taupe body
+};
+// Sample body seeded on the section/overlay floral slides so the overlay
+// use-case previews with real copy; the designer clears it for a pure section
+// title (the title-only slides 1 + 15 boot with it blank).
+const FLORAL_SAMPLE_BODY =
+  "A short line of supporting context that reads as body copy.";
+
 /**
  * Per-card starting overrides, merged onto CARD_DEFAULTS by Root.tsx's
  * defaultProps and by the panel when you switch cards. Lets a card boot with
@@ -143,35 +161,26 @@ export const CARD_DEFAULT_OVERRIDES: Partial<
     // the look is unchanged until the user picks a new color.
     lottieRecolorColor: "#e2917f",
   },
-  // The floral card style — FloralCard + the floral variants table, its own
-  // cream paper-texture look (independent of the garden palette). Both slides
-  // boot in Questrial on the same plum-on-cream palette with a soft-taupe body
-  // (`bodyColor`); each keys into its own layout variant (see cards/floral/
-  // variants.ts — the `variant` values match the FLORAL_VARIANTS keys).
-  FloralSlide01: {
-    // Slide 1 — "Flora." centered hero, botanicals framing the border.
-    variant: "FloralSlide01",
-    fontFamily: "questrial",
-    title: "Flora.",
-    palette: {
-      background: "#efe8dc", // cream paper (matches the texture)
-      text: "#6b4763", // plum title
-      accent: "#9c7f92", // coordinating mauve (FloralCard ignores accent)
-    },
-    bodyColor: "#7f7268", // soft taupe body
-  },
-  FloralSlide02: {
-    // Slide 2 — numbered section header, heading anchored left with the
-    // botanicals massed down the right. No body (a clean section title).
-    variant: "FloralSlide02",
-    fontFamily: "questrial",
-    title: "Number 1: Bee balm",
-    subtitle: "",
-    palette: {
-      background: "#efe8dc",
-      text: "#6b4763",
-      accent: "#9c7f92",
-    },
-    bodyColor: "#7f7268",
-  },
+  // The floral card style — FloralCard + the floral variants table, its own cream
+  // paper-texture look (independent of the garden palette). Every slide boots in
+  // Questrial on the shared plum-on-cream palette (FLORAL_BASE), keyed to its own
+  // layout variant (the `variant` values match the FLORAL_VARIANTS keys) and
+  // seeded with its source-slide heading. Title slides (1, 15) are title-only
+  // (blank subtitle, per the title-card polish); the section / overlay slides
+  // (2–14) seed a sample body for the overlay preview.
+  FloralSlide01: { ...FLORAL_BASE, variant: "FloralSlide01", title: "Flora.", subtitle: "" }, // centered title
+  FloralSlide02: { ...FLORAL_BASE, variant: "FloralSlide02", title: "Definition of Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide03: { ...FLORAL_BASE, variant: "FloralSlide03", title: "Biological Diversity.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide04: { ...FLORAL_BASE, variant: "FloralSlide04", title: "Ecological Function.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide05: { ...FLORAL_BASE, variant: "FloralSlide05", title: "Endemic Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide06: { ...FLORAL_BASE, variant: "FloralSlide06", title: "Economic Importance.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide07: { ...FLORAL_BASE, variant: "FloralSlide07", title: "Medicinal Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide08: { ...FLORAL_BASE, variant: "FloralSlide08", title: "Flora Conservation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide09: { ...FLORAL_BASE, variant: "FloralSlide09", title: "Human Impact.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide10: { ...FLORAL_BASE, variant: "FloralSlide10", title: "Flora and Culture.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide11: { ...FLORAL_BASE, variant: "FloralSlide11", title: "Aquatic Flora.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide12: { ...FLORAL_BASE, variant: "FloralSlide12", title: "Flowers and Pollination.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide13: { ...FLORAL_BASE, variant: "FloralSlide13", title: "Flora Adaptation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-right
+  FloralSlide14: { ...FLORAL_BASE, variant: "FloralSlide14", title: "Flora Reforestation.", subtitle: FLORAL_SAMPLE_BODY }, // heading-left
+  FloralSlide15: { ...FLORAL_BASE, variant: "FloralSlide15", title: "Thanks.", subtitle: "" }, // centered title
 };
