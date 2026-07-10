@@ -31,10 +31,19 @@ RENDER_SCRIPT = FRONTEND_DIR / "scripts" / "render-remotion.mjs"
 
 # Section-card defaults. A short Remotion title card fronts each section-intro
 # scene, eating into THAT scene's own frames (never spanning into the next), so
-# the assembled video length is unchanged. Hardcoded for now; the channel-preset
-# + per-video graphics_config that will drive card look/duration is a follow-up.
+# the assembled video length is unchanged. SECTION_CARD_SECONDS is now only a
+# FALLBACK: the real per-card hold is computed from the narration
+# (_card_seconds_by_scene) so the card stays up until its spoken line finishes.
 SECTION_CARD_SECONDS = 2.5
 SECTION_CARD_COMP = "GardenBand"
+
+# Beat held on a card AFTER its narrated line's last spoken word ends, before it
+# cuts to footage — so the line lands and settles rather than the card snapping
+# away on the final syllable. ~0.35s reads as a natural breath. In practice the
+# section-intro / title scene carries only its opener line, so the card ends up
+# filling (essentially) the whole intro scene, and this beat is the short
+# inter-scene gap between the line and the next scene's narration.
+CARD_LINE_BEAT = 0.35
 
 # Ken Burns supersample quality knobs. Defaults preserve current "final-render
 # quality" behavior — every render gets the best output by default. Lower the
@@ -1115,6 +1124,56 @@ def _cards_from_edl(edl: dict, channel_id: str | None) -> dict[int, dict]:
     return cards
 
 
+def _card_seconds_by_scene(
+    project_name: str, cards: dict[int, dict], default: float,
+) -> dict[int, float]:
+    """Seconds to hold each card: from its scene's start until the card's
+    NARRATED line's last spoken word ends, plus ``CARD_LINE_BEAT``.
+
+    The section-intro / title scene carries EXACTLY the card's line — the
+    ``title_spoken`` for the title card, the ``"{item_noun} number N. {title}"``
+    opener for a section header (verified: each such scene's narration is just
+    that line) — so the scene's last spoken word IS the line's last word, and the
+    following scene's narration opens the next clip. We therefore find, per card
+    scene, the last audio word that starts before the NEXT scene's start, and
+    hold from this scene's start to that word's end plus the beat. Using the last
+    WORD end (not the frame-quantized scene edge) keeps the card off the short
+    silent gap that precedes the next narration.
+
+    Boundaries come from the frame-quantized scene starts (scene_windows.json);
+    word ends come from the word-level audio_timeline. A half-frame tolerance
+    keeps the boundary comparison on the correct side of a quantized edge. Falls
+    back to ``default`` for a card scene with no following scene or no locatable
+    words (neither happens for section-intro cards, which are never the last
+    scene)."""
+    windows = load_scene_windows(project_name)
+    timeline = load_audio_timeline(project_name)
+    all_words = sorted(
+        (w for chunk in timeline for w in chunk["words"]),
+        key=lambda w: w["global_start"],
+    )
+    pos_by_id = {s["id"]: i for i, s in enumerate(windows)}
+    tol = 0.5 / FPS  # half a frame — stay on the correct side of a quantized edge
+    out: dict[int, float] = {}
+    for sid in cards:
+        i = pos_by_id.get(sid)
+        if i is None or i + 1 >= len(windows):
+            out[sid] = default
+            continue
+        start = windows[i]["start_time"]
+        boundary = windows[i + 1]["start_time"]
+        last_end = None
+        for w in all_words:
+            if w["global_start"] >= boundary - tol:
+                break
+            last_end = w["global_end"]
+        if last_end is None or last_end <= start:
+            out[sid] = default
+            continue
+        out[sid] = round((last_end - start) + CARD_LINE_BEAT, 3)
+    return out
+
+
 def _project_channel_id(project_name: str) -> str | None:
     """Read the project's channel from script_config.json — the same source
     edl_service uses to resolve the editing style, so the render layer resolves
@@ -1248,7 +1307,8 @@ def render_all_scene_clips(
                 scene, src, out_card,
                 index=card["index"], title=card["title"],
                 item_noun=card.get("item_noun", ""),
-                card_seconds=card_seconds, card_comp=card.get("comp", card_comp),
+                card_seconds=card.get("card_seconds", card_seconds),
+                card_comp=card.get("comp", card_comp),
                 card_props=card.get("props"),
                 transition=per_scene_transition, ken_burns=per_scene_ken_burns,
                 overlays=footage_overlays, edit_style=edit_style,
@@ -1492,7 +1552,14 @@ def concat_clips_crossfade(
                     ext_scene, src, out,
                     index=card["index"], title=card["title"],
                     item_noun=card.get("item_noun", ""),
-                    card_seconds=card_seconds,
+                    # +half seconds to match the +half frames this seam adds: the
+                    # fade-through-black is centred on the cut, so the card rises
+                    # from black starting half a fade before the scene's nominal
+                    # start and would otherwise END half a fade early, cutting to
+                    # footage while the line is still spoken. Growing the card by
+                    # the same half keeps footage_frames constant vs the plain
+                    # path, so the card covers the full line (no footage tail).
+                    card_seconds=card.get("card_seconds", card_seconds) + half / FPS,
                     card_comp=card.get("comp", card_comp),
                     card_props=card.get("props"),
                     transition=per_transition, ken_burns=per_ken_burns,
@@ -1770,6 +1837,14 @@ def assemble(
             project_name, transition=transition, ken_burns=ken_burns,
         )
         cards = _cards_from_edl(edl, _project_channel_id(project_name))
+        # Per-card hold: keep each card up until its narrated line finishes (+ a
+        # beat), replacing the fixed SECTION_CARD_SECONDS for cards. Stamped onto
+        # each card dict so render_all_scene_clips / concat_clips_crossfade /
+        # the subtitle blank-windows below all use the same per-scene value.
+        if cards:
+            secs = _card_seconds_by_scene(project_name, cards, card_seconds)
+            for sid, c in cards.items():
+                c["card_seconds"] = secs.get(sid, card_seconds)
 
     print("  Assembling audio...")
     audio = assemble_audio(project_name)
@@ -1799,8 +1874,11 @@ def assemble(
     # Windows covered by a section card, so the subtitle builder can suppress any
     # karaoke cue that would otherwise render over a card. Each window is
     # [scene start_time, start_time + card_frames/FPS] using the SAME frame math
-    # render_section_intro_clip uses, so the window's right edge lands exactly on
-    # the card→footage seam. None when cards are off (subtitles unchanged).
+    # render_section_intro_clip uses (the PER-CARD card_seconds, capped at the
+    # scene), so the window's right edge lands on the card→footage seam. Because
+    # the card now holds through its whole narrated line, this suppresses that
+    # line's subtitle entirely (the card carries it) while the NEXT scene's
+    # narration — a new clip — keeps its subtitle. None when cards are off.
     blank_windows = None
     if cards:
         windows_by_id = {s["id"]: s for s in load_scene_windows(project_name)}
@@ -1808,7 +1886,8 @@ def assemble(
         for sid in cards:
             s = windows_by_id[sid]
             scene_frames = _scene_frame_count(s)
-            card_frames = min(round(card_seconds * FPS), scene_frames)
+            cs = cards[sid].get("card_seconds", card_seconds)
+            card_frames = min(round(cs * FPS), scene_frames)
             start = s["start_time"]
             blank_windows.append((start, round(start + card_frames / FPS, 3)))
 

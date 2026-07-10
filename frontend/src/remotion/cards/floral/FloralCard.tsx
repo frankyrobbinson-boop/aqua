@@ -74,6 +74,81 @@ function BotanicalLayer({ layer }: { layer: FloralLayer }) {
   );
 }
 
+// --- Auto-fit sizing -------------------------------------------------------
+// The card text must never spill outside the card: a long title (or a long
+// section subject) shrinks until it fits the available box. We size
+// ANALYTICALLY rather than measuring the DOM — the headless Remotion render has
+// no reliable post-font-load measure pass (and @remotion/layout-utils isn't a
+// dependency), so an estimate keyed off the font's average glyph advance is the
+// deterministic, font-load-independent choice. GLYPH_ADVANCE is calibrated to
+// Questrial (~0.55em average advance, verified against a rendered title);
+// SPACE_ADVANCE is a space's narrower advance; LINE_BOX_OVERHEAD pads each block
+// for the ascenders/descenders that sit outside the nominal line box at these
+// tight line-heights. The estimate is deliberately a touch conservative, so it
+// errs toward shrinking (never toward overflow).
+const GLYPH_ADVANCE = 0.55;
+const SPACE_ADVANCE = 0.28;
+const LINE_BOX_OVERHEAD = 0.12;
+
+/** Estimate how many lines `text` wraps into at `fontSize` within `maxWidth`,
+ *  greedily fitting whole words (matching how the browser wraps; `textWrap:
+ *  balance` only evens the lines, it doesn't change the count). */
+function estimateLineCount(
+  text: string,
+  fontSize: number,
+  maxWidth: number,
+): number {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 1;
+  const space = fontSize * SPACE_ADVANCE;
+  let lines = 1;
+  let lineWidth = 0;
+  for (const word of words) {
+    const wordWidth = word.length * fontSize * GLYPH_ADVANCE;
+    if (lineWidth === 0) {
+      lineWidth = wordWidth;
+    } else if (lineWidth + space + wordWidth <= maxWidth) {
+      lineWidth += space + wordWidth;
+    } else {
+      lines += 1;
+      lineWidth = wordWidth;
+    }
+  }
+  return lines;
+}
+
+/** Largest integer font size in `[minFontSize, maxFontSize]` at which `text`
+ *  fits within `maxWidth` × `maxHeight` (given `lineHeight`), estimated
+ *  analytically. Short text stays at `maxFontSize`; long text shrinks to stay in
+ *  bounds (wrapping across a few lines). Also guards the widest single word so a
+ *  long word never overruns the width. Falls back to `minFontSize`. */
+function fitFontSize(
+  text: string,
+  {
+    maxFontSize,
+    minFontSize,
+    maxWidth,
+    maxHeight,
+    lineHeight,
+  }: {
+    maxFontSize: number;
+    minFontSize: number;
+    maxWidth: number;
+    maxHeight: number;
+    lineHeight: number;
+  },
+): number {
+  const words = text.split(/\s+/).filter(Boolean);
+  const longestWord = words.reduce((m, w) => Math.max(m, w.length), 0);
+  for (let size = maxFontSize; size > minFontSize; size -= 2) {
+    const lines = estimateLineCount(text, size, maxWidth);
+    const height = lines * size * (lineHeight + LINE_BOX_OVERHEAD);
+    const widestWord = longestWord * size * GLYPH_ADVANCE;
+    if (height <= maxHeight && widestWord <= maxWidth) return size;
+  }
+  return minFontSize;
+}
+
 export const FloralCard = (props: CardProps) => {
   const { palette } = props;
   const font = resolveFontFamily(props.fontFamily);
@@ -102,16 +177,34 @@ export const FloralCard = (props: CardProps) => {
   const subjectOpacity = useFadeIn(0.3, 0.6);
   const bodyOpacity = useFadeIn(0.5, 0.7);
 
-  // Single-line hero size (title/hook cards): cap by length and let the browser
-  // BALANCE the wrap so a long promise splits into even lines. Title (center)
-  // cards keep the big hero size.
+  // Single-line hero size (left/right title/hook cards): cap by length and let
+  // the browser BALANCE the wrap so a long promise splits into even lines.
   const contentFontSize =
     props.title.trim().length > 26 ? 74 : props.title.trim().length > 16 ? 88 : 104;
-  // Two-tier subject size (the item name) — its own length cap so a long name
-  // wraps in the column; the label sits a tier LARGER above it. Both tiers are
-  // sized up hard (label 160, subject 88/108/128) so the header reads big.
+  // Centered hero title (the title card): start at the big hero size and AUTO-FIT
+  // DOWN so a long title wraps within the card instead of running off the bottom.
+  // The center layout pads 320px each side (≈1240px usable width); the title owns
+  // the full height when there's no body, less when a subtitle is present.
+  const centerTitleFontSize = fitFontSize(props.title, {
+    maxFontSize: 180,
+    minFontSize: 56,
+    maxWidth: 1240,
+    maxHeight: props.subtitle ? 540 : 880,
+    lineHeight: 1.0,
+  });
+  // Two-tier subject size (the item name): the length cap is the STARTING size
+  // (the label sits a tier LARGER above it), then AUTO-FIT down so an unusually
+  // long name still fits its column instead of overflowing. Existing names fit at
+  // their tier, so this leaves them unchanged.
   const subjectLen = props.title.trim().length;
-  const subjectFontSize = subjectLen > 26 ? 88 : subjectLen > 16 ? 108 : 128;
+  const subjectMaxFontSize = subjectLen > 26 ? 88 : subjectLen > 16 ? 108 : 128;
+  const subjectFontSize = fitFontSize(props.title, {
+    maxFontSize: subjectMaxFontSize,
+    minFontSize: 48,
+    maxWidth: 760,
+    maxHeight: 520,
+    lineHeight: 1.05,
+  });
   const LABEL_FONT_SIZE = 160;
 
   return (
@@ -148,7 +241,7 @@ export const FloralCard = (props: CardProps) => {
               fontSize: isTwoTier
                 ? LABEL_FONT_SIZE
                 : isCenter
-                  ? 180
+                  ? centerTitleFontSize
                   : contentFontSize,
               lineHeight: isTwoTier ? 1.02 : isCenter ? 1.0 : 1.05,
               letterSpacing: "-0.01em",
