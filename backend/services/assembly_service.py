@@ -71,13 +71,40 @@ _CLIP_CACHE_VERSION = 10
 # produces a soft dip-through-black between scenes.
 FADE_DUR = 0.15
 
-# Crossfade width (in frames) applied at each section boundary when
-# section_transitions is on. 12 frames == 0.48s at 25 fps; the half-width (6,
-# even) is added to BOTH clips flanking a seam so the blend is frame-exact and
-# symmetric about the original cut while the blended pair still emits exactly
-# Fa+Fb frames (total video length — and therefore the audio + subtitle
-# timelines — stay unchanged). Distinct from FADE_DUR (per-clip dip-to-black).
-SECTION_XFADE_FRAMES = 12
+# Fade-to-black width (in frames) applied at each section-boundary seam when
+# section_transitions is on and the incoming scene's EDL lead_in is ``fade_black``
+# (the section starts + the conclusion, + a mid-hook title scene). 28 frames ==
+# 1.12s at 25 fps: a long-ish, GENTLE fade THROUGH black — the picture dips to
+# black at the ORIGINAL cut (the fade's centre, sitting in the section-boundary
+# silence) and the incoming section/title card then rises FROM black. Even, so the
+# half-width (14) added to BOTH clips flanking a seam is exact and the blended pair
+# still emits exactly Fa+Fb frames (total video length — and therefore the audio +
+# subtitle timelines — stay unchanged). This is the everyday section treatment,
+# not a hard slam. Distinct from FADE_DUR (per-clip dip-to-black) and from the
+# mid-tier ``blur_dissolve`` below.
+SECTION_FADEBLACK_FRAMES = 28
+
+# Mid-tier blur-dissolve (defocus dissolve) params. A ``blur_dissolve`` lead_in
+# (edl_service's within-segment visual-subject-shift classifier) marks a seam where
+# concat_clips_crossfade defocus-dissolves the two flanking clips in place of the
+# cut. BLUR_DISSOLVE_FRAMES == N: built on the SAME extend-and-overlap mechanic as
+# the section fade — each flanking clip is re-rendered +N frames of REAL footage and
+# the pair is blended over a CENTERED 2N-frame overlap on the original cut, so every
+# frame in the transition is a real footage frame at NORMAL SPEED (no setpts slowdown
+# / frame duplication — the earlier slowed-window build stuttered on stock-video
+# motion). The overlap is an EASED cross-dissolve PLUS a ramped Gaussian defocus (A
+# blurs 0->peak as it is covered, B peak->0 as it resolves), so the seam reads
+# sharp -> soft -> sharp. Because each pair still emits exactly Fa+Fb frames it is
+# duration-neutral, like the fade. ~10 frames (0.8s @25fps) reads a tier above a hard
+# cut but clearly below the 28-frame section fade. Everything runs on the pipeline's
+# OWN clips in ffmpeg — NOT a Chromium/Remotion round trip — so the transition shares
+# the surrounding footage's exact colour pipeline and single-generation quality and
+# leaves no colour/brightness seam at either edge of the overlap.
+BLUR_DISSOLVE_FRAMES = 10
+# Peak defocus blur at each layer's far end of the dissolve, as a gblur sigma in px
+# @1080p (== the CSS-blur radius the /remotion blurDissolve presentation uses, so
+# the look matches); roughly half this is visible at the mid-dissolve crossover.
+BLUR_DISSOLVE_MAX_BLUR = 36
 
 # Mac-only system fonts for the drawtext overlay. Portable font handling
 # (bundle a TTF, fallback to a fontconfig family) is a future-phase concern;
@@ -847,6 +874,61 @@ def _normalize_card_to_clip(raw_path: str, frames: int, out_path: str) -> str:
     return out_path
 
 
+# ---------------------------------------------------------------------------
+# Mid-tier blur-dissolve (pure-ffmpeg defocus dissolve on a within-segment seam)
+#
+# A ``blur_dissolve`` lead_in marks an ordinary within-segment cut where the
+# visual subject shifts (edl_service). At that seam concat_clips_crossfade
+# defocus-dissolves the two flanking CLIPS on the SAME extend-and-overlap mechanic
+# the section fade uses: each clip is re-rendered +N frames of REAL footage
+# (render_extended_clip) and the pair is blended over a CENTERED 2N-frame overlap on
+# the original cut — an EASED cross-dissolve plus a ramped Gaussian defocus, driven
+# per-frame by sendcmd (_blur_dissolve_sendcmd). Every frame in the transition is a
+# real footage frame at NORMAL SPEED (no slowdown / duplication), and the pair still
+# emits Fa+Fb frames, so the assembled length — and the audio + subtitle timelines —
+# stay unchanged (duration-neutral, exactly like the fade). Running on the pipeline's
+# own clips (rather than a Chromium/Remotion render of them, which decodes +
+# re-encodes through a different colour matrix and an extra generation) keeps it in
+# the SAME colour space and single generation as the surrounding footage, so neither
+# edge of the overlap shows a jump. The helpers below supply the shared easing and
+# the per-frame defocus-ramp sendcmd string.
+# ---------------------------------------------------------------------------
+
+def _blur_dissolve_inoutquint(t: float) -> float:
+    """The ``inOutQuint`` easing (the strongBezier-equivalent curve the /remotion
+    blurDissolve used): a long flat ramp-in, a steep middle, a flat settle. Drives
+    BOTH the defocus ramp and the opacity crossfade so the window's softest,
+    most-blended instant lands mid-dissolve."""
+    return 16 * t ** 5 if t < 0.5 else 1 - ((-2 * t + 2) ** 5) / 2
+
+
+def _blur_dissolve_sendcmd(to_peak: bool, start_frame: int, count: int) -> str:
+    """Per-frame ``gblur sigma`` commands that ramp a blur-dissolve's defocus across
+    its ``count``-frame overlap (count == 2N), formatted for a ``sendcmd`` filter
+    driving one side's gblur.
+
+    Each command fires at a frame's own timestamp on that side's timeline: clip A's
+    tail overlap begins at ``start_frame`` == Fa-N (its last 2N frames), clip B's head
+    overlap begins at ``start_frame`` == 0 (its first 2N frames). ``to_peak`` -> clip
+    A (sharp->soft as it is covered, sigma 0->peak); else clip B (soft->sharp as it
+    resolves, peak->0). Both ramp on the SAME inOutQuint easing as the opacity
+    cross-dissolve so the softest, most-blended instant lands mid-overlap; the peak is
+    BLUR_DISSOLVE_MAX_BLUR (reached at each side's far end, ~half visible at the
+    crossover — the approved blurDissolve look). gblur sigma must be > 0, so a "sharp"
+    frame floors at a no-op 0.01 — the same value gblur holds OUTSIDE the overlap, so
+    the frames flanking the overlap stay sharp and neither edge shows a blur on/off
+    seam."""
+    peak = float(BLUR_DISSOLVE_MAX_BLUR)
+    denom = max(1, count - 1)
+    cmds = []
+    for j in range(count):
+        e = _blur_dissolve_inoutquint(j / denom)
+        sigma = peak * e if to_peak else peak * (1 - e)
+        t = (start_frame + j) / FPS
+        cmds.append(f"{t:.4f} gblur sigma {max(0.01, sigma):.4f}")
+    return ";".join(cmds)
+
+
 def _concat_segments_copy(
     segs: list[str], output_path: str, base: str, *, reencode: bool = False,
 ) -> str:
@@ -1222,20 +1304,26 @@ def concat_clips(project_name: str, clip_paths: list[str]) -> str:
 
 def _lead_in_seams(windows: list[dict], edl_by_id: dict[int, dict]) -> list[int]:
     """Left indices ``i`` where the NEXT scene (``windows[i+1]``) enters via a
-    crossfade — its EDL ``lead_in.type`` is not ``"cut"``. A crossfade INTO the
-    scene at list position ``i+1`` becomes a seam between clips ``i`` and ``i+1``,
-    so the two flanking clips are extended and blended. Scene 0 has no preceding
-    clip, so its lead_in (always a cut for the hook) can never open a seam.
+    NON-CUT lead_in — its EDL ``lead_in.type`` is not ``"cut"`` (a ``fade_black``
+    section boundary OR a mid-tier ``blur_dissolve``). A non-cut lead_in INTO the
+    scene at list position ``i+1`` becomes a seam between clips ``i`` and ``i+1``;
+    the caller then treats each seam per its lead_in type (a fade_black extends +
+    xfades the two flanking clips THROUGH black; a blur_dissolve extends +
+    defocus-dissolves them over a centered overlap). Scene 0 has no preceding clip, so its lead_in (a cut for the
+    hook's first scene) can never open a seam.
 
-    The EDL derives a crossfade lead_in at every section_start + the conclusion
+    The EDL derives a ``fade_black`` lead_in at every section_start + the conclusion
+    and a ``blur_dissolve`` at qualifying within-segment subject shifts
     (edl_service), so this reproduces the section-boundary seam set the previous
     hardcoded segment_id-change scan produced — now sourced from the EDL so the
     edit decisions live in one place (the EDL), configurable per scene.
 
     Raises NotImplementedError if two seams are adjacent (consecutive left
-    indices differ by 1), i.e. a section is a single scene: that clip would have
-    to be extended for two crossfades at once, which this step does not support
-    (the <2-scene-section / card-handoff case is a later step)."""
+    indices differ by 1): that shared clip would have to feed two transitions at
+    once, which this step does not support. The EDL's classifier guarantees no two
+    non-cut seams are adjacent (a section is never a single scene here, and the
+    blur-dissolve classifier never places a dissolve next to another non-cut seam),
+    so this never fires — it stays a loud guard against a future regression."""
     seams = [
         idx - 1
         for idx in range(1, len(windows))
@@ -1278,23 +1366,37 @@ def concat_clips_crossfade(
     card_seconds: float = SECTION_CARD_SECONDS,
     card_comp: str = SECTION_CARD_COMP,
 ) -> str:
-    """Join scene clips, blending a short crossfade INTO each scene the EDL marks
-    with a crossfade ``lead_in`` (the section starts + the conclusion —
-    _lead_in_seams). At each seam the two flanking clips are re-rendered
-    +SECTION_XFADE_FRAMES//2 frames and joined with an ``xfade`` centered on the
-    ORIGINAL cut; every other clip passes through untouched. Because each blended
-    pair still emits exactly Fa+Fb frames, the assembled length — and therefore
-    the audio + subtitle timelines — are unchanged.
+    """Join scene clips, blending a short fade-to-black INTO each scene the EDL
+    marks with a ``fade_black`` ``lead_in`` (the section starts + the conclusion,
+    + a mid-hook title scene — _lead_in_seams). At each seam the two flanking clips
+    are re-rendered +SECTION_FADEBLACK_FRAMES//2 frames and joined with an
+    ``xfade=transition=fadeblack`` centered on the ORIGINAL cut (the picture dips
+    THROUGH black at the cut); every other clip passes through untouched. Because
+    each blended pair still emits exactly Fa+Fb frames, the assembled length — and
+    therefore the audio + subtitle timelines — are unchanged.
 
     ``section_cards`` (optional; ``{scene_id: {"index","title","comp","props"}}``
     from _cards_from_edl): a flanking clip that is one of these section-intro CARD
     scenes is re-rendered CARD-FRONTED (render_section_intro_clip ->
     scene_{id}.card.xfade.mp4) rather than plain, so the previous section's footage
-    dissolves INTO the header card — cards and crossfades COEXIST. The +half frames
+    fades to black and the header card rises FROM black — cards and fades COEXIST.
+    The +half frames
     lengthen only that clip's footage segment (card_frames stays the card's own
     budget, so the blend lands wholly on the card and the card is otherwise
     untouched), so the pair still emits Fa+Fb frames. A plain flanking clip goes
     to scene_{id}.xfade.mp4 as before. ``None`` renders every seam plain.
+
+    A scene the EDL marks with a ``blur_dissolve`` lead_in (a mid-tier
+    within-segment subject shift) uses the SAME extend-and-overlap mechanic as the
+    fade, minus the dip-to-black: both flanking clips are re-rendered
+    +BLUR_DISSOLVE_FRAMES (N) frames of REAL footage and blended over a CENTERED
+    2N-frame overlap on the original cut — an EASED cross-dissolve plus a ramped
+    Gaussian defocus (A blurs 0->peak as it is covered, B peak->0 as it resolves), so
+    the seam reads sharp -> soft -> sharp on real footage at NORMAL SPEED (no slowdown
+    / duplicated frames). Each pair still totals Fa+Fb, so this is duration-neutral
+    exactly like the fade. A blur-dissolve seam never lands on a section-card clip
+    (those are section starts, whose fade lead_in would make the seam adjacent —
+    the classifier excludes that), so its flanking clips are always plain.
 
     Unlike concat_clips (concat demuxer, stream copy) this re-encodes: the xfade
     filter can't run on the demuxer, so every input is normalized via the shared
@@ -1329,19 +1431,35 @@ def concat_clips_crossfade(
     cards = section_cards or {}
 
     clips_dir = str(PROJECTS_ROOT / project_name / "clips")
-    half = SECTION_XFADE_FRAMES // 2
+    half = SECTION_FADEBLACK_FRAMES // 2
 
-    # Render the two extended clips flanking each seam, override those two input
+    # Split the non-cut seams by their incoming lead_in.type: a ``fade_black``
+    # (section boundary) extends both flanking clips and xfades them THROUGH black; a
+    # ``blur_dissolve`` (mid-tier within-segment subject shift) extends both flanking
+    # clips and defocus-dissolves them over a centered overlap. The classifier
+    # guarantees no two non-cut seams are adjacent (enforced by _lead_in_seams), so no
+    # clip ever flanks two seams — the two extend mechanics never contend for the same
+    # clip.
+    def _incoming_type(i: int) -> str:
+        return (
+            (edl_by_id.get(windows[i + 1]["id"], {}).get("lead_in") or {})
+            .get("type", "cut")
+        )
+    fade_seams = [i for i in seams if _incoming_type(i) == "fade_black"]
+    blur_seams = [i for i in seams if _incoming_type(i) == "blur_dissolve"]
+
+    # Render the two extended clips flanking each FADE seam, override those two input
     # slots with the extended paths, and record the xfade offset: the blend
     # starts at (Fa - half)/FPS into clip A (A's original frame count is Fa) so
-    # its centre lands on the original cut at frame Fa. A flanking clip that is a
-    # section-intro CARD scene is re-rendered CARD-FRONTED (render_section_intro_-
-    # clip -> .card.xfade.mp4) so the previous footage dissolves INTO the card;
-    # the +half lengthens only its footage segment (card_frames stays the card's
-    # budget, so the whole blend lands on the card), and it still totals Fb+half.
+    # its centre — the full-black instant — lands on the original cut at frame Fa.
+    # A flanking clip that is a section-intro CARD scene is re-rendered CARD-FRONTED
+    # (render_section_intro_clip -> .card.xfade.mp4) so the previous footage fades
+    # to black and the card rises FROM black; the +half lengthens only its footage
+    # segment (card_frames stays the card's budget, so the whole blend lands on the
+    # card), and it still totals Fb+half.
     input_paths = list(clip_paths)
     seam_offsets: dict[int, float] = {}
-    for i in seams:
+    for i in fade_seams:
         for j in (i, i + 1):
             scene = windows[j]
             sid = scene["id"]
@@ -1398,23 +1516,117 @@ def concat_clips_crossfade(
         fa = _scene_frame_count(windows[i])
         seam_offsets[i] = (fa - half) / FPS
 
+    # Render the two extended clips flanking each BLUR seam, mirroring the fade seam:
+    # each is re-rendered +BLUR_DISSOLVE_FRAMES frames of REAL footage
+    # (render_extended_clip) and its input slot is overridden with the extended path,
+    # so the graph below can defocus-dissolve the pair over a centered 2N-frame
+    # overlap at NORMAL SPEED and still emit exactly Fa+Fb frames — no slowdown, no
+    # duplicated frames. A flanking clip too short to spare N frames each side is
+    # skipped safely (that seam falls back to a hard cut, still Fa+Fb frames), so the
+    # duration guard always holds. A blur seam never lands on a section-card clip (the
+    # classifier keeps it non-adjacent to a fade), so its flanking clips are always
+    # plain.
+    n_blur = BLUR_DISSOLVE_FRAMES
+    for i in list(blur_seams):
+        fa = _scene_frame_count(windows[i])
+        fb = _scene_frame_count(windows[i + 1])
+        if fa <= n_blur or fb <= n_blur:
+            print(
+                f"  Blur-dissolve seam at clips {i}/{i + 1} skipped: a flanking "
+                f"clip is <= {n_blur} frames (needs > {n_blur} to defocus-dissolve); "
+                f"using a hard cut."
+            )
+            blur_seams.remove(i)
+            continue
+        print(
+            f"  Rendering blur-dissolve seam: clips {i}->{i + 1} "
+            f"(scenes {windows[i]['id']}->{windows[i + 1]['id']})..."
+        )
+        for j in (i, i + 1):
+            scene = windows[j]
+            sid = scene["id"]
+            src = footage_paths.get(sid)
+            if not src or not os.path.exists(src):
+                raise FileNotFoundError(f"No footage for scene {sid}")
+            entry = edl_by_id.get(sid, {})
+            out = os.path.join(clips_dir, f"scene_{sid:03d}.blur.mp4")
+            render_extended_clip(
+                scene, src, out,
+                extra_frames=n_blur,
+                transition=entry.get("transition", transition),
+                ken_burns=entry.get("ken_burns", ken_burns),
+                overlays=entry.get("overlays", []),
+                edit_style=edit_style,
+            )
+            input_paths[j] = out
+
     # Build the concat FILTER graph: normalize every input (the EXISTING shared
-    # chain), xfade each seam pair, concat the resulting streams. n_concat =
-    # n_inputs - len(seams) because each seam merges two inputs into one stream.
+    # chain), then per seam either xfade the pair (fade) or defocus-dissolve the pair
+    # (blur); concat the resulting streams.
     norm = _normalize_video_chain()
     n = len(input_paths)
     lines = [f"[{k}:v]{norm}[n{k}]" for k in range(n)]
-    xfade_dur = SECTION_XFADE_FRAMES / FPS
-    seam_set = set(seams)
+
+    input_args: list[str] = []
+    for p in input_paths:
+        input_args += ["-i", os.path.abspath(p)]
+
+    xfade_dur = SECTION_FADEBLACK_FRAMES / FPS
+    fade_set = set(fade_seams)
+    blur_set = set(blur_seams)
+
+    # Blur-dissolve overlap params (mirrors the fade seam, minus the dip-to-black): a
+    # CENTERED 2N-frame EASED cross-dissolve over the two extended flanking clips plus
+    # a per-side ramped defocus. The eased opacity is the same inOutQuint curve the
+    # /remotion blurDissolve used; xfade ``custom`` P runs 1->0, so ease (1-P) into a
+    # 0->1 progress PE and blend A*(1-PE)+B*PE per plane — the SAME curve the defocus
+    # ramp (_blur_dissolve_sendcmd) uses, so the softest, most-blended instant is
+    # centered on the original cut.
+    blur_overlap = 2 * n_blur
+    blur_xfade_dur = blur_overlap / FPS
+    blur_expr = (
+        "st(1, 1-P); "
+        "st(0, if(lt(ld(1),0.5), 16*pow(ld(1),5), 1-pow(-2*ld(1)+2,5)/2)); "
+        "A*(1-ld(0))+B*ld(0)"
+    )
+
     concat_labels: list[str] = []
     k = 0
+    # Branch on the seam type: a ``fade_black`` pair blends via
+    # ``xfade=transition=fadeblack`` (the picture dips THROUGH black at the cut); a
+    # ``blur_dissolve`` pair defocus-dissolves over a centered 2N overlap (each side
+    # ramped-blurred on its own timeline, then eased-crossfaded); every ``cut`` clip
+    # passes through untouched.
     while k < n:
-        if k in seam_set:
+        if k in fade_set:
             lines.append(
-                f"[n{k}][n{k + 1}]xfade=transition=fade:"
+                f"[n{k}][n{k + 1}]xfade=transition=fadeblack:"
                 f"duration={xfade_dur:.3f}:offset={seam_offsets[k]:.3f}[x{k}]"
             )
             concat_labels.append(f"[x{k}]")
+            k += 2
+        elif k in blur_set:
+            # A's overlap is its last 2N frames [Fa-N, Fa+N); B's is its first 2N
+            # frames [0, 2N). The eased-xfade offset (Fa-N)/FPS centers the 2N overlap
+            # on the original cut at frame Fa, so the pair still emits Fa+Fb frames.
+            fa = _scene_frame_count(windows[k])
+            a_start = fa - n_blur
+            lines.append(
+                f"[n{k}]sendcmd=c='"
+                f"{_blur_dissolve_sendcmd(True, a_start, blur_overlap)}',"
+                f"gblur=sigma=0.01:steps=3[ba{k}]"
+            )
+            lines.append(
+                f"[n{k + 1}]sendcmd=c='"
+                f"{_blur_dissolve_sendcmd(False, 0, blur_overlap)}',"
+                f"gblur=sigma=0.01:steps=3[bb{k}]"
+            )
+            lines.append(
+                f"[ba{k}][bb{k}]xfade=transition=custom:"
+                f"duration={blur_xfade_dur:.4f}:offset={a_start / FPS:.4f}:"
+                f"expr='{blur_expr}'[xb{k}]"
+            )
+            concat_labels.append(f"[xb{k}]")
             k += 2
         else:
             concat_labels.append(f"[n{k}]")
@@ -1424,10 +1636,6 @@ def concat_clips_crossfade(
         ";".join(lines) + ";"
         + "".join(concat_labels) + f"concat=n={n_concat}:v=1:a=0[outv]"
     )
-
-    input_args: list[str] = []
-    for p in input_paths:
-        input_args += ["-i", os.path.abspath(p)]
 
     video_dir = str(PROJECTS_ROOT / project_name / "video")
     os.makedirs(video_dir, exist_ok=True)
@@ -1540,14 +1748,16 @@ def assemble(
     the channel default). output_name: filename inside video/, so a card render
     can write beside an untouched final.mp4.
 
-    section_transitions: when True, blend a short crossfade INTO every scene the
-    EDL marks with a crossfade ``lead_in`` (the section starts + the conclusion)
-    via concat_clips_crossfade instead of a hard cut. Duration-neutral (each
-    blended pair still emits Fa+Fb frames), so the audio + subtitle timelines are
-    unchanged. Cards and crossfades COEXIST: a section start is BOTH a card-fronted
-    clip AND the incoming side of a crossfade, so the previous section's footage
-    dissolves INTO the header card. False forces crossfades off (plain hard-cut
-    concat)."""
+    section_transitions: when True, route the concat through
+    concat_clips_crossfade, which blends a short fade-to-black INTO every scene the
+    EDL marks with a ``fade_black`` ``lead_in`` (the section starts + the
+    conclusion) AND defocus-dissolves a mid-tier ``blur_dissolve`` at every
+    within-segment scene the EDL marks with a ``blur_dissolve`` ``lead_in`` — both
+    instead of a hard cut. Both are duration-neutral (each still emits Fa+Fb
+    frames), so the audio + subtitle timelines are unchanged. Cards and fades
+    COEXIST: a section start is BOTH a card-fronted clip AND the incoming side of a
+    fade-to-black, so the previous section's footage fades to black and the header
+    card rises FROM black. False forces every seam off (plain hard-cut concat)."""
     if transition not in ("cut", "fade"):
         raise ValueError(f"transition must be 'cut' or 'fade', got {transition!r}")
 
@@ -1572,11 +1782,11 @@ def assemble(
 
     print("  Concatenating clips...")
     if section_transitions:
-        # Cards and crossfades coexist: the clips list already carries the
-        # card-fronted section-intro clips (render_all_scene_clips), and
-        # concat_clips_crossfade blends INTO them at each crossfade lead_in — a
-        # section start gets BOTH a card AND a dissolve into it. With no crossfade
-        # lead_ins this internally falls back to a plain concat.
+        # Cards and fades coexist: the clips list already carries the card-fronted
+        # section-intro clips (render_all_scene_clips), and concat_clips_crossfade
+        # fades INTO them at each fade_black lead_in — a section start gets BOTH a
+        # card AND a fade-to-black rising into it. With no fade_black lead_ins this
+        # internally falls back to a plain concat.
         silent = concat_clips_crossfade(
             project_name, clips, footage_paths,
             transition=transition, ken_burns=ken_burns,

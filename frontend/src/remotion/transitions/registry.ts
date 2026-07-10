@@ -32,7 +32,7 @@ import { slide, type SlideDirection } from "@remotion/transitions/slide";
 import { wipe, type WipeDirection } from "@remotion/transitions/wipe";
 import { zoomBlur } from "@remotion/transitions/zoom-blur";
 
-import { flowerSwipe } from "./presentations";
+import { blurDissolve, fadeToBlack, flowerSwipe } from "./presentations";
 
 /** Timing curve applied to any transition. */
 export type TransitionTimingId = "linear" | "spring";
@@ -53,7 +53,8 @@ export type TransitionNumericKey =
   | "intensity"
   | "amplitude"
   | "speed"
-  | "scale";
+  | "scale"
+  | "maxBlur";
 
 /** Full knob set carried by the designer + persisted with a saved design. Each
  *  transition reads the subset it cares about; unused knobs ride along so
@@ -82,6 +83,8 @@ export type TransitionParams = {
   speed: number;
   /** dreamyZoom: zoom scale. */
   scale: number;
+  /** blurDissolve: peak defocus blur (px @1080p) at the far end of the dissolve. */
+  maxBlur: number;
 };
 
 export type TransitionBuildArgs = {
@@ -141,6 +144,8 @@ const BASE_PARAMS: TransitionParams = {
   amplitude: 100,
   speed: 50,
   scale: 1.2,
+  // blurDissolve: peak defocus blur (px) — seam softness is ~half this.
+  maxBlur: 36,
 };
 
 // Direction option lists offered by the designer's <Select>, per transition.
@@ -189,6 +194,36 @@ export const TRANSITIONS: readonly TransitionDefinition[] = [
     defaultParams: { ...BASE_PARAMS },
     build: ({ params }) => ({
       presentation: widen(fade()),
+      timing: buildTiming(params),
+    }),
+  },
+  {
+    id: "fadeToBlack",
+    label: "Fade to black",
+    description: "Clip A dips to black, then clip B rises from black.",
+    tier: "A",
+    supportsDirection: false,
+    paramKeys: [],
+    defaultParams: { ...BASE_PARAMS },
+    build: ({ params }) => ({
+      presentation: widen(fadeToBlack()),
+      timing: buildTiming(params),
+    }),
+  },
+  {
+    id: "blurDissolve",
+    label: "Blur dissolve",
+    description:
+      "A soft defocus crossfade — clip A blurs out and clip B blurs in through the blend, resolving into a premium dissolve.",
+    tier: "A",
+    supportsDirection: false,
+    paramKeys: [],
+    numericParams: [
+      { key: "maxBlur", label: "Max blur", min: 0, max: 60, step: 2 },
+    ],
+    defaultParams: { ...BASE_PARAMS },
+    build: ({ params }) => ({
+      presentation: widen(blurDissolve({ maxBlur: params.maxBlur })),
       timing: buildTiming(params),
     }),
   },

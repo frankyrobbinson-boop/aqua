@@ -84,6 +84,8 @@ ALLOWED_TRANSITIONS = frozenset(
     {
         # Tier A — CSS/SVG presentations.
         "crossfade",
+        "fadeToBlack",
+        "blurDissolve",
         "slide",
         "wipe",
         "clockWipe",
@@ -151,6 +153,7 @@ _TRANSITION_INT_KNOBS: dict[str, tuple[int, int]] = {
     "angle": (-45, 45),
     "amplitude": (0, 300),
     "speed": (0, 150),
+    "maxBlur": (0, 60),
 }
 _TRANSITION_FLOAT_KNOBS: dict[str, tuple[float, float]] = {
     "rotation": (0.0, 1.2),

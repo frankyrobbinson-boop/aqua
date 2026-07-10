@@ -3,7 +3,7 @@
 Stored at ``<projects_root>/<name>/edl.json`` with schema::
 
     {
-      "version": 5,
+      "version": 6,
       "scenes": [
         {
           "id": 0,
@@ -11,10 +11,11 @@ Stored at ``<projects_root>/<name>/edl.json`` with schema::
                                        #   key_point | ordinary
           "transition": "cut",        # cut | fade (intra-clip dip to black)
           "ken_burns": false,
-          "lead_in": {                 # how this scene enters: a plain cut, or a
-            "type": "crossfade",        #   crossfade INTO a section_start /
-            "params": {"frames": 12}    #   conclusion (prior clip dissolves in)
-          },
+          "lead_in": {                 # how this scene enters: a plain "cut", a
+            "type": "fade_black",       #   "fade_black" THROUGH black INTO a
+            "params": {"frames": 28}    #   section_start / conclusion / title scene,
+          },                            #   or a "blur_dissolve" at a within-segment
+                                        #   visual-subject shift (mid-tier dissolve)
           "card": {                    # optional — a section-header OR mid-hook
             "role": "section_header",   #   title card ("section_header" | "title")
             "comp": "GardenFramed",    # Remotion comp (the default preset card_id)
@@ -80,6 +81,26 @@ header + the Garden badge prefix) instead of a bare number. Resolved from
 type doesn't set it — the card then falls back to the bare index, unchanged).
 The mid-hook ``title`` card is untouched (it carries only a title).
 
+V6 renames the section-boundary ``lead_in`` from a ``crossfade`` (an
+``xfade=transition=fade`` dissolve of the prior footage) to a ``fade_black`` — an
+``xfade=transition=fadeblack`` that fades the outgoing footage THROUGH black at
+the original cut (which sits in the ~0.6s section-boundary silence) and rises the
+incoming section-header (or title) card up FROM black. It is derived at every
+``section_start`` + the ``conclusion`` (exactly where the crossfade was) PLUS the
+mid-hook ``title`` scene WHEN a title card is emitted, so that card also rises
+from black. ``lead_in.type`` is ``cut | blur_dissolve | fade_black``. The mid-tier
+``blur_dissolve`` is emitted at ORDINARY WITHIN-SEGMENT seams where the two scenes'
+visual SUBJECT shifts (a deterministic head-noun comparison of their
+``visual_description``s, ``_classify_blur_dissolve_seams``), capped so it stays a
+tier above — intermixed with, not a replacement for — hard cuts (a min gap between
+dissolves + a per-segment cap) and never adjacent to another non-cut seam (so it
+never lands on a section boundary, the hook, or the conclusion). Assembly renders
+it as a short Remotion defocus-dissolve window spliced in place of the seam. Both
+the fade and the blur-dissolve are duration-neutral by construction (the fade's
+centre lands on the original cut with each flanking clip extended by half its
+width; the blur window is capped to EXACTLY 2N frames and replaces the last N of
+clip A + the first N of clip B), so the audio + subtitle timelines are unchanged.
+
 Generation is purely a function of upstream artifacts (scene_windows,
 scene_plan, outline, script_config, channel editing style) — running
 ``generate_default_edl`` twice on unchanged inputs yields identical output.
@@ -104,13 +125,37 @@ from services.graphics_registry import (
 )
 from services.paths import PROJECTS_ROOT
 
-EDL_SCHEMA_VERSION = 5
+EDL_SCHEMA_VERSION = 6
 
-# Default crossfade width (in frames) for a section-boundary ``lead_in`` — the
-# dissolve INTO each section_start / conclusion scene. A constant default for now;
-# a channel ``edit_defaults`` block will make the width (and type) configurable
-# per channel in a later step. Assembly (SECTION_XFADE_FRAMES) uses the same 12.
-DEFAULT_LEAD_IN_FRAMES = 12
+# Default fade-to-black width (in frames) recorded on a section-boundary
+# ``lead_in``'s ``params`` — the ``fade_black`` INTO each section_start /
+# conclusion (and the mid-hook title scene). A constant default for now; a channel
+# ``edit_defaults`` block will make the width (and type) configurable per channel
+# in a later step. Assembly owns the ACTUAL fade width (SECTION_FADEBLACK_FRAMES);
+# this mirrors it (28) so the EDL records the true width, not a stale hint.
+DEFAULT_LEAD_IN_FRAMES = 28
+
+# Mid-tier ``blur_dissolve`` defaults recorded on a ``blur_dissolve`` lead_in's
+# ``params``. Like DEFAULT_LEAD_IN_FRAMES mirrors the fade width, these MIRROR the
+# actual window params assembly owns (assembly_service BLUR_DISSOLVE_FRAMES /
+# BLUR_DISSOLVE_MAX_BLUR) so the EDL records the true values, not stale hints;
+# assembly stays authoritative for the render. ``frames`` is N (the window spans
+# 2N frames — the last N of clip A + the first N of clip B); ``max_blur`` is the
+# peak defocus (px @1080p).
+DEFAULT_BLUR_DISSOLVE_FRAMES = 10
+DEFAULT_BLUR_DISSOLVE_MAX_BLUR = 36
+
+# Mid-tier blur-dissolve classifier knobs — TUNE THESE to change how OFTEN a
+# blur-dissolve appears at ordinary within-segment cuts. A dissolve is emitted at a
+# within-segment seam only when the two scenes' visual subject shifts, and then
+# only subject to these caps so it stays "a tier above" — intermixed with, not a
+# replacement for — hard cuts:
+#   BLUR_DISSOLVE_MIN_GAP_SEAMS   — at least this many seams between consecutive
+#                                   blur-dissolves (also keeps them non-adjacent).
+#   BLUR_DISSOLVE_MAX_PER_SEGMENT — at most this many within any one body segment.
+# Raise the gap / lower the cap for rarer dissolves; do the reverse for more.
+BLUR_DISSOLVE_MIN_GAP_SEAMS = 3
+BLUR_DISSOLVE_MAX_PER_SEGMENT = 2
 
 
 def is_current_version(edl: dict | None) -> bool:
@@ -236,6 +281,106 @@ def _find_title_scene_id(scene_windows: list, title_spoken: str) -> int | None:
     return None
 
 
+# Leading modifiers skipped when reading a ``visual_description``'s SUBJECT (its
+# head noun): articles / prepositions + common colour / framing / size / season
+# words, so e.g. "red bee balm ..." reads subject "bee" and "scarlet penstemon ..."
+# reads "penstemon". Deterministic — tune this set to change subject detection.
+_VISUAL_SUBJECT_SKIP = frozenset({
+    "a", "an", "the", "of", "in", "on", "at", "to", "with", "and", "near", "by",
+    "red", "blue", "orange", "white", "green", "violet", "crimson", "scarlet",
+    "coral", "pink", "yellow", "purple", "deep", "pale", "dark", "light",
+    "tall", "single", "small", "big", "large", "long", "short", "full",
+    "dry", "empty", "fresh", "wilting", "spent", "faded",
+    "spring", "summer", "autumn", "fall", "winter", "late", "early",
+    "morning", "evening", "day",
+    "close", "closeup", "macro", "wide", "slow", "quick", "fast", "soft",
+})
+
+
+def _visual_subject(visual_description: str) -> str:
+    """The head-noun SUBJECT token of a scene's ``visual_description`` — its first
+    normalized token that isn't a leading modifier (``_VISUAL_SUBJECT_SKIP``).
+    Empty string when the description is empty or all modifiers."""
+    for tok in _norm_tokens(visual_description):
+        if tok not in _VISUAL_SUBJECT_SKIP:
+            return tok
+    return ""
+
+
+def _visual_subject_shifts(a: str, b: str) -> bool:
+    """True when two scenes' ``visual_description``s have DIFFERENT subjects (their
+    head nouns differ) — the deterministic mid-tier signal that the shot's subject
+    genuinely changed (e.g. a hummingbird shot -> a flower shot). A missing subject
+    on either side is treated as NO shift (conservative — no blur-dissolve)."""
+    sa, sb = _visual_subject(a), _visual_subject(b)
+    return bool(sa) and bool(sb) and sa != sb
+
+
+def _classify_blur_dissolve_seams(
+    scene_windows: list, fade_incoming_ids: set[int]
+) -> set[int]:
+    """Return the set of scene ids that should ENTER via a mid-tier
+    ``blur_dissolve`` lead_in.
+
+    A blur-dissolve is placed at an ORDINARY WITHIN-SEGMENT seam (both flanking
+    scenes share a body ``segment_id`` >= 0 — never a section boundary, the hook,
+    or the conclusion) when the two scenes' visual SUBJECT shifts
+    (``_visual_subject_shifts``), subject to three caps that keep it a tier above —
+    not a replacement for — hard cuts, and that preserve the assembly invariant
+    that no two non-cut seams are adjacent (``_lead_in_seams``):
+
+      * NO ADJACENCY — a candidate seam adjacent to an already-occupied seam (a
+        section-boundary ``fade_black`` OR an already-placed blur-dissolve) is
+        dropped (kept a hard cut), so no clip ever flanks two transitions.
+      * MIN GAP — at least ``BLUR_DISSOLVE_MIN_GAP_SEAMS`` seams between
+        consecutive blur-dissolves.
+      * PER-SEGMENT CAP — at most ``BLUR_DISSOLVE_MAX_PER_SEGMENT`` per body
+        segment.
+
+    Seams are considered left-to-right, so on a collision the EARLIER seam wins and
+    the later stays a hard cut. Deterministic: purely a function of scene order,
+    ``segment_id``, ``visual_description``, and the fade-incoming set."""
+    n = len(scene_windows)
+    # Seam left-index i sits between scenes at positions i and i+1. A ``fade_black``
+    # INTO the scene at position p occupies seam p-1 (matches _lead_in_seams).
+    occupied: set[int] = set()
+    for p, scene in enumerate(scene_windows):
+        if p >= 1 and scene["id"] in fade_incoming_ids:
+            occupied.add(p - 1)
+
+    blur_ids: set[int] = set()
+    per_segment: dict[int, int] = {}
+    last_emitted: int | None = None
+    for i in range(n - 1):
+        a = scene_windows[i]
+        b = scene_windows[i + 1]
+        seg = a.get("segment_id")
+        # Ordinary within-segment BODY seam only (same seg, seg >= 0). This
+        # excludes section boundaries (seg changes), the hook (-1), the conclusion
+        # (-2), AND a section_start's own scene (whose lead_in is fade_black).
+        if seg is None or seg < 0 or b.get("segment_id") != seg:
+            continue
+        if not _visual_subject_shifts(
+            a.get("visual_description", ""), b.get("visual_description", "")
+        ):
+            continue
+        # No adjacency to any occupied seam (a fade OR a prior blur-dissolve).
+        if i in occupied or (i - 1) in occupied or (i + 1) in occupied:
+            continue
+        if (
+            last_emitted is not None
+            and i - last_emitted < BLUR_DISSOLVE_MIN_GAP_SEAMS
+        ):
+            continue
+        if per_segment.get(seg, 0) >= BLUR_DISSOLVE_MAX_PER_SEGMENT:
+            continue
+        blur_ids.add(b["id"])
+        occupied.add(i)
+        last_emitted = i
+        per_segment[seg] = per_segment.get(seg, 0) + 1
+    return blur_ids
+
+
 def generate_default_edl(
     project_name: str,
     *,
@@ -248,8 +393,9 @@ def generate_default_edl(
     (so a render-triggered EDL respects the user's Render-tab choices);
     ``impact`` marks the scene's narrative weight (first scene of the hook /
     each body section / the conclusion); ``lead_in`` is derived per ``impact`` —
-    a ``crossfade`` (default DEFAULT_LEAD_IN_FRAMES wide) INTO each section_start
-    / conclusion, a ``cut`` everywhere else (the hook is scene 0 with no
+    a ``fade_black`` (default DEFAULT_LEAD_IN_FRAMES wide) THROUGH black INTO each
+    section_start / conclusion (and the mid-hook title scene when a title card is
+    emitted), a ``cut`` everywhere else (the hook's first scene is scene 0 with no
     preceding clip). The first scene of each body
     section additionally gets a section-header ``card`` — but ONLY when the
     channel has a section-header DEFAULT design (opt-in per channel); a card
@@ -346,6 +492,26 @@ def generate_default_edl(
                 f"(a mid-scene card would misalign with the narration)."
             )
 
+    # Mid-tier ``blur_dissolve`` seams — the ordinary within-segment cuts where the
+    # visual subject shifts (capped + never adjacent to a non-cut seam). Computed up
+    # front so the classifier can steer clear of section-boundary fades: first
+    # resolve which scenes ENTER via ``fade_black`` (each section start + the
+    # conclusion + the mid-hook title scene — the SAME set the per-scene loop below
+    # derives), then classify the blur seams against it. The hook's first scene
+    # (segment_id -1) hard-cuts, so it is NOT a fade-incoming scene.
+    fade_incoming_ids: set[int] = set()
+    _seen_seg: set[int] = set()
+    for scene in scene_windows:
+        seg_id = scene.get("segment_id")
+        first = seg_id is not None and seg_id not in _seen_seg
+        if seg_id is not None:
+            _seen_seg.add(seg_id)
+        if first and seg_id is not None and (seg_id >= 0 or seg_id == -2):
+            fade_incoming_ids.add(scene["id"])
+    if title_scene_id is not None:
+        fade_incoming_ids.add(title_scene_id)
+    blur_incoming_ids = _classify_blur_dissolve_seams(scene_windows, fade_incoming_ids)
+
     # item_noun — the singular noun of the listed subject (Flower / Perennial /
     # Mistake / …), a top-level field the script model fills. Stamped into each
     # section-header card's content so the card can render a
@@ -422,14 +588,32 @@ def generate_default_edl(
             impact = "ordinary"
 
         # lead_in — how this scene ENTERS from the previous one. A section start
-        # or the conclusion dissolves in via a crossfade (the previous section's
-        # footage blends INTO this scene, which at a section start is its header
-        # card); the hook (scene 0 — no preceding clip) and every ordinary scene
-        # hard-cut. Width is the constant default for now (channel edit_defaults
-        # makes it configurable later). ``transition`` (intra-clip dip) is separate
-        # and NOT overloaded by this.
-        if impact in ("section_start", "conclusion"):
-            lead_in = {"type": "crossfade", "params": {"frames": DEFAULT_LEAD_IN_FRAMES}}
+        # or the conclusion fades up THROUGH black (the previous section's footage
+        # fades to black at the cut, which sits in the section-boundary silence,
+        # then this scene — its header card at a section start — rises FROM black);
+        # the mid-hook ``title`` scene fades up the same way WHEN a title card is
+        # emitted (so the title card also rises from black). The hook's first scene
+        # (scene 0 — no preceding clip; a fade_black there would be inert under the
+        # seam mechanic) and every ordinary scene hard-cut. Width is the constant
+        # default for now (channel edit_defaults makes it configurable later).
+        # A mid-tier ``blur_dissolve`` instead enters an ordinary within-segment
+        # scene whose visual subject shifts (blur_incoming_ids — capped + never
+        # adjacent to a non-cut seam, so it never collides with a fade). Fade takes
+        # precedence, but the two sets are disjoint by construction (a blur seam is
+        # only ever an ordinary within-segment cut). ``transition`` (intra-clip dip)
+        # is separate and NOT overloaded by this.
+        if impact in ("section_start", "conclusion") or (
+            title_scene_id is not None and sid == title_scene_id
+        ):
+            lead_in = {"type": "fade_black", "params": {"frames": DEFAULT_LEAD_IN_FRAMES}}
+        elif sid in blur_incoming_ids:
+            lead_in = {
+                "type": "blur_dissolve",
+                "params": {
+                    "frames": DEFAULT_BLUR_DISSOLVE_FRAMES,
+                    "max_blur": DEFAULT_BLUR_DISSOLVE_MAX_BLUR,
+                },
+            }
         else:
             lead_in = {"type": "cut"}
 

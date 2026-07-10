@@ -13,6 +13,7 @@
     "@remotion/bundler": "^4.0.485",
     "@remotion/google-fonts": "^4.0.485",
     "@remotion/lottie": "^4.0.485",
+    "@remotion/motion-blur": "4.0.485",
     "@remotion/player": "^4.0.485",
     "@remotion/renderer": "^4.0.485",
     "@remotion/transitions": "4.0.485",

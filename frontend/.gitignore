@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# footage-transition rating clips: local source clips staged into public/ for
+# the headless renderer (it serves public/ over http, can't read file://).
+# Transient render inputs — never committed.
+/public/xtrans-src/
+
+# blur-dissolve pipeline: scene clips staged into public/ for the headless
+# FootageTransition window render (assembly_service). Transient — never committed.
+/public/blurdissolve-src/

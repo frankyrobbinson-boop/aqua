@@ -4,6 +4,13 @@ import { CARD_DEFAULTS, CARD_DEFAULT_OVERRIDES } from "./cards/defaults";
 import { CARDS } from "./cards/registry";
 import { DEFAULT_DURATION_IN_SECONDS, FPS, HEIGHT, WIDTH } from "./constants";
 import { LottiePreview } from "./LottiePreview";
+import {
+  DEFAULT_BLACK_HOLD_FRAMES,
+  DEFAULT_FADE_IN_FRAMES,
+  DEFAULT_FADE_OUT_FRAMES,
+  FootageTransition,
+  footageDurationInFrames,
+} from "./transitions/FootageTransition";
 import { TRANSITIONS } from "./transitions/registry";
 import {
   previewDurationInFrames,
@@ -83,6 +90,38 @@ export const RemotionRoot = () => {
             props.params,
             props.holdFrames,
           ),
+        })}
+      />
+
+      {/* Footage-to-footage transition stage: two REAL clips bridged by a chosen
+          studio transition with EASED timing (see FootageTransition). Not a card
+          and NOT in the backend's ALLOWED_COMPS — rendered headless via
+          scripts/render-remotion.mjs (--comp=FootageTransition) or the batch
+          driver scripts/render-footage-transitions.mjs to produce rating clips. */}
+      <Composition
+        id="FootageTransition"
+        component={FootageTransition}
+        durationInFrames={90}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+        defaultProps={{
+          type: "crossfade",
+          params: {},
+          clipA: "",
+          clipB: "",
+          trimA: 0,
+          trimB: 0,
+          holdFrames: 36,
+          easing: "strongBezier",
+          label: "",
+          motionBlur: false,
+          fadeOutFrames: DEFAULT_FADE_OUT_FRAMES,
+          blackHoldFrames: DEFAULT_BLACK_HOLD_FRAMES,
+          fadeInFrames: DEFAULT_FADE_IN_FRAMES,
+        }}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: footageDurationInFrames(props),
         })}
       />
     </>
