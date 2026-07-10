@@ -24,6 +24,8 @@ export type ProjectSummary = {
 
 export type ScriptDraft = {
   title: string;
+  title_spoken: string;
+  item_noun: string;
   hook: { narration: string };
   segments: Array<{
     title: string;
@@ -556,8 +558,9 @@ export async function getVisualPromptModels(): Promise<VisualPromptModelsRespons
 }
 
 export type RenderOptions = {
-  transition?: "cut" | "fade";
   ken_burns?: boolean;
+  render_section_cards?: boolean;
+  render_section_transitions?: boolean;
 };
 
 export async function startRender(
@@ -568,8 +571,9 @@ export async function startRender(
     method: "POST",
     body: JSON.stringify({
       project_slug: slug,
-      transition: opts?.transition ?? "cut",
       ken_burns: opts?.ken_burns ?? false,
+      render_section_cards: opts?.render_section_cards ?? true,
+      render_section_transitions: opts?.render_section_transitions ?? true,
     }),
   });
 }

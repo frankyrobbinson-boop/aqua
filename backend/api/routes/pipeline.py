@@ -39,8 +39,11 @@ class ProjectStageRequest(BaseModel):
 class RenderRequest(ProjectStageRequest):
     # Per-render options consumed by run_render.py via env vars. Not
     # persisted to project state — user picks at render time.
-    transition: Optional[str] = Field(default="cut", pattern=r"^(cut|fade)$")
     ken_burns: Optional[bool] = Field(default=False)
+    # Section cards + EDL-driven section transitions default ON. run_render.py
+    # reads each as a kill-switch: "0" = off, anything else / unset = EDL-driven.
+    render_section_cards: bool = True
+    render_section_transitions: bool = True
 
 
 class StageResponse(BaseModel):
@@ -122,8 +125,9 @@ async def start_visuals(req: ProjectStageRequest) -> StageResponse:
 async def start_render(req: RenderRequest) -> StageResponse:
     _check_project(req.project_slug)
     env = {
-        "RENDER_TRANSITION": req.transition or "cut",
         "RENDER_KEN_BURNS": "1" if req.ken_burns else "0",
+        "RENDER_SECTION_CARDS": "1" if req.render_section_cards else "0",
+        "RENDER_SECTION_TRANSITIONS": "1" if req.render_section_transitions else "0",
     }
     return _start_stage("run_render.py", req.project_slug, "render", env=env)
 

@@ -228,6 +228,35 @@ function ScriptEditor({
         </div>
       </div>
 
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <label className="flex flex-1 flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wider text-muted">
+            Item noun (card label)
+          </span>
+          <input
+            value={draft.item_noun ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, item_noun: e.target.value })
+            }
+            placeholder="e.g. Secret, Mistake, Flower"
+            className="w-full rounded-md border border-border bg-surface-2 p-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+        </label>
+        <label className="flex flex-1 flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wider text-muted">
+            Spoken title (mid-hook title card)
+          </span>
+          <input
+            value={draft.title_spoken ?? ""}
+            onChange={(e) =>
+              setDraft({ ...draft, title_spoken: e.target.value })
+            }
+            placeholder="Reworded promise the on-screen title card mirrors"
+            className="w-full rounded-md border border-border bg-surface-2 p-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+        </label>
+      </div>
+
       {error && (
         <div className="mb-4 rounded-md border border-danger/30 bg-danger/10 p-2 text-xs text-danger">
           {error}
@@ -559,7 +588,8 @@ function RenderTab({
 
   // Per-render options. Not persisted to project state — user picks at render
   // time. Defaults match the original behavior (hard cut, no Ken Burns).
-  const [transition, setTransition] = useState<"cut" | "fade">("cut");
+  const [sectionTransitions, setSectionTransitions] = useState(true);
+  const [sectionCards, setSectionCards] = useState(true);
   const [kenBurns, setKenBurns] = useState(false);
 
   return (
@@ -586,8 +616,10 @@ function RenderTab({
       )}
 
       <RenderConfigPanel
-        transition={transition}
-        setTransition={setTransition}
+        sectionTransitions={sectionTransitions}
+        setSectionTransitions={setSectionTransitions}
+        sectionCards={sectionCards}
+        setSectionCards={setSectionCards}
         kenBurns={kenBurns}
         setKenBurns={setKenBurns}
       />
@@ -611,7 +643,11 @@ function RenderTab({
           stage="render"
           slug={slug}
           disabled={!canRender}
-          renderOptions={{ transition, ken_burns: kenBurns }}
+          renderOptions={{
+            ken_burns: kenBurns,
+            render_section_cards: sectionCards,
+            render_section_transitions: sectionTransitions,
+          }}
         />
       </section>
     </div>
@@ -619,13 +655,17 @@ function RenderTab({
 }
 
 function RenderConfigPanel({
-  transition,
-  setTransition,
+  sectionTransitions,
+  setSectionTransitions,
+  sectionCards,
+  setSectionCards,
   kenBurns,
   setKenBurns,
 }: {
-  transition: "cut" | "fade";
-  setTransition: (t: "cut" | "fade") => void;
+  sectionTransitions: boolean;
+  setSectionTransitions: (b: boolean) => void;
+  sectionCards: boolean;
+  setSectionCards: (b: boolean) => void;
   kenBurns: boolean;
   setKenBurns: (b: boolean) => void;
 }) {
@@ -679,30 +719,19 @@ function RenderConfigPanel({
         checked={false}
         hint="Upload + ducking — coming"
       />
-      {/* Live (non-placeholder) controls. Remove the opacity-70 dimmer from
-          ConfigRow by wrapping in our own un-dimmed div. */}
-      <div>
-        <div className="mb-1.5 flex items-baseline justify-between gap-2">
-          <label
-            htmlFor="render-transition"
-            className="text-sm font-medium text-foreground"
-          >
-            Scene transition
-          </label>
-          <span className="text-xs text-muted">
-            Cut = hard cut · Fade = 0.15s dip through black
-          </span>
-        </div>
-        <select
-          id="render-transition"
-          className="config-select"
-          value={transition}
-          onChange={(e) => setTransition(e.target.value as "cut" | "fade")}
-        >
-          <option value="cut">Hard cut</option>
-          <option value="fade">Fade</option>
-        </select>
-      </div>
+      {/* Live (non-placeholder) controls — wired through to run_render.py. */}
+      <LiveToggle
+        label="Section transitions"
+        checked={sectionTransitions}
+        onChange={setSectionTransitions}
+        hint="Automatic by significance — hard cut, blur-dissolve on subject shifts, fade-to-black at section beats."
+      />
+      <LiveToggle
+        label="Section cards"
+        checked={sectionCards}
+        onChange={setSectionCards}
+        hint="Floral section headers + mid-hook title card."
+      />
       <LiveToggle
         label="Ken Burns"
         checked={kenBurns}
