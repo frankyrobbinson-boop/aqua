@@ -124,6 +124,7 @@ from services.graphics_registry import (
     resolve_title_card_default,
 )
 from services.paths import PROJECTS_ROOT
+from services.visual_subject import subject_from_description
 
 EDL_SCHEMA_VERSION = 6
 
@@ -281,30 +282,16 @@ def _find_title_scene_id(scene_windows: list, title_spoken: str) -> int | None:
     return None
 
 
-# Leading modifiers skipped when reading a ``visual_description``'s SUBJECT (its
-# head noun): articles / prepositions + common colour / framing / size / season
-# words, so e.g. "red bee balm ..." reads subject "bee" and "scarlet penstemon ..."
-# reads "penstemon". Deterministic — tune this set to change subject detection.
-_VISUAL_SUBJECT_SKIP = frozenset({
-    "a", "an", "the", "of", "in", "on", "at", "to", "with", "and", "near", "by",
-    "red", "blue", "orange", "white", "green", "violet", "crimson", "scarlet",
-    "coral", "pink", "yellow", "purple", "deep", "pale", "dark", "light",
-    "tall", "single", "small", "big", "large", "long", "short", "full",
-    "dry", "empty", "fresh", "wilting", "spent", "faded",
-    "spring", "summer", "autumn", "fall", "winter", "late", "early",
-    "morning", "evening", "day",
-    "close", "closeup", "macro", "wide", "slow", "quick", "fast", "soft",
-})
-
-
 def _visual_subject(visual_description: str) -> str:
     """The head-noun SUBJECT token of a scene's ``visual_description`` — its first
-    normalized token that isn't a leading modifier (``_VISUAL_SUBJECT_SKIP``).
-    Empty string when the description is empty or all modifiers."""
-    for tok in _norm_tokens(visual_description):
-        if tok not in _VISUAL_SUBJECT_SKIP:
-            return tok
-    return ""
+    normalized token that isn't a leading modifier. Empty string when the
+    description is empty or all modifiers.
+
+    Delegates to ``visual_subject.subject_from_description`` (the single source of
+    truth, shared with the footage-fetch layer's rerank + query derivation) so
+    the subject used to place blur-dissolve seams can never drift from the one
+    used to fetch footage."""
+    return subject_from_description(visual_description)
 
 
 def _visual_subject_shifts(a: str, b: str) -> bool:

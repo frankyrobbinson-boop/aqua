@@ -72,6 +72,28 @@ def write_cache(output_path: str | Path, payload: dict[str, Any]) -> None:
         json.dump(payload, f)
 
 
+class NoOnTopicFootage(Exception):
+    """Raised by a stock provider's ``fetch_for_scene`` when it can't find any
+    candidate that genuinely shows the scene's subject — the reranker rejected
+    every candidate across the pages it tried, or the search returned nothing
+    usable.
+
+    The orchestrator (``visual_service``) catches this to route the scene to an
+    AI-image fallback provider. It is NOT a scene failure: a successful fallback
+    yields an on-topic still and counts as success (so it never contributes to
+    run_visuals' failure-rate abort). Only a scene that ends with NO visual at
+    all is an error."""
+
+    def __init__(self, scene_id: int, subject: str = "", message: str = ""):
+        self.scene_id = scene_id
+        self.subject = subject
+        super().__init__(
+            message
+            or f"No on-topic stock footage for scene {scene_id} "
+            f"(subject={subject!r})"
+        )
+
+
 class VisualProvider(ABC):
     """One footage source (stock library, AI image model, AI video model).
 

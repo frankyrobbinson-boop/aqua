@@ -19,23 +19,32 @@ Public surface:
 
 from __future__ import annotations
 
+import threading
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+from services import cost_ledger
 from services.paths import PROJECTS_ROOT
 from services.visual_config_service import (
     resolve_scene_provider_id,
     resolve_visual_config,
 )
-from services.visual_provider import VisualProvider
-from services.visual_provider_registry import get_provider
+from services.visual_provider import NoOnTopicFootage, VisualProvider
+from services.visual_provider_registry import default_provider_for_mode, get_provider
 
 # Bounded concurrency for the orchestrator's worker pool. Same value as the
 # old per-Pexels-call pool; AI image providers self-rate-cap with their own
 # semaphores so this cap is mostly about Pexels HTTP politeness + log
 # readability.
 _MAX_WORKERS = 8
+
+# Provider/model used for AI-image FALLBACKS — scenes whose stock search had no
+# on-topic clip and get routed to the AI provider (an on-topic still). Retained
+# only to estimate fallback spend for the run log (~$0.039/image); exact spend
+# is recorded in cost_ledger.json.
+_AI_FALLBACK_PROVIDER = "gemini"
+_AI_FALLBACK_MODEL = "gemini-2.5-flash-image"
 
 
 # ---------------------------------------------------------------------------
@@ -128,10 +137,80 @@ def fetch_all_scene_footage(
     paths: dict[int, Path] = {}
     errors: dict[int, str] = {}
 
+    # AI-image fallback state. When a stock scene has no on-topic clip the
+    # provider raises NoOnTopicFootage; we route that scene to the AI-image
+    # provider (an on-topic still) with no ceiling. Only if no AI provider is
+    # available do we degrade to a best-effort stock clip. The shared ai_scenes
+    # list is mutated across the worker pool, so every append goes through
+    # ai_lock.
+    ai_lock = threading.Lock()
+    ai_scenes: list[int] = []
+    ai_provider_box: list[VisualProvider] = []
+    ai_provider_unavailable = False
+    unit_cost = cost_ledger.estimate_unit_cost(
+        _AI_FALLBACK_PROVIDER, _AI_FALLBACK_MODEL, 1
+    )
+
+    def _resolve_ai_provider() -> VisualProvider | None:
+        """Lazily resolve + cache the AI-image fallback provider. Returns None
+        (once, memoized) if no available provider handles ai_image, so callers
+        degrade to best-effort stock instead of erroring the whole run."""
+        nonlocal ai_provider_unavailable
+        with ai_lock:
+            if ai_provider_box:
+                return ai_provider_box[0]
+            if ai_provider_unavailable:
+                return None
+            try:
+                prov = get_provider(default_provider_for_mode("ai_image"))
+            except Exception as exc:
+                print(
+                    f"  WARNING: no AI-image fallback provider available "
+                    f"({exc!r}); off-topic scenes will use best-effort stock.",
+                    flush=True,
+                )
+                ai_provider_unavailable = True
+                return None
+            ai_provider_box.append(prov)
+            return prov
+
     def _one(scene: dict, provider: VisualProvider, pid: str) -> tuple[int, Path]:
         sid = scene["id"]
-        out = provider.fetch_for_scene(project_name, scene)
-        return sid, Path(out)
+        try:
+            out = provider.fetch_for_scene(project_name, scene)
+            return sid, Path(out)
+        except NoOnTopicFootage as exc:
+            # No on-topic stock clip. Route to the AI-image provider (an on-topic
+            # still) with no ceiling; only if no AI provider is available do we
+            # degrade to best-effort stock. A successful fallback returns a path
+            # (SUCCESS) and so never counts toward run_visuals' failure-rate
+            # abort.
+            ai_prov = _resolve_ai_provider()
+            if ai_prov is not None:
+                print(
+                    f"  [scene {sid}] no on-topic stock footage "
+                    f"(subject={exc.subject!r}); routing to AI-image fallback "
+                    f"({ai_prov.provider_id}, est ${unit_cost:.3f})",
+                    flush=True,
+                )
+                # A generation failure propagates as a scene error (the scene has
+                # no visual at all).
+                out = ai_prov.fetch_for_scene(project_name, scene)
+                with ai_lock:
+                    ai_scenes.append(sid)
+                return sid, Path(out)
+            # No AI provider available: degrade to a best-effort stock clip so
+            # the scene still gets a visual. Only stock providers raise
+            # NoOnTopicFootage, so ``provider`` here supports allow_ai_fallback.
+            print(
+                f"  [scene {sid}] no AI-image provider available; "
+                f"accepting best-effort stock clip",
+                flush=True,
+            )
+            out = provider.fetch_for_scene(  # type: ignore[call-arg]
+                project_name, scene, allow_ai_fallback=False
+            )
+            return sid, Path(out)
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
         futures = {
@@ -148,5 +227,16 @@ def fetch_all_scene_footage(
             except BaseException as exc:
                 errors[sid] = repr(exc)
                 print(f"  ERROR scene {sid}: {exc!r}", flush=True)
+
+    if ai_scenes:
+        ids = ", ".join(str(s) for s in sorted(ai_scenes))
+        est = cost_ledger.estimate_unit_cost(
+            _AI_FALLBACK_PROVIDER, _AI_FALLBACK_MODEL, len(ai_scenes)
+        )
+        print(
+            f"  AI-image fallback used for {len(ai_scenes)}/{len(scene_provider)} "
+            f"scene(s) [{ids}] (est ${est:.2f}); exact spend in cost_ledger.json",
+            flush=True,
+        )
 
     return paths, errors
