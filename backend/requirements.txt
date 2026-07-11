@@ -17,7 +17,9 @@ httpx==0.28.1
 idna==3.18
 jiter==0.15.0
 num2words==0.5.14
+numpy==2.5.1
 openai==2.41.0
+opencv-python-headless==5.0.0.93
 pillow==12.2.0
 pydantic==2.13.4
 pydantic_core==2.46.4

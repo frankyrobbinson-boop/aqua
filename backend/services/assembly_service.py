@@ -45,18 +45,29 @@ SECTION_CARD_COMP = "GardenBand"
 # inter-scene gap between the line and the next scene's narration.
 CARD_LINE_BEAT = 0.35
 
-# Ken Burns supersample quality knobs. Defaults preserve current "final-render
-# quality" behavior — every render gets the best output by default. Lower the
-# values during iteration to trade quality for render speed.
+# Ken Burns (subpixel warp) engine. Each PNG scene is resampled ONCE per output
+# frame with an OpenCV affine warp (cv2.warpAffine) at FRACTIONAL source
+# coordinates — genuine sub-pixel sampling with NO supersample canvas. The prior
+# chain (supersample → per-frame scale=eval=frame → INTEGER crop) snapped the
+# focal window to an integer grid every frame, so a slow zoom stuttered; warping
+# from the native source at float coords removes that grid entirely. The warp
+# math is ported (copied) from tools/kenburns_subpixel.py — services must not
+# import from tools — and cv2/numpy are imported LAZILY inside the KB path so
+# importing this module for non-KB / API use never needs them.
 #
-# SUPERSAMPLE: 4 (default) = current quality (eliminates sub-pixel jitter).
-#   Setting to 2 cuts spatial supersample work ~4x at the cost of some
-#   residual jitter on slow-zoom shots.
-# TEMPORAL_SUPERSAMPLE: 2 (default) = current motion-blur chain. Setting to 1
-#   skips the tblend/framestep pair entirely (~2x faster render, motion looks
-#   slightly steppier on fast pans).
-RENDER_KB_SUPERSAMPLE = int(os.environ.get("RENDER_KB_SUPERSAMPLE", "4"))
-RENDER_KB_TEMPORAL_SUPERSAMPLE = int(os.environ.get("RENDER_KB_TEMPORAL_SUPERSAMPLE", "2"))
+# KB_DEFAULT_MOTION = (z0, z1, cx0, cy0, cx1, cy1): a slow center zoom-in
+# 1.0→1.10 with the focal center held at 0.5,0.5. Every scene gets this default
+# today; call sites pass no motion, and per-scene variety is a later iteration.
+# KB_DEFAULT_EASING = "linear" (constant velocity, pe = p) reproduces the
+# approved centerzoom_new.mp4 reference exactly; "smoothstep" is also supported
+# by the easing helper.
+KB_DEFAULT_MOTION = (1.00, 1.10, 0.50, 0.50, 0.50, 0.50)
+KB_DEFAULT_EASING = "linear"
+
+# Subpixel-warp interpolation, env-overridable. "cubic" → cv2.INTER_CUBIC
+# (faster); anything else → cv2.INTER_LANCZOS4 (default, sharpest). Resolved to
+# the cv2 flag lazily inside the KB path so importing this module never needs cv2.
+RENDER_KB_INTERP = os.environ.get("RENDER_KB_INTERP", "lanczos4")
 
 # Bump when filter math changes in a way that should invalidate cached clips
 # (e.g., Ken Burns formula change, fade duration change). The boolean flags
@@ -73,7 +84,11 @@ RENDER_KB_TEMPORAL_SUPERSAMPLE = int(os.environ.get("RENDER_KB_TEMPORAL_SUPERSAM
 #     stay literal (guarded by the quotes). Replaces the arg-escaper that
 #     crashed on apostrophes. Re-renders any clip cached under v8.
 # v10: clips rendered to exact scene['frames'], not -t seconds; key gains frames
-_CLIP_CACHE_VERSION = 10
+# v11: Ken Burns engine swap — the supersample→scale=eval=frame→integer-crop
+#      chain is replaced by a per-frame subpixel cv2.warpAffine; the key gains a
+#      motion_sig (motion + easing + interp) so a KB motion/easing/interp change
+#      re-renders only the affected clips.
+_CLIP_CACHE_VERSION = 11
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -532,6 +547,23 @@ def _edit_style_signature(edit_style: dict | None) -> str:
     return json.dumps(edit_style or {}, sort_keys=True)
 
 
+def _motion_signature(
+    motion: tuple[float, float, float, float, float, float],
+    easing: str,
+    interp: str,
+) -> str:
+    """Stable signature of the Ken Burns warp params (focal move + easing +
+    interpolation) for the clip cache key, so changing a scene's motion, the
+    default easing, or RENDER_KB_INTERP re-renders only the affected KB clips.
+    Non-KB clips pass the module defaults and never warp, so the value is a
+    constant for them (harmless — the cache_version bump already invalidates
+    pre-swap clips once)."""
+    return json.dumps(
+        {"motion": list(motion), "easing": easing, "interp": interp},
+        sort_keys=True,
+    )
+
+
 def _scene_frame_count(scene: dict) -> int:
     """Exact number of frames this scene's clip must render to.
 
@@ -556,6 +588,7 @@ def _clip_cache_hit(
     ken_burns: bool,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
+    motion_sig: str = "",
 ) -> bool:
     """True iff a previously-rendered clip is still valid for these inputs.
 
@@ -584,8 +617,111 @@ def _clip_cache_hit(
         and cache.get("ken_burns") == ken_burns
         and cache.get("overlays_sig") == _overlays_signature(overlays)
         and cache.get("edit_style_sig") == _edit_style_signature(edit_style)
+        and cache.get("motion_sig") == motion_sig
         and cache.get("cache_version") == _CLIP_CACHE_VERSION
     )
+
+
+def _kb_smoothstep(p: float) -> float:
+    """Smoothstep easing (ported from tools/kenburns_subpixel.py)."""
+    return p * p * (3.0 - 2.0 * p)
+
+
+def _kb_pe(p: float, easing: str) -> float:
+    """Eased progress (ported). 'smoothstep' for restrained moves; 'linear'
+    (pe = p) for the constant-velocity center zoom that matches the approved
+    reference render."""
+    return _kb_smoothstep(p) if easing == "smoothstep" else p
+
+
+def _kb_warp_matrix(
+    src_w: int, src_h: int,
+    move: tuple[float, float, float, float, float, float], p: float, easing: str,
+):
+    """The 2x3 affine mapping the eased focal source window onto the full
+    OUT_W x OUT_H frame at progress p (ported from tools/kenburns_subpixel.py).
+    Scale s and offsets x0/y0 are floats, so warpAffine samples the source at
+    fractional coords — subpixel, no supersample."""
+    import numpy as np  # lazy: only the KB PNG path needs numpy
+
+    z0, z1, cx0, cy0, cx1, cy1 = move
+    pe = _kb_pe(p, easing)
+    Z = z0 * (z1 / z0) ** pe  # exponential zoom (constant perceptual rate)
+    cx = cx0 + (cx1 - cx0) * pe
+    cy = cy0 + (cy1 - cy0) * pe
+    base = max(OUT_W / src_w, OUT_H / src_h)  # fill 16:9 from the source
+    s = base * Z
+    win_w = OUT_W / s
+    win_h = OUT_H / s
+    x0 = cx * (src_w - win_w)  # in-bounds for cx,cy in [0,1]
+    y0 = cy * (src_h - win_h)
+    return np.array([[s, 0.0, -x0 * s], [0.0, s, -y0 * s]], dtype=np.float64)
+
+
+def _render_kenburns_png(
+    footage_path: str,
+    output_path: str,
+    *,
+    frames: int,
+    motion: tuple[float, float, float, float, float, float],
+    easing: str,
+    vf: str,
+) -> None:
+    """Subpixel Ken Burns encode for a PNG scene (frame-writer ported from
+    tools/kenburns_subpixel.py — services must not import from tools).
+
+    Resamples the still ONCE per output frame with cv2.warpAffine at fractional
+    source coords (genuine sub-pixel sampling, no supersample canvas) and streams
+    the raw BGR frames to a single libx264 encode. Generates EXACTLY ``frames``
+    frames (p = n/(frames-1), or 0 when frames==1) — the audio-sync contract every
+    clip path shares. The warp already produces the final OUT_W x OUT_H canvas, so
+    ``vf`` carries only pixel-format + the shared fade/overlays (no scale/crop/
+    zoom). cv2 reads BGR, so the frames pipe out as bgr24 with no channel swap.
+    cv2/numpy are imported lazily so importing this module never needs OpenCV."""
+    import cv2  # lazy: only the KB PNG path needs OpenCV
+    import numpy as np
+
+    interp = cv2.INTER_CUBIC if RENDER_KB_INTERP == "cubic" else cv2.INTER_LANCZOS4
+
+    src = cv2.imread(str(footage_path), cv2.IMREAD_COLOR)  # BGR (piped as bgr24)
+    if src is None:
+        raise RuntimeError(f"Ken Burns: could not read still {footage_path}")
+    src_h, src_w = src.shape[:2]
+    denom = frames - 1 if frames > 1 else 1
+
+    proc = subprocess.Popen(
+        [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "rawvideo", "-pixel_format", "bgr24",
+            "-video_size", f"{OUT_W}x{OUT_H}", "-framerate", str(FPS),
+            "-i", "-",
+            "-vf", vf,
+            "-frames:v", str(frames),
+            "-an", "-r", str(FPS),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            output_path,
+        ],
+        stdin=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    assert proc.stdin is not None
+    try:
+        for n in range(frames):
+            p = (n / denom) if frames > 1 else 0.0
+            M = _kb_warp_matrix(src_w, src_h, motion, p, easing)
+            frame = cv2.warpAffine(
+                src, M, (OUT_W, OUT_H),
+                flags=interp, borderMode=cv2.BORDER_REFLECT_101,
+            )
+            proc.stdin.write(np.ascontiguousarray(frame).tobytes())
+    except BrokenPipeError:
+        pass  # ffmpeg exited early; its stderr (read below) carries the reason
+    finally:
+        proc.stdin.close()
+    err = proc.stderr.read().decode("utf-8", "replace") if proc.stderr else ""
+    if proc.wait() != 0:
+        raise RuntimeError(
+            f"Ken Burns ffmpeg encode failed ({output_path}):\n{err}"
+        )
 
 
 def render_scene_clip(
@@ -595,6 +731,7 @@ def render_scene_clip(
     *,
     transition: str = "cut",
     ken_burns: bool = False,
+    motion: tuple | None = None,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
 ):
@@ -612,10 +749,17 @@ def render_scene_clip(
       0.15s fade-out against black to each clip; the concat demuxer then joins
       them unchanged so total duration is preserved (audio stays in sync).
 
-    ken_burns: when True AND the source is a PNG (still image), append a
-      zoompan slow zoom from 1.0 -> 1.15 over the clip's duration. MP4
-      sources are untouched — re-encoding stock video via zoompan can
-      introduce subtle stretching, and they already have motion.
+    ken_burns: when True AND the source is a PNG (still image), animate a
+      subpixel Ken Burns move (default: a slow center zoom 1.0 -> 1.10) by
+      warping the still once per frame with cv2.warpAffine straight to the
+      final 1920x1080 canvas (see _render_kenburns_png). MP4 sources are
+      untouched — they already have motion — and keep the plain fit-to-fill
+      encode.
+
+    motion: optional (z0, z1, cx0, cy0, cx1, cy1) Ken Burns move; defaults to
+      KB_DEFAULT_MOTION. Only used on the Ken Burns PNG path. Call sites pass
+      nothing today, so every scene gets the default center zoom; per-scene
+      variety is a later iteration.
 
     overlays: zero or more EDL overlay dicts (kind / text / position /
       animation / start_offset / duration) drawn as drawtext filters composited
@@ -632,64 +776,29 @@ def render_scene_clip(
     frames = _scene_frame_count(scene)
     duration = frames / FPS
 
+    # Resolve the Ken Burns move (call sites pass nothing today → every scene
+    # gets the default center zoom). motion_sig keys the cache on the warp params
+    # so a motion / easing / interp change re-renders only the affected KB clips.
+    motion = motion or KB_DEFAULT_MOTION
+    motion_sig = _motion_signature(motion, KB_DEFAULT_EASING, RENDER_KB_INTERP)
+
     if _clip_cache_hit(
         scene, footage_path, output_path, transition, ken_burns,
-        overlays=overlays, edit_style=edit_style,
+        overlays=overlays, edit_style=edit_style, motion_sig=motion_sig,
     ):
         return  # cache hit — output already valid
 
     is_png = str(footage_path).lower().endswith(".png")
+    kb_png = ken_burns and is_png
 
-    # Standard chain when Ken Burns is OFF (or source is video).
-    # When Ken Burns is ON and source is a PNG, swap zoompan entirely
-    # for a scale-with-eval=frame + center-crop + motion-blur chain.
-    # zoompan's per-frame integer rounding of the crop center was the
-    # root cause of the residual jitter (visible 1px jumps every few
-    # frames); the `scale=eval=frame` filter does subpixel-accurate
-    # interpolation per frame instead. tblend at 2x temporal sampling
-    # smooths whatever rounding remains in the center-crop stage.
-    if ken_burns and is_png:
-        # Spatial + temporal supersample knobs are env-driven (see module
-        # constants). Defaults match the prior hardcoded 4x / 2x behavior so
-        # final renders are unchanged; lower the env vars for fast iteration.
-        SUPER = RENDER_KB_SUPERSAMPLE
-        FPS_HI = FPS * RENDER_KB_TEMPORAL_SUPERSAMPLE
-        sw, sh = OUT_W * SUPER, OUT_H * SUPER
-        # Exact (not ceil'd): duration == frames/FPS and FPS_HI ==
-        # FPS*SUPERSAMPLE, so this is precisely duration*FPS_HI with no
-        # fractional-frame slop. After tblend+framestep (÷SUPERSAMPLE) the
-        # chain emits exactly `frames`, matching the -frames:v cap below so the
-        # zoom completes on the last rendered frame.
-        total_frames_hi = frames * RENDER_KB_TEMPORAL_SUPERSAMPLE
-        KB_END_ZOOM = 1.08
-        denom = max(1, total_frames_hi - 1)
-        # Scale grows uniformly per frame (aspect preserved via the
-        # pre-fit scale to sw×sh). Crop offset hardcoded from frame
-        # number `n` rather than `(iw-sw)/2`: crop's `iw` is cached at
-        # the initial value (sw) so the iw-based expression evaluates
-        # to 0 every frame -> top-left anchoring. Computing from n
-        # directly forces per-frame center-tracking.
-        zoom_expr = f"(1+{KB_END_ZOOM - 1:.4f}*n/{denom})"
-        x_max = sw * (KB_END_ZOOM - 1) / 2  # 307.2 px at sw=7680, KB=1.08
-        y_max = sh * (KB_END_ZOOM - 1) / 2  # 172.8 px at sh=4320
-        filters = [
-            f"scale={sw}:{sh}:force_original_aspect_ratio=increase:flags=lanczos",
-            f"crop={sw}:{sh}",
-            f"fps={FPS_HI}",
-            "format=yuv420p",
-            (
-                f"scale=w='{sw}*{zoom_expr}':h='{sh}*{zoom_expr}'"
-                f":eval=frame:flags=lanczos"
-            ),
-            f"crop={sw}:{sh}:x='{x_max:.4f}*n/{denom}':y='{y_max:.4f}*n/{denom}'",
-        ]
-        if RENDER_KB_TEMPORAL_SUPERSAMPLE > 1:
-            # Pair of frames -> averaged blend -> drop every other to land
-            # back at FPS. Only valid when FPS_HI > FPS; when temporal
-            # supersample is 1, FPS_HI == FPS already so we skip both.
-            filters.append("tblend=all_mode=average")
-            filters.append("framestep=2")
-        filters.append(f"scale={OUT_W}:{OUT_H}:flags=lanczos")
+    # Ken Burns ON + PNG source → subpixel warp (encoded below). The warp
+    # resamples the still straight to the final OUT_W x OUT_H canvas per frame, so
+    # the ffmpeg vf here carries NO scale/crop/zoom — only pixel-format, plus the
+    # shared fade + overlays appended below. Every other case (video source, or KB
+    # off) keeps the unchanged fit-to-fill + fps + format chain and the subprocess
+    # encode.
+    if kb_png:
+        filters = ["format=yuv420p"]
     else:
         filters = [
             f"scale={OUT_W}:{OUT_H}:force_original_aspect_ratio=increase",
@@ -717,15 +826,23 @@ def render_scene_clip(
 
     vf = ",".join(filters)
 
-    subprocess.run([
-        "ffmpeg", "-y",
-        "-stream_loop", "-1", "-i", footage_path,
-        "-vf", vf,
-        "-frames:v", str(frames),
-        "-an",  # drop the stock clip's audio
-        "-c:v", "libx264", "-preset", "fast", "-crf", "18",
-        output_path,
-    ], check=True, capture_output=True)
+    if kb_png:
+        # Subpixel Ken Burns: warp each frame from the native still and pipe the
+        # raw BGR frames through the vf (format + fade + overlays) to libx264.
+        _render_kenburns_png(
+            footage_path, output_path,
+            frames=frames, motion=motion, easing=KB_DEFAULT_EASING, vf=vf,
+        )
+    else:
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-stream_loop", "-1", "-i", footage_path,
+            "-vf", vf,
+            "-frames:v", str(frames),
+            "-an",  # drop the stock clip's audio
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            output_path,
+        ], check=True, capture_output=True)
 
     # Write the cache sidecar AFTER the ffmpeg call succeeds so partial renders
     # don't get mistaken for cache hits.
@@ -741,6 +858,7 @@ def render_scene_clip(
             "ken_burns": ken_burns,
             "overlays_sig": _overlays_signature(overlays),
             "edit_style_sig": _edit_style_signature(edit_style),
+            "motion_sig": motion_sig,
             "cache_version": _CLIP_CACHE_VERSION,
         }, f)
 
@@ -753,6 +871,7 @@ def render_extended_clip(
     extra_frames: int,
     transition: str = "cut",
     ken_burns: bool = False,
+    motion: tuple | None = None,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
 ) -> str:
@@ -772,7 +891,7 @@ def render_extended_clip(
     ext_scene = {**scene, "frames": frames, "duration": round(frames / FPS, 3)}
     render_scene_clip(
         ext_scene, footage_path, out,
-        transition=transition, ken_burns=ken_burns,
+        transition=transition, ken_burns=ken_burns, motion=motion,
         overlays=overlays, edit_style=edit_style,
     )
     return out
@@ -1008,6 +1127,7 @@ def render_section_intro_clip(
     card_props: dict | None = None,
     transition: str = "cut",
     ken_burns: bool = False,
+    motion: tuple | None = None,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
     reencode: bool = False,
@@ -1053,7 +1173,7 @@ def render_section_intro_clip(
     if footage_frames > 0:
         render_scene_clip(
             {**scene, "frames": footage_frames}, footage_path, foot_seg,
-            transition=transition, ken_burns=ken_burns,
+            transition=transition, ken_burns=ken_burns, motion=motion,
             overlays=overlays, edit_style=edit_style,
         )
         segs.append(foot_seg)
