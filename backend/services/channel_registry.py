@@ -164,12 +164,15 @@ def resolve_channel_section(channel_id: str | None, section: str) -> str:
 # translates from nested back to flat so visual_prompt_service stays stable.
 _VISUALS_DEFAULTS: dict = {
     "style_description": "",
+    "world": "",
+    "cast": "",
+    "props": "",
     "reference_image_paths": [],
     "character_enabled": False,
     "character_image_path": None,
     "character_strength": 0.7,
     "creative_direction": "",
-    "prompt_enhancement_model": "claude-haiku-4-5-20251001",
+    "prompt_enhancement_model": "gpt-5",
 }
 
 
@@ -181,13 +184,16 @@ def _flatten_visuals(nested: dict) -> dict:
     character = nested.get("character") or {}
     flat = {
         "style_description": nested.get("style_description", ""),
+        "world": nested.get("world", ""),
+        "cast": nested.get("cast", ""),
+        "props": nested.get("props", ""),
         "reference_image_paths": list(nested.get("reference_image_paths", []) or []),
         "character_enabled": bool(character.get("enabled", False)),
         "character_image_path": character.get("image_path"),
         "character_strength": float(character.get("strength", 0.7)),
         "creative_direction": nested.get("creative_direction", ""),
         "prompt_enhancement_model": nested.get(
-            "image_prompt_model", "claude-haiku-4-5-20251001"
+            "image_prompt_model", "gpt-5"
         ),
     }
     merged = dict(_VISUALS_DEFAULTS)

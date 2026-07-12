@@ -5,14 +5,17 @@
   "color": "#7c7c3a",
   "preferred_hook_archetype": "scene",
   "visuals": {
-    "style_description": "Warm, natural daylight photography in real backyards. Realistic, beautiful visuals that match the current narration. ",
+    "style_description": "Consistent look across every scene: soft, bright, warm natural daylight \u2014 a clear pleasant day, gentle even light, a consistent mid-morning feel \u2014 so the whole video reads as one day in one place. Rich but natural, warm inviting color. Clean, realistic, crisp photography \u2014 no film grain, no documentary grit. Depth of field follows the shot (natural bokeh on close-ups, deep focus on wide shots), NOT fixed. Genuinely low-light scenes stay warm and richly lit, never dark or drab.",
+    "world": "A well-kept suburban backyard garden \u2014 a modest home with light-colored siding, a wooden privacy fence, a small paved patio, raised wooden garden beds, a tidy green lawn, healthy potted plants and shrubs. Lush, cared-for, inviting \u2014 aspirational but attainable, the viewer's own yard at its best.",
+    "cast": "A friendly, approachable middle-aged white woman with a warm smile, in casual gardening clothes \u2014 a sun hat, gardening gloves, an apron or relaxed outdoor wear. The channel's recurring host; appears only in scenes featuring a person.",
+    "props": "Recurring props described consistently whenever they appear: a galvanized metal watering can or bucket, terracotta pots, simple wooden-handled hand tools.",
     "reference_image_paths": [],
     "character": {
       "enabled": false,
       "image_path": null,
       "strength": 0.7
     },
-    "creative_direction": "Show the problem before the solution \u2014 dying plants, stressed leaves, container puddles \u2014 when the script names a pain point. Wide context shots for explanation, tight close-ups for action. When the script names a product or measurement, make it recognizable to a viewer at the hardware store.",
-    "image_prompt_model": "claude-haiku-4-5-20251001"
+    "creative_direction": "Show the problem before the solution \u2014 dying plants, stressed leaves, container puddles \u2014 when the script names a pain point, always framed cleanly in bright, clear daylight. Wide context shots for explanation, tight close-ups for action. When the script names a product or measurement, make it recognizable to a viewer at the hardware store.",
+    "image_prompt_model": "gpt-5"
   }
 }

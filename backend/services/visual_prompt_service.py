@@ -2,7 +2,7 @@
 
 scene_plan emits short stock-search phrases (Pexels-shaped). For AI image
 generators we want richer, model-ready prompts that encode the channel's
-visual identity. This service runs one batched Anthropic call across the
+visual identity. This service runs one batched GPT-5 call across the
 scene list and writes ``visual_prompts.json``; the Nano Banana provider looks
 each enhanced prompt up by scene id at generation time.
 
@@ -23,16 +23,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 
-import anthropic
 from dotenv import load_dotenv
+from openai import OpenAI
 
 from services import cost_ledger
 from services.channel_registry import default_channel_id, resolve_channel_visuals
 from services.paths import PROJECTS_ROOT
 
 load_dotenv()
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 _PROMPTS_DIR = Path("prompts")
 _ENHANCER_PROMPT_PATH = _PROMPTS_DIR / "visual_prompt_enhancement.md"
@@ -146,7 +149,7 @@ def compute_cache_key(channel_visuals: dict, scenes: list[dict]) -> str:
     block + a minimal scene projection (id, segment_id, visual_description,
     narration, emotional_purpose). Edits to scene_plan fields the enhancer
     doesn't see don't bust the cache."""
-    model = channel_visuals.get("prompt_enhancement_model") or "claude-haiku-4-5-20251001"
+    model = channel_visuals.get("prompt_enhancement_model") or "gpt-5"
     payload = {
         "_version": _VISUAL_PROMPT_CACHE_VERSION,
         "enhancer_template_sha1": _enhancer_template_sha1(),
@@ -212,6 +215,9 @@ def _fill_style_block(template: str, cv: dict) -> str:
     return (
         template
         .replace("{style_description}", cv.get("style_description") or "(none)")
+        .replace("{world}", cv.get("world") or "(none)")
+        .replace("{cast}", cv.get("cast") or "(none)")
+        .replace("{props}", cv.get("props") or "(none)")
         .replace("{creative_direction}", cv.get("creative_direction") or "(none)")
         .replace("{reference_image_basenames}", ", ".join(ref_basenames) or "(none)")
         .replace("{character_enabled}", str(bool(cv.get("character_enabled"))))
@@ -232,25 +238,29 @@ def _scene_input_for_llm(scene: dict) -> dict:
 
 
 def _call_enhancer(
-    client: anthropic.Anthropic,
     model: str,
     system_prompt: str,
     scenes_chunk: list[dict],
     project_name: str | None = None,
 ) -> list[dict]:
-    """One structured-output Anthropic call. Surfaces stop_reason + partial
-    text on parse failure (mirrors script_draft_service)."""
+    """One structured-output GPT-5 call via the OpenAI responses API. A strict
+    json_schema constrains the model to valid JSON matching
+    _VISUAL_PROMPT_SCHEMA, so the json.loads below can't choke on a strict-
+    invalid token — the same pattern research_service / outline_service use."""
     user_payload = {"scenes": [_scene_input_for_llm(s) for s in scenes_chunk]}
-    with client.messages.stream(
+    response = client.responses.create(
         model=model,
-        max_tokens=8192,
-        output_config={"format": {"type": "json_schema", "schema": _VISUAL_PROMPT_SCHEMA}},
-        messages=[{
-            "role": "user",
-            "content": f"{system_prompt}\n\nINPUT:\n{json.dumps(user_payload, indent=2)}",
-        }],
-    ) as stream:
-        response = stream.get_final_message()
+        instructions=system_prompt,
+        input=f"INPUT:\n{json.dumps(user_payload, indent=2)}",
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "visual_prompts",
+                "schema": _VISUAL_PROMPT_SCHEMA,
+                "strict": True,
+            }
+        },
+    )
 
     if project_name:
         usage = getattr(response, "usage", None)
@@ -259,27 +269,31 @@ def _call_enhancer(
         cost_ledger.record(
             project_name,
             stage="visuals",
-            provider="anthropic",
+            provider="openai",
             model=model,
             input_tokens=in_tok,
             output_tokens=out_tok,
             extra={"step": "prompt_enhancement"},
         )
 
-    text = next((b.text for b in response.content if b.type == "text"), None)
-    if text is None:
-        raise RuntimeError(
-            f"No text block in enhancer response; block types: "
-            f"{[b.type for b in response.content]} "
-            f"stop_reason={getattr(response, 'stop_reason', '?')}"
-        )
+    text = response.output_text.strip()
+    # Strip markdown code fences some models wrap around JSON output.
+    if text.startswith("```"):
+        text = re.sub(r'^```(?:json)?\s*\n?', '', text)
+        text = re.sub(r'\n?```\s*$', '', text)
+    text = text.strip()
+    # Pull the outermost {...} block out in case GPT-5 adds prose around the
+    # JSON despite the schema. re.DOTALL lets `.` span newlines.
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        text = match.group(0)
     try:
         return json.loads(text).get("scenes", [])
     except json.JSONDecodeError as e:
-        stop_reason = getattr(response, "stop_reason", "?")
+        status = getattr(response, "status", "?")
         head, tail = text[:400], (text[-400:] if len(text) > 800 else "")
         raise RuntimeError(
-            f"Enhancer JSON did not parse (stop_reason={stop_reason}, "
+            f"Enhancer JSON did not parse (status={status}, "
             f"text_len={len(text)}, error={e!r}).\n"
             f"--- first 400 chars ---\n{head}\n--- last 400 chars ---\n{tail}"
         ) from e
@@ -294,7 +308,7 @@ def generate_visual_prompts(project_name: str) -> dict:
 
     channel_id = _load_channel_id(project_name)
     channel_visuals = resolve_channel_visuals(channel_id)
-    model = channel_visuals.get("prompt_enhancement_model") or "claude-haiku-4-5-20251001"
+    model = channel_visuals.get("prompt_enhancement_model") or "gpt-5"
     cache_key = compute_cache_key(channel_visuals, scenes)
 
     # Cache hit short-circuits the LLM call on no-op re-runs.
@@ -307,19 +321,18 @@ def generate_visual_prompts(project_name: str) -> dict:
 
     template = _load_enhancer_prompt()
     system_prompt = _fill_style_block(template, channel_visuals)
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
     chunks = (
         [scenes[i:i + _CHUNK_SIZE] for i in range(0, len(scenes), _CHUNK_SIZE)]
         if len(scenes) >= _CHUNK_THRESHOLD else [scenes]
     )
 
-    # Sequential — Anthropic SDK is sync and chunks are small; threading isn't
+    # Sequential — the OpenAI SDK is sync and chunks are small; threading isn't
     # worth the complexity yet. Backfill any scene the model dropped with
     # passthrough so every scene id is present in the output.
     enhanced_by_id: dict[int, dict] = {}
     for chunk in chunks:
-        for entry in _call_enhancer(client, model, system_prompt, chunk, project_name):
+        for entry in _call_enhancer(model, system_prompt, chunk, project_name):
             enhanced_by_id[int(entry["id"])] = entry
 
     out_scenes: list[dict] = []

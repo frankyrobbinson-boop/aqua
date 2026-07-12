@@ -74,6 +74,9 @@ def _translate_visuals(legacy: dict) -> dict:
     legacy.pop("_note", None)
     return {
         "style_description": legacy.get("style_description", ""),
+        "world": legacy.get("world", ""),
+        "cast": legacy.get("cast", ""),
+        "props": legacy.get("props", ""),
         "reference_image_paths": list(legacy.get("reference_image_paths", []) or []),
         "character": {
             "enabled": bool(legacy.get("character_enabled", False)),
@@ -82,7 +85,7 @@ def _translate_visuals(legacy: dict) -> dict:
         },
         "creative_direction": legacy.get("creative_direction", ""),
         "image_prompt_model": legacy.get(
-            "prompt_enhancement_model", "claude-haiku-4-5-20251001"
+            "prompt_enhancement_model", "gpt-5"
         ),
     }
 
