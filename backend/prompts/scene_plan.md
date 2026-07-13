@@ -6,11 +6,12 @@ You are given a finished YouTube script. The script has a hook, a list of `segme
 
 # Scene granularity
 
-- Target scene length: **5–9 seconds** of narration. Lean shorter, not longer — viewers retain better with frequent visual changes.
+- Target scene length: **3–6 seconds** of narration. Lean shorter, not longer — viewers retain better with frequent visual changes.
+- **Hard ceiling: ~8 seconds (~20 words) per scene — never exceed it.** A scene past ~8s is under-cut; break it into shorter scenes. A 15-second-plus scene is always wrong.
 - **Hook pacing (cut FAST):** the hook segment (`segment_id: -1`) cuts faster than anything else — **2–4 seconds** per scene, and MORE scenes than a body segment covering the same number of words. A rough target is **(hook narration seconds ÷ 3) scenes**. Split on every new noun or image the hook introduces; do NOT merge two hook beats into one clip to save scenes. Overlap a long sentence across two short scenes rather than letting one drag. Faster cuts in the first 20–30 seconds boost first-minute retention.
 - Cut to a new scene whenever the subject of the narration changes, a new noun is introduced, or a new beat lands. When in doubt, cut.
-- Don't over-cut a single coherent thought into three. Don't under-cut a paragraph that covers three distinct subjects into one.
-- A **10-minute video should land at roughly 70–100 scenes total** (one cut every ~6–8 seconds on average).
+- **Length governs how often you cut, not sentence count.** A long, multi-sentence passage becomes several short scenes; cut it where it reads cleanly, usually at a sentence or clause boundary. But do NOT mechanically map one sentence to one scene — that reads choppy and predictable. A short pair of sentences can share a scene; a long sentence can split across two. Let the ~8s ceiling and the target scene count force the cutting; use sentence boundaries as the natural place to do it. Example — a passage that would run ~20 seconds as one scene is wrong; break it into three or four short scenes at natural breaks (some grouping a short clause pair, some a single clause), not one rigid scene per sentence. (The only thing to avoid on the short side is chopping a single short thought into fragments that each show nothing — but under-cutting, not over-cutting, is the failure mode here.)
+- **A 10-minute video should land around ~100 scenes, a 15-minute video around ~150** — about one cut every 5–6 seconds on average, many shorter. If your plan comes in under that count, you are UNDER-cutting — go back and split the longest scenes.
 
 # Segment awareness
 
