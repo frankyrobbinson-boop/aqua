@@ -13,6 +13,12 @@ __pycache__/
 # tracked backend/models/research.py stays committed.
 /backend/models/*.onnx
 
+# Drop-in background-music beds (maintainer-supplied audio); the tracked
+# backend/music/README.md stays committed.
+/backend/music/*.mp3
+/backend/music/*.wav
+/backend/music/*.m4a
+
 # macOS Finder metadata
 .DS_Store
 

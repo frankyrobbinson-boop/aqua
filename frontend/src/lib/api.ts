@@ -561,6 +561,8 @@ export type RenderOptions = {
   ken_burns?: boolean;
   render_section_cards?: boolean;
   render_section_transitions?: boolean;
+  background_music?: boolean;
+  music_volume?: number;
 };
 
 export async function startRender(
@@ -574,6 +576,8 @@ export async function startRender(
       ken_burns: opts?.ken_burns ?? false,
       render_section_cards: opts?.render_section_cards ?? true,
       render_section_transitions: opts?.render_section_transitions ?? true,
+      background_music: opts?.background_music ?? false,
+      music_volume: opts?.music_volume ?? 0.08,
     }),
   });
 }

@@ -30,6 +30,15 @@ OUT_W, OUT_H = 1920, 1080
 FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend"
 RENDER_SCRIPT = FRONTEND_DIR / "scripts" / "render-remotion.mjs"
 
+# Background-music source folder: drop-in songs (.mp3 / .wav / .m4a) that
+# build_music_bed plays low under the narration in FILENAME order (name them 01_,
+# 02_… to sequence). Anchored off this file (parent x2 == backend/), mirroring
+# services/kb_shot_analysis's BACKEND/"models"; an empty/missing folder just means
+# no music (never an error). MUSIC_FADE_SECONDS is the bed's fade in/out length.
+MUSIC_DIR = Path(__file__).resolve().parent.parent / "music"
+MUSIC_EXTS = (".mp3", ".wav", ".m4a")
+MUSIC_FADE_SECONDS = 2.0
+
 # Section-card defaults. A short Remotion title card fronts each section-intro
 # scene, eating into THAT scene's own frames (never spanning into the next), so
 # the assembled video length is unchanged. SECTION_CARD_SECONDS is now only a
@@ -886,6 +895,26 @@ def _render_kenburns_png(
         raise RuntimeError(
             f"Ken Burns ffmpeg encode failed ({output_path}):\n{err}"
         )
+
+
+def _clip_camera_sig(
+    scene: dict,
+    footage_path: str,
+    ken_burns: bool,
+    camera: "SceneCameraTrack | None",
+) -> str:
+    """The camera signature render_scene_clip will compute for this scene, hoisted
+    so render_all_scene_clips' pre-render cache probe (the OUTER _clip_cache_hit)
+    keys on the SAME value. Without it that probe ignores a camera / drift / target
+    change. Mirrors render_scene_clip's inner branch for the default-motion render
+    paths it is used on (motion is never overridden there → KB_DEFAULT_MOTION)."""
+    kb_png = ken_burns and str(footage_path).lower().endswith(".png")
+    if RENDER_KB_CAMERA and kb_png and camera is not None:
+        return _camera_signature(
+            camera.zs_for(_scene_frame_count(scene)),
+            camera.anchor, camera.z_range, RENDER_KB_INTERP, RENDER_KB_DRIFT,
+        )
+    return _motion_signature(KB_DEFAULT_MOTION, KB_DEFAULT_EASING, RENDER_KB_INTERP)
 
 
 def render_scene_clip(
@@ -1809,6 +1838,9 @@ def render_all_scene_clips(
         if _clip_cache_hit(
             scene, src, out, per_scene_transition, per_scene_ken_burns,
             overlays=overlays, edit_style=edit_style,
+            camera_sig=_clip_camera_sig(
+                scene, src, per_scene_ken_burns, camera_tracks.get(sid),
+            ),
         ):
             cached += 1
         else:
@@ -2248,6 +2280,85 @@ def concat_clips_crossfade(
     return silent_video
 
 
+def build_music_bed(
+    project_name: str,
+    target_duration: float,
+    folder: Path,
+) -> Path | None:
+    """Build a low-volume background-music bed covering the whole video, or return
+    None when ``folder`` has no drop-in songs (so the caller renders without music).
+
+    Songs are taken from ``folder`` in FILENAME order (this IS the playlist order —
+    name them 01_, 02_…), each normalized to 44.1 kHz stereo with the same
+    aresample + aformat idiom assemble_audio applies per chunk (concat requires a
+    shared sample rate / channel layout / format), concatenated, then the whole
+    playlist is LOOPED to cover ``target_duration`` and trimmed to exactly that
+    length, with a short fade in at the start and out at the end. Written to
+    projects/<name>/video/music_bed.mp3 at full level — the low mix gain is applied
+    later by mux_audio (volume=). ``target_duration`` is the finished video length,
+    so the bed and the picture end together."""
+    if not folder.is_dir():
+        return None
+    songs = sorted(
+        p for p in folder.iterdir()
+        if p.is_file() and p.suffix.lower() in MUSIC_EXTS
+    )
+    if not songs:
+        return None
+
+    video_dir = PROJECTS_ROOT / project_name / "video"
+    os.makedirs(video_dir, exist_ok=True)
+
+    # Step 1 — normalize each song to 44.1 kHz stereo and concat in filename order
+    # into one playlist file. aresample + aformat mirror assemble_audio's per-chunk
+    # normalization so concat's identical-format requirement holds even if a song
+    # ships mono or at another sample rate.
+    playlist = str(video_dir / "music_playlist.mp3")
+    input_args: list[str] = []
+    norm_filters: list[str] = []
+    concat_labels: list[str] = []
+    for i, song in enumerate(songs):
+        input_args += ["-i", os.path.abspath(str(song))]
+        norm_filters.append(
+            f"[{i}:a]aresample=44100,"
+            f"aformat=sample_rates=44100:channel_layouts=stereo[s{i}]"
+        )
+        concat_labels.append(f"[s{i}]")
+    graph = (
+        ";".join(norm_filters) + ";"
+        + "".join(concat_labels)
+        + f"concat=n={len(songs)}:v=0:a=1[out]"
+    )
+    subprocess.run([
+        "ffmpeg", "-y", *input_args,
+        "-filter_complex", graph, "-map", "[out]",
+        "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100",
+        playlist,
+    ], check=True, capture_output=True)
+
+    # Step 2 — loop the playlist to >= target_duration, trim to exactly it, and add
+    # a short fade in/out. -stream_loop -1 loops the single playlist input; -t caps
+    # the output so the loop stops on time. The fade shrinks on a very short video
+    # so it never exceeds half the bed.
+    out_path = str(video_dir / "music_bed.mp3")
+    fade = min(MUSIC_FADE_SECONDS, max(0.0, target_duration / 2))
+    fade_out_start = max(0.0, target_duration - fade)
+    af = (
+        f"afade=t=in:st=0:d={fade:.3f},"
+        f"afade=t=out:st={fade_out_start:.3f}:d={fade:.3f}"
+    )
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-stream_loop", "-1", "-i", playlist,
+        "-t", f"{target_duration:.3f}",
+        "-af", af,
+        "-c:a", "libmp3lame", "-b:a", "192k", "-ar", "44100",
+        out_path,
+    ], check=True, capture_output=True)
+
+    return Path(out_path)
+
+
 def mux_audio(
     project_name: str,
     video_path: str,
@@ -2255,16 +2366,47 @@ def mux_audio(
     subtitle_path: str | None = None,
     output_name: str = "final.mp4",
     duration_cap: float | None = None,
+    music: bool = False,
+    music_volume: float = 0.08,
 ) -> str:
     """Combine silent video with full audio track. If a subtitle path is given,
     burn subtitles into the video (requires re-encoding).
 
     output_name: filename inside the project's video/ dir.
     duration_cap: if set, only encode the first N seconds (for fast previews).
+    music: when True, mix a low-volume background-music bed (build_music_bed, from
+      the songs in backend/music/) UNDER the narration. music_volume is the bed's
+      linear gain. An empty/missing music folder — or any bed-build failure —
+      degrades to the plain single-narration path (never fails the render).
     """
     out = str(PROJECTS_ROOT / project_name / "video" / output_name)
 
+    # Optional background-music bed, built to the exact video length so it and the
+    # picture end together. Music is cosmetic, so a missing folder or a build error
+    # degrades to the plain narration path with a WARNING rather than failing the
+    # render.
+    music_bed: Path | None = None
+    if music:
+        target_duration = _count_video_frames(video_path) / FPS
+        try:
+            music_bed = build_music_bed(project_name, target_duration, MUSIC_DIR)
+        except Exception as e:  # noqa: BLE001 — music is optional; never fail render
+            print(
+                f"  WARN: background-music bed build failed "
+                f"({type(e).__name__}: {e}); rendering without music."
+            )
+            music_bed = None
+        else:
+            if music_bed is None:
+                print(
+                    f"  WARN: background music requested but no songs found in "
+                    f"{MUSIC_DIR} — rendering without music."
+                )
+
     cmd = ["ffmpeg", "-y", "-i", video_path, "-i", audio_path]
+    if music_bed is not None:
+        cmd += ["-i", str(music_bed)]
+
     if subtitle_path:
         # ffmpeg's subtitles filter parses the path through libavfilter syntax;
         # using an absolute path avoids confusion with the cwd at filter time.
@@ -2275,15 +2417,32 @@ def mux_audio(
         ]
     else:
         cmd += ["-c:v", "copy"]
-    cmd += [
-        "-map", "0:v", "-map", "1:a",
-        # Pad the audio with trailing silence so it's always >= the (finite)
-        # video length. -shortest then keys on the video and truncates only that
-        # padding, never narration. Scene windows ceil the terminal boundary so
-        # video >= narration end, so no spoken word is ever clipped.
-        "-af", "apad",
-        "-c:a", "aac", "-shortest",
-    ]
+
+    if music_bed is not None:
+        # apad the narration to (at least) the video length — same role apad plays
+        # on the plain path — then lower the bed to music_volume and amix the two.
+        # duration=first keys the mix on the padded voice; normalize=0 is MANDATORY:
+        # amix's default normalize=1 scales every input by 1/inputs, which would
+        # silently drop the (already loudnorm'd) narration ~6 dB. The bed carries
+        # its own fixed volume= gain, so no loudnorm is applied to the mix.
+        cmd += [
+            "-filter_complex",
+            f"[1:a]apad[voice];"
+            f"[2:a]volume={music_volume:g}[music];"
+            f"[voice][music]amix=inputs=2:duration=first:normalize=0[aout]",
+            "-map", "0:v", "-map", "[aout]",
+            "-c:a", "aac", "-shortest",
+        ]
+    else:
+        cmd += [
+            "-map", "0:v", "-map", "1:a",
+            # Pad the audio with trailing silence so it's always >= the (finite)
+            # video length. -shortest then keys on the video and truncates only that
+            # padding, never narration. Scene windows ceil the terminal boundary so
+            # video >= narration end, so no spoken word is ever clipped.
+            "-af", "apad",
+            "-c:a", "aac", "-shortest",
+        ]
     if duration_cap is not None:
         cmd += ["-t", str(duration_cap)]
     cmd += [out]
@@ -2302,6 +2461,8 @@ def assemble(
     card_seconds: float = SECTION_CARD_SECONDS,
     card_comp: str = SECTION_CARD_COMP,
     output_name: str = "final.mp4",
+    music: bool = False,
+    music_volume: float = 0.08,
 ) -> str:
     """Full assembly: audio → clips → concat → subtitles → mux → <output_name>
 
@@ -2331,7 +2492,12 @@ def assemble(
     frames), so the audio + subtitle timelines are unchanged. Cards and fades
     COEXIST: a section start is BOTH a card-fronted clip AND the incoming side of a
     fade-to-black, so the previous section's footage fades to black and the header
-    card rises FROM black. False forces every seam off (plain hard-cut concat)."""
+    card rises FROM black. False forces every seam off (plain hard-cut concat).
+
+    music: when True, mix a low-volume background-music bed (the songs in
+    backend/music/, filename order, looped to fill the video) UNDER the narration
+    at ``music_volume`` linear gain. An empty/missing music folder degrades to no
+    music (never fails the render). False renders with narration only."""
     if transition not in ("cut", "fade"):
         raise ValueError(f"transition must be 'cut' or 'fade', got {transition!r}")
 
@@ -2409,6 +2575,7 @@ def assemble(
     final = mux_audio(
         project_name, silent, audio,
         subtitle_path=sub_path, output_name=output_name,
+        music=music, music_volume=music_volume,
     )
 
     return final

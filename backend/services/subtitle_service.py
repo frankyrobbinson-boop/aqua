@@ -22,7 +22,9 @@ from services.paths import PROJECTS_ROOT
 MAX_WORDS_PER_CARD = 7
 
 FONT_NAME = "Arial Black"
-FONT_SIZE = 64
+# Temporary "a little bigger" bump (was 64) pending the full subtitle-style
+# customization feature; MAX_WORDS_PER_CARD still keeps each card to one line.
+FONT_SIZE = 76
 
 # ASS style colors are &HAABBGGRR& (alpha + BGR). Inline \c overrides are
 # &HBBGGRR& (BGR only). Store both shapes so the style block and inline tags

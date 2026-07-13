@@ -90,6 +90,17 @@ def run_render(project_name: str) -> str:
     section_transitions = os.environ.get("RENDER_SECTION_TRANSITIONS") != "0"
     output_name = os.environ.get("RENDER_OUTPUT_NAME", "final.mp4")
 
+    # Background-music bed (MVP): RENDER_MUSIC=="1" mixes the songs dropped in
+    # backend/music/ low under the narration (filename order, looped to fill the
+    # video); default off. RENDER_MUSIC_VOLUME is the bed's linear gain under the
+    # voice (default 0.08). An empty/missing music folder degrades to no music.
+    music = os.environ.get("RENDER_MUSIC", "0") == "1"
+    try:
+        music_volume = float(os.environ.get("RENDER_MUSIC_VOLUME", "0.08"))
+    except ValueError:
+        print("  WARN: RENDER_MUSIC_VOLUME invalid, falling back to 0.08")
+        music_volume = 0.08
+
     # Three more render knobs are read directly by services/assembly_service
     # (module level), so they need no plumbing here — documented for discoverability:
     #   RENDER_KB_CAMERA  — default ON. One continuous Ken Burns ping-pong zoom
@@ -110,31 +121,41 @@ def run_render(project_name: str) -> str:
     # absent OR at a stale schema version we (re)generate one using the
     # Render-tab options so the behavior matches pre-EDL rendering for users who
     # skip the dedicated edit stage. An on-disk EDL already at the current
-    # version (e.g. from a prior run_edit.py) is authoritative and left
-    # untouched; regeneration is deterministic, so a stale-version upgrade
-    # reproduces all prior data plus the current overlays shape.
-    existing_edl = load_edl(project_name)
-    if existing_edl is None or not is_current_version(existing_edl):
+    # version is otherwise authoritative and left untouched; regeneration is
+    # deterministic, so a stale-version upgrade reproduces all prior data plus the
+    # current overlays shape.
+    edl = load_edl(project_name)
+    if edl is None or not is_current_version(edl):
         print("[1/2] Generating EDL...")
         print("[[STAGE:edl:started]]", flush=True)
         edl = generate_default_edl(
             project_name, transition=transition, ken_burns=ken_burns,
         )
-        save_edl(project_name, edl)
-        print(f"  edl.json saved ({len(edl['scenes'])} scenes)")
+        print(f"  edl.json generated ({len(edl['scenes'])} scenes)")
         print("[[STAGE:edl:completed]]", flush=True)
+
+    # The Render-tab Ken Burns toggle is AUTHORITATIVE on every render: stamp its
+    # value onto every scene's per-scene ken_burns and re-save, so a re-render
+    # against an existing edl.json honors the toggle too (generate_default_edl only
+    # sets ken_burns on a FRESH EDL — without this an existing EDL would keep its
+    # old value and silently ignore the toggle). Camera vs static-still is then
+    # driven by RENDER_KB_CAMERA / RENDER_KB_DRIFT (set by the API from the same
+    # toggle).
+    for scene in edl.get("scenes", []):
+        scene["ken_burns"] = ken_burns
+    save_edl(project_name, edl)
 
     print(
         f"\nAssembling video for '{project_name}' ({len(footage_paths)} scenes; "
         f"transition={transition}, ken_burns={ken_burns}, "
         f"section_cards={section_cards}, section_transitions={section_transitions}, "
-        f"output={output_name})..."
+        f"music={music}, output={output_name})..."
     )
     print("[[STAGE:render:started]]", flush=True)
     final_video = assemble(
         project_name, footage_paths, transition=transition, ken_burns=ken_burns,
         section_cards=section_cards, section_transitions=section_transitions,
-        output_name=output_name,
+        output_name=output_name, music=music, music_volume=music_volume,
     )
     print("[[STAGE:render:completed]]", flush=True)
 

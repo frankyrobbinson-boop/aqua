@@ -44,6 +44,10 @@ class RenderRequest(ProjectStageRequest):
     # reads each as a kill-switch: "0" = off, anything else / unset = EDL-driven.
     render_section_cards: bool = True
     render_section_transitions: bool = True
+    # Background music (MVP): mix the songs in backend/music/ low under the
+    # narration. music_volume is the bed's linear gain under the voice.
+    background_music: bool = False
+    music_volume: float = 0.08
 
 
 class StageResponse(BaseModel):
@@ -128,7 +132,17 @@ async def start_render(req: RenderRequest) -> StageResponse:
         "RENDER_KEN_BURNS": "1" if req.ken_burns else "0",
         "RENDER_SECTION_CARDS": "1" if req.render_section_cards else "0",
         "RENDER_SECTION_TRANSITIONS": "1" if req.render_section_transitions else "0",
+        # The Ken Burns toggle also drives the continuous KB camera. run_render is a
+        # fresh subprocess that reads RENDER_KB_CAMERA / RENDER_KB_DRIFT at import,
+        # so threading them through the subprocess env is enough. ON → the targeted
+        # continuous camera with drift OFF (a fixed-anchor targeted zoom); OFF →
+        # camera off (static stills; drift is moot).
+        "RENDER_KB_CAMERA": "1" if req.ken_burns else "0",
+        "RENDER_MUSIC": "1" if req.background_music else "0",
+        "RENDER_MUSIC_VOLUME": str(req.music_volume),
     }
+    if req.ken_burns:
+        env["RENDER_KB_DRIFT"] = "0"
     return _start_stage("run_render.py", req.project_slug, "render", env=env)
 
 

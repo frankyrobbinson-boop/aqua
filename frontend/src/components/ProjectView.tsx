@@ -591,6 +591,8 @@ function RenderTab({
   const [sectionTransitions, setSectionTransitions] = useState(true);
   const [sectionCards, setSectionCards] = useState(true);
   const [kenBurns, setKenBurns] = useState(false);
+  const [music, setMusic] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.08);
 
   return (
     <div className="space-y-6">
@@ -622,6 +624,10 @@ function RenderTab({
         setSectionCards={setSectionCards}
         kenBurns={kenBurns}
         setKenBurns={setKenBurns}
+        music={music}
+        setMusic={setMusic}
+        musicVolume={musicVolume}
+        setMusicVolume={setMusicVolume}
       />
 
       {!canRender && sceneCount > 0 && (
@@ -647,12 +653,22 @@ function RenderTab({
             ken_burns: kenBurns,
             render_section_cards: sectionCards,
             render_section_transitions: sectionTransitions,
+            background_music: music,
+            music_volume: musicVolume,
           }}
         />
       </section>
     </div>
   );
 }
+
+// Background-music volume presets (linear gain of the bed under the narration).
+// Values mirror backend defaults; "Low" (0.08) is the default.
+const MUSIC_VOLUME_PRESETS = [
+  { label: "Low", value: 0.08 },
+  { label: "Med", value: 0.12 },
+  { label: "High", value: 0.18 },
+] as const;
 
 function RenderConfigPanel({
   sectionTransitions,
@@ -661,6 +677,10 @@ function RenderConfigPanel({
   setSectionCards,
   kenBurns,
   setKenBurns,
+  music,
+  setMusic,
+  musicVolume,
+  setMusicVolume,
 }: {
   sectionTransitions: boolean;
   setSectionTransitions: (b: boolean) => void;
@@ -668,6 +688,10 @@ function RenderConfigPanel({
   setSectionCards: (b: boolean) => void;
   kenBurns: boolean;
   setKenBurns: (b: boolean) => void;
+  music: boolean;
+  setMusic: (b: boolean) => void;
+  musicVolume: number;
+  setMusicVolume: (v: number) => void;
 }) {
   return (
     <ConfigPanel title="Render settings" badge="transitions wired">
@@ -714,12 +738,35 @@ function RenderConfigPanel({
         checked
         hint="Word-level highlight, burned in"
       />
-      <PlaceholderToggle
-        label="Background music"
-        checked={false}
-        hint="Upload + ducking — coming"
-      />
       {/* Live (non-placeholder) controls — wired through to run_render.py. */}
+      <LiveToggle
+        label="Background music"
+        checked={music}
+        onChange={setMusic}
+        hint="Plays songs from the music folder in filename order, low under the narration."
+      />
+      {music && (
+        <div className="flex items-center justify-between gap-3 pl-1">
+          <p className="text-sm text-muted">Volume</p>
+          <div className="flex gap-1">
+            {MUSIC_VOLUME_PRESETS.map(({ label, value }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setMusicVolume(value)}
+                aria-pressed={musicVolume === value}
+                className={`rounded-md px-3 py-1 text-xs ${
+                  musicVolume === value
+                    ? "bg-accent text-white"
+                    : "border border-border bg-surface-2 text-muted hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <LiveToggle
         label="Section transitions"
         checked={sectionTransitions}
