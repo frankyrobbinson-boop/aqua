@@ -74,7 +74,7 @@ duplicate callout is dropped.
 
 V5 adds ``item_noun`` to a section-header card's ``content`` (alongside
 ``index`` + ``title``) — the singular noun of the listed subject the script
-model fills at the top level (``Flower`` / ``Perennial`` / ``Mistake`` / …). It
+model fills at the top level (``Mistake`` / ``Dish`` / ``Move`` / …). It
 lets the card render a ``"{item_noun} #{index}."`` label (the floral two-tier
 header + the Garden badge prefix) instead of a bare number. Resolved from
 ``script_draft["item_noun"]`` (empty when the script predates the field or the
@@ -288,7 +288,7 @@ def _visual_subject(visual_description: str) -> str:
     description is empty or all modifiers.
 
     Delegates to ``visual_subject.subject_from_description`` (the single source of
-    truth, shared with the footage-fetch layer's rerank + query derivation) so
+    truth, shared with the footage-fetch layer's relevance filter + query derivation) so
     the subject used to place blur-dissolve seams can never drift from the one
     used to fetch footage."""
     return subject_from_description(visual_description)
@@ -499,8 +499,8 @@ def generate_default_edl(
         fade_incoming_ids.add(title_scene_id)
     blur_incoming_ids = _classify_blur_dissolve_seams(scene_windows, fade_incoming_ids)
 
-    # item_noun — the singular noun of the listed subject (Flower / Perennial /
-    # Mistake / …), a top-level field the script model fills. Stamped into each
+    # item_noun — the singular noun of the listed subject (Mistake / Dish /
+    # Move / …), a top-level field the script model fills. Stamped into each
     # section-header card's content so the card can render a
     # "{item_noun} #{index}." label; empty when the script predates the field or
     # the type doesn't set it (the card then shows the bare index, unchanged).

@@ -74,9 +74,9 @@ def write_cache(output_path: str | Path, payload: dict[str, Any]) -> None:
 
 class NoOnTopicFootage(Exception):
     """Raised by a stock provider's ``fetch_for_scene`` when it can't find any
-    candidate that genuinely shows the scene's subject — the reranker rejected
-    every candidate across the pages it tried, or the search returned nothing
-    usable.
+    candidate that genuinely shows the scene's subject — the on-topic slug filter
+    rejected every candidate across the pages it tried, or the search returned
+    nothing usable.
 
     The orchestrator (``visual_service``) catches this to route the scene to an
     AI-image fallback provider. It is NOT a scene failure: a successful fallback

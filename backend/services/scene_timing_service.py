@@ -40,9 +40,9 @@ _NORMALIZE_RE = re.compile(r'[^a-z0-9]+')
 
 # Split on whitespace, ASCII hyphen, and the Unicode dash family
 # (em-dash, en-dash, minus sign, hyphen, non-breaking hyphen, figure dash).
-# ElevenLabs returns concatenated audio tokens like 'zinnias—Zinnia' with no
+# ElevenLabs returns concatenated audio tokens like 'kettles—Kettle' with no
 # surrounding whitespace, so if we only split on \s and '-' the haystack token
-# becomes 'zinniaszinnia' and the needle ['zinnias','zinnia'] can never line
+# becomes 'kettleskettle' and the needle ['kettles','kettle'] can never line
 # up. Both haystack and needle tokenizers must use this same splitter.
 _TOKEN_SPLIT_RE = re.compile(r'[\s\-—–−‐‑‒]+')
 
@@ -51,7 +51,7 @@ def _normalize_word(s: str) -> str:
     """Lowercase and strip everything that isn't a letter or digit.
 
     Audio words from ElevenLabs come with trailing punctuation attached
-    ('trellis,', 'thumb,'), and scene narration contains apostrophes,
+    ('kettle,', 'thumb,'), and scene narration contains apostrophes,
     em-dashes, brackets, and quotes that don't appear in the spoken token.
     Stripping to [a-z0-9] makes both sides comparable.
     """
@@ -121,9 +121,9 @@ def compute_scene_windows(project_name: str) -> list:
     # Build the haystack with the SAME tokenization rule the needle uses
     # (_TOKEN_SPLIT_RE: whitespace + the Unicode dash family, then strip
     # non-alphanumerics). The dash split is critical: ElevenLabs returns
-    # 'one-size-fits-all' and 'zinnias—Zinnia' as single concatenated tokens,
+    # 'one-size-fits-all' and 'kettles—Kettle' as single concatenated tokens,
     # so without splitting them the haystack becomes 'onesizefitsall' /
-    # 'zinniaszinnia' and the corresponding needle can never line up.
+    # 'kettleskettle' and the corresponding needle can never line up.
     # Track which audio word each haystack token came from so the final word
     # index still maps back to a real global_start/global_end.
     norm_haystack: list[str] = []

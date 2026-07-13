@@ -18,8 +18,8 @@ count comes from scene_plan; a mismatch logs a warning. A future phase will
 re-bucket scene_plan to honor an override.
 
 If the file is absent, ``resolve_visual_config`` returns a default that pins
-every segment to ``stock_video`` / ``pexels``, which is today's behavior. Run
-graphs that never write this file therefore continue to work unchanged.
+every segment to the system default mode/provider (``ai_image`` / ``seedream``).
+Run graphs that never write this file therefore use the AI-image default.
 """
 
 from __future__ import annotations
@@ -149,8 +149,9 @@ def _segment_scene_counts(scene_plan: dict) -> "OrderedDict[int, int]":
 
 
 def default_visual_config(project_name: str) -> dict:
-    """Build a default config from scene_plan. Defaults preserve today's
-    behavior: every segment uses ``stock_video`` / ``pexels``.
+    """Build a default config from scene_plan. Defaults follow the system
+    default mode/provider (``ai_image`` / ``seedream``); every segment uses it
+    unless a saved config overrides.
 
     If scene_plan.json doesn't exist yet, fall back to the script draft so the
     UI can show and set per-segment modes before the visuals stage runs: the

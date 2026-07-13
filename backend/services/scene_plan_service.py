@@ -27,6 +27,17 @@ SCENE_PLAN_SCHEMA = {
                     "narration": {"type": "string"},
                     "emotional_purpose": {"type": "string"},
                     "visual_description": {"type": "string"},
+                    "shot_type": {
+                        "type": "string",
+                        "enum": [
+                            "establishing",
+                            "wide",
+                            "medium",
+                            "close",
+                            "macro",
+                            "overhead",
+                        ],
+                    },
                     "on_screen_text": {"type": "string"},
                     "visual_mode": {
                         "type": "string",
@@ -40,6 +51,7 @@ SCENE_PLAN_SCHEMA = {
                     "narration",
                     "emotional_purpose",
                     "visual_description",
+                    "shot_type",
                     "on_screen_text",
                     "visual_mode",
                 ],

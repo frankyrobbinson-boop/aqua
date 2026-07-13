@@ -1,12 +1,12 @@
 """Pexels stock-video provider conforming to the VisualProvider interface.
 
-Wraps the existing Pexels REST client + rerank logic from ``stock_pexels`` /
-``stock_provider`` / ``visual_rerank``. Behavior matches the pre-refactor
+Wraps the Pexels REST client + the deterministic on-topic filter from
+``stock_provider`` / ``visual_relevance``. Behavior matches the pre-refactor
 ``visual_service.fetch_scene_footage`` per-scene loop one-for-one:
 
   - Search Pexels for the scene's visual_description
   - Filter to clips that meet the scene's required duration
-  - Vision-rerank candidates via Claude Haiku
+  - Keep only candidates whose slug is on-topic for the scene's subject
   - Avoid duplicating clip IDs already chosen this run
   - Download the winner to ``footage/scene_<sid:03d>.mp4``
   - Write a ``.cache.json`` sidecar keyed by visual_description + stock_id
@@ -41,7 +41,7 @@ from services.visual_provider import (
     is_cache_valid,
     write_cache,
 )
-from services.visual_rerank import rerank_candidates
+from services.visual_relevance import filter_on_topic
 from services.visual_subject import (
     search_query_from_description,
     subject_from_description,
@@ -203,7 +203,7 @@ class PexelsVisualProvider(VisualProvider):
         """Fetch one on-topic stock clip for ``scene``.
 
         Raises ``NoOnTopicFootage`` when no candidate genuinely shows the scene's
-        subject across the pages tried (empty results or the reranker rejected
+        subject across the pages tried (empty results or the slug filter rejected
         every candidate); the orchestrator catches that to route the scene to the
         AI-image provider. When ``allow_ai_fallback`` is False the orchestrator
         has already spent its fallback budget, so we accept Pexels' best-effort
@@ -250,18 +250,19 @@ class PexelsVisualProvider(VisualProvider):
                 project_name, scene, query, subject, output
             )
 
-        # Walk pages for the best UNUSED on-topic clip. Prefer the rerank winner;
-        # if it's already taken, walk the pool; if a whole page is exhausted, try
-        # the next page. ``best is None`` for a page means the search returned
-        # nothing OR the reranker rejected every candidate — try the next page,
-        # then fall back to AI. ``first_on_topic`` is kept for the duplicate-
-        # accept fallback (a dup beats a gap when every on-topic clip is used).
+        # Walk pages for the best UNUSED on-topic clip. Prefer the on-topic
+        # winner; if it's already taken, walk the pool; if a whole page is
+        # exhausted, try the next page. ``best is None`` for a page means the
+        # search returned nothing OR the slug filter rejected every candidate —
+        # try the next page, then fall back to AI. ``first_on_topic`` is kept for
+        # the duplicate-accept fallback (a dup beats a gap when every on-topic
+        # clip is used).
         chosen: StockClip | None = None
         first_on_topic: StockClip | None = None
         for page in (1, 2):
             try:
-                best, rerank_pool = self._search_and_rank(
-                    scene, query, subject, project_name, page=page
+                best, on_topic_pool = self._search_and_filter(
+                    scene, query, subject, page=page
                 )
             except Exception as exc:
                 print(
@@ -278,7 +279,7 @@ class PexelsVisualProvider(VisualProvider):
             # Pick AND claim under one lock hold so no other worker can grab the
             # same clip in the window between choosing and registering it.
             with self._used_lock:
-                cand = self._pick_unused_from_pool(best, rerank_pool)
+                cand = self._pick_unused_from_pool(best, on_topic_pool)
                 if cand is not None:
                     chosen = cand
                     self._used_clip_ids.add(str(chosen.id))
@@ -342,8 +343,8 @@ class PexelsVisualProvider(VisualProvider):
     ) -> Path:
         """Degrade path used ONLY when the orchestrator has spent its AI-image
         fallback budget: take Pexels' best qualifying candidate for ``query``
-        WITHOUT the relevance reject (and without a second reranker call), so the
-        scene still gets footage. Prefers an unused clip; accepts a duplicate
+        WITHOUT the on-topic slug filter, so the scene still gets footage even
+        when nothing is verifiably on-topic. Prefers an unused clip; accepts a duplicate
         over a gap. Raises ``NoOnTopicFootage`` only if Pexels returns nothing at
         all (the scene then has no visual — a genuine failure)."""
         sid = scene["id"]
@@ -373,35 +374,31 @@ class PexelsVisualProvider(VisualProvider):
         write_cache(output, {"visual_description": query, "stock_id": chosen.id})
         return output
 
-    def _search_and_rank(
-        self, scene: dict, query: str, subject: str, project_name: str, page: int
+    def _search_and_filter(
+        self, scene: dict, query: str, subject: str, page: int
     ) -> tuple[StockClip | None, list[StockClip]]:
-        """Search Pexels for ``query`` at ``page``, filter by duration, and
-        rerank against the scene's SUBJECT.
+        """Search Pexels for ``query`` at ``page``, filter by duration, and keep
+        only clips whose page-URL slug is on-topic for the scene's SUBJECT.
 
-        Returns ``(best, rerank_pool)`` where ``best`` is the on-topic winner, or
-        ``None`` when this page has NO on-topic clip — either the search returned
-        nothing OR the reranker explicitly rejected every candidate. The caller
-        distinguishes those from a usable page by ``best is None`` and only
-        consumes ``rerank_pool`` (the dedup walk pool) when ``best`` is set."""
+        Returns ``(best, on_topic_pool)`` where ``best`` is the first on-topic
+        clip (Pexels relevance order preserved), or ``None`` when this page has
+        NO on-topic clip — either the search returned nothing OR the slug filter
+        rejected every candidate. The caller distinguishes those from a usable
+        page by ``best is None`` and only consumes ``on_topic_pool`` (the dedup
+        walk pool) when ``best`` is set."""
         candidates = self._client.search(
             query, min_duration=scene["duration"], page=page
         )
         if not candidates:
             return None, []
         qualifying = [c for c in candidates if c.duration >= scene["duration"]]
-        rerank_pool = qualifying or candidates
-        # rerank_candidates returns None ONLY on an explicit reject; any error
-        # falls back to candidates[0] internally, so a None here is a real
-        # "nothing on-topic" signal, not a transient failure.
-        best = rerank_candidates(
-            narration=scene.get("narration", ""),
-            visual_description=(scene.get("visual_description") or "").strip(),
-            candidates=rerank_pool,
-            project_name=project_name,
-            subject=subject,
-        )
-        return best, rerank_pool
+        pool = qualifying or candidates
+        on_topic = filter_on_topic(pool, subject)
+        # filter_on_topic returns [] when nothing on this page names the subject;
+        # pick_best([]) is None, a real "nothing on-topic" signal that fires the
+        # caller's NoOnTopicFootage -> AI-image fallback path.
+        best = pick_best(on_topic, scene["duration"])
+        return best, on_topic
 
     def _pick_unused_from_pool(
         self, best: StockClip, pool: list[StockClip]

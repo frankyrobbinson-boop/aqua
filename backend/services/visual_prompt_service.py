@@ -1,6 +1,7 @@
 """Pre-generation visual-prompt enhancement.
 
-scene_plan emits short stock-search phrases (Pexels-shaped). For AI image
+scene_plan emits concrete per-scene subject descriptions (a 3-8 word
+visual_description plus a shot_type). For AI image
 generators we want richer, model-ready prompts that encode the channel's
 visual identity. This service runs one batched GPT-5 call across the
 scene list and writes ``visual_prompts.json``; the Nano Banana provider looks
@@ -43,7 +44,7 @@ _ENHANCER_PROMPT_PATH = _PROMPTS_DIR / "visual_prompt_enhancement.md"
 # Bump this when compute_cache_key's payload shape changes. Folded into the
 # hash so a version bump invalidates every existing visual_prompts.json
 # cleanly — no need to ship a backwards-compat migration.
-_VISUAL_PROMPT_CACHE_VERSION = 2
+_VISUAL_PROMPT_CACHE_VERSION = 3
 
 # Used only in passthrough mode. The enhancer prompt incorporates this
 # language directly when an LLM call is made.
@@ -147,7 +148,7 @@ def compute_cache_key(channel_visuals: dict, scenes: list[dict]) -> str:
     """SHA-1 over the enhancer inputs that should invalidate the cache:
     cache-format version + enhancer template hash + model id + channel visuals
     block + a minimal scene projection (id, segment_id, visual_description,
-    narration, emotional_purpose). Edits to scene_plan fields the enhancer
+    shot_type, narration, emotional_purpose). Edits to scene_plan fields the enhancer
     doesn't see don't bust the cache."""
     model = channel_visuals.get("prompt_enhancement_model") or "gpt-5"
     payload = {
@@ -160,6 +161,7 @@ def compute_cache_key(channel_visuals: dict, scenes: list[dict]) -> str:
                 "id": int(s["id"]),
                 "segment_id": int(s.get("segment_id", 0)),
                 "visual_description": s.get("visual_description", ""),
+                "shot_type": s.get("shot_type", ""),
                 "narration": s.get("narration", ""),
                 "emotional_purpose": s.get("emotional_purpose", ""),
             }
@@ -233,6 +235,9 @@ def _scene_input_for_llm(scene: dict) -> dict:
         "narration": scene.get("narration", ""),
         "emotional_purpose": scene.get("emotional_purpose", ""),
         "visual_description": scene.get("visual_description", ""),
+        # Old projects predate shot_type; default to "" (unspecified) so the
+        # enhancer picks a natural framing instead of crashing on a missing key.
+        "shot_type": scene.get("shot_type", ""),
         "on_screen_text": scene.get("on_screen_text", ""),
     }
 

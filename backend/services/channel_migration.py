@@ -36,7 +36,7 @@ _REGISTRY_PATH = _PROMPTS_DIR / "channels.json"
 # Deterministic color palette — keyed by short hash of the channel id so the
 # UI chip color is stable across boots without storing anything yet.
 _COLOR_PALETTE = [
-    "#4a7c3a",  # gardening green
+    "#4a7c3a",  # green
     "#3a5a7c",  # cool blue
     "#7c3a5a",  # plum
     "#7c5a3a",  # warm earth

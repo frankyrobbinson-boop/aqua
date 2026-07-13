@@ -5,9 +5,9 @@ each scene's segment, resolves the provider via ``visual_provider_registry``,
 and calls ``fetch_for_scene``. Caching, dedup, and provider-specific error
 handling live in the providers themselves; this module just routes.
 
-Behavioral preservation: if ``visual_config.json`` is absent, every segment
-falls back to ``stock_video`` / ``pexels`` (see ``visual_config_service``), so
-projects predating this refactor run exactly as before.
+Behavioral note: if ``visual_config.json`` is absent, every segment falls back
+to the system default mode/provider (``ai_image`` / ``seedream``; see
+``visual_config_service``).
 
 Public surface:
     fetch_all_scene_footage(project_name) -> ({scene_id: Path}, {scene_id: str})

@@ -1,6 +1,6 @@
 {
-  "default_mode": "stock_video",
-  "default_provider": "pexels",
+  "default_mode": "ai_image",
+  "default_provider": "seedream",
   "modes": [
     {"id": "ai_image", "label": "AI image"},
     {"id": "ai_video", "label": "AI video"},

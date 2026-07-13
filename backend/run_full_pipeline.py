@@ -51,7 +51,7 @@ def run_full_pipeline(
     else:
         run_audio(project_name)
 
-    _stage_banner(3, 5, "Visuals (scene plan + Pexels fetch + LLM rerank)")
+    _stage_banner(3, 5, "Visuals (scene plan + Pexels fetch + slug filter)")
     if is_stage_fresh(project_dir, "visuals"):
         print("Visuals already present and current — skipping.", flush=True)
     else:

@@ -1,11 +1,11 @@
 """Deterministic per-scene visual SUBJECT + stock-search-query derivation.
 
-A scene's ``visual_description`` (e.g. "hosta white flowers opening dusk") leads
+A scene's ``visual_description`` (e.g. "kettle steaming on a stovetop") leads
 with a concrete subject noun. Two places need that subject WITHOUT calling any
 model:
 
-  * ``visual_rerank`` anchors its keep/reject decision on it ("does this clip
-    genuinely show {subject}?").
+  * ``visual_relevance`` anchors its keep/reject decision on it ("does this
+    clip's slug name {subject}?").
   * ``visual_pexels`` leads the Pexels query with it and drops adjective / mood
     filler, so the stock search returns the real subject more often before the
     (paid) AI-image fallback fires.
@@ -22,8 +22,8 @@ import re
 
 # Leading modifiers skipped when reading a visual_description's SUBJECT (its head
 # noun): articles / prepositions + common colour / framing / size / season
-# words, so e.g. "red bee balm ..." reads subject "bee" and "scarlet penstemon
-# ..." reads "penstemon". Deterministic — tune this set to change subject
+# words, so e.g. "red bicycle ..." reads subject "bicycle" and "scarlet umbrella
+# ..." reads "umbrella". Deterministic — tune this set to change subject
 # detection. (Moved verbatim from edl_service._VISUAL_SUBJECT_SKIP so the two
 # call sites can never drift.)
 _LEADING_MODIFIERS = frozenset({
@@ -50,9 +50,9 @@ def subject_from_description(description: str) -> str:
     Empty string when the description is empty or all modifiers.
 
     Examples:
-        "hosta white flowers opening dusk"     -> "hosta"
-        "deer eating garden plants at night"   -> "deer"
-        "mulched hosta garden bed dark soil"   -> "mulched"
+        "kettle steaming on a stovetop"        -> "kettle"
+        "runner jogging by the road"           -> "runner"
+        "sliced onion browning in a pan"       -> "sliced"
     """
     for tok in _norm_tokens(description):
         if tok not in _LEADING_MODIFIERS:
@@ -77,10 +77,9 @@ def search_query_from_description(description: str) -> str:
     fall back to the full ``visual_description``.
 
     Examples:
-        "hosta white flowers opening dusk"    -> "hosta flowers opening dusk"
-        "deer eating garden plants at night"  -> "deer eating garden plants night"
-        "organic mulch spread around hosta crown"
-                                              -> "organic mulch spread around hosta crown"
+        "kettle steaming on a stovetop"       -> "kettle steaming stovetop"
+        "runner jogging by the road"          -> "runner jogging road"
+        "ceramic bowl beside cutting board"   -> "ceramic bowl beside cutting board"
     """
     return " ".join(
         t for t in _norm_tokens(description) if t not in _LEADING_MODIFIERS
