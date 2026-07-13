@@ -1,7 +1,8 @@
 import json
 import os
+import re
 from dotenv import load_dotenv
-import anthropic
+from openai import OpenAI
 
 from services import cost_ledger
 from services.paths import PROJECTS_ROOT
@@ -9,7 +10,7 @@ from services.script_draft_service import load_script_draft, SCRIPT_SCHEMA
 
 load_dotenv()
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 PROMPT = """You are a TTS (text-to-speech) script editor preparing a YouTube narration for spoken delivery. This is a mechanical pass, not a rewrite — apply ONLY the edits below to each text field.
 
@@ -22,24 +23,30 @@ PROMPT = """You are a TTS (text-to-speech) script editor preparing a YouTube nar
 def generate_tts_prep(project_name: str) -> dict:
     script = load_script_draft(project_name)
 
-    # max_tokens must comfortably exceed the FULL rewritten script — every
-    # text field comes back transformed, so output is roughly the same size as
-    # input plus a little (numbers expand: "2026" → "twenty twenty-six" grows).
-    # A 10-min script can be ~5K tokens of JSON; 16K leaves a safe margin.
-    # Old default of 4096 silently truncated on anything over ~600 words.
-    with client.messages.stream(
-        # Mechanical rewrite (expand numerals, replace symbols, split long
-        # sentences, insert breaks) — no Opus-level reasoning needed. Haiku 4.5
-        # handles JSON-schema enforcement identically and is ~15x cheaper here.
-        model="claude-haiku-4-5-20251001",
-        max_tokens=16384,
-        output_config={"format": {"type": "json_schema", "schema": SCRIPT_SCHEMA}},
-        messages=[{
-            "role": "user",
-            "content": f"{PROMPT}\n\nSCRIPT:\n{json.dumps(script, indent=2)}"
-        }],
-    ) as stream:
-        response = stream.get_final_message()
+    # max_output_tokens must comfortably exceed the FULL rewritten script — every
+    # text field comes back transformed, so the visible output is roughly the
+    # same size as the input plus a little (numbers expand: "2026" → "twenty
+    # twenty-six" grows). A 10-min script is ~5K tokens of JSON, and GPT-5 also
+    # spends reasoning tokens against this same budget, so keep it generous:
+    # 32768 leaves ample room for reasoning + the full rewritten JSON. The old
+    # 4096 default silently truncated on anything over ~600 words — never again.
+    response = client.responses.create(
+        # Mechanical rewrite (expand numerals, insert breaks) constrained by a
+        # strict json_schema. GPT-5 per the model audit; the responses API +
+        # structured-output idiom mirrors scene_plan_service / visual_prompt_service.
+        model="gpt-5",
+        instructions=PROMPT,
+        input=f"SCRIPT:\n{json.dumps(script, indent=2)}",
+        max_output_tokens=32768,
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "tts_script",
+                "schema": SCRIPT_SCHEMA,
+                "strict": True,
+            }
+        },
+    )
 
     usage = getattr(response, "usage", None)
     in_tok = getattr(usage, "input_tokens", 0) if usage else 0
@@ -47,29 +54,34 @@ def generate_tts_prep(project_name: str) -> dict:
     cost_ledger.record(
         project_name,
         stage="tts_prep",
-        provider="anthropic",
-        model="claude-haiku-4-5-20251001",
+        provider="openai",
+        model="gpt-5",
         input_tokens=in_tok,
         output_tokens=out_tok,
     )
 
-    text = next((b.text for b in response.content if b.type == "text"), None)
-    if text is None:
-        raise RuntimeError(
-            f"No text block in Claude response; block types present: "
-            f"{[b.type for b in response.content]}"
-            f"\nstop_reason={getattr(response, 'stop_reason', '?')}"
-        )
+    text = response.output_text.strip()
+    # Strip markdown code fences some models wrap around JSON output.
+    if text.startswith("```"):
+        text = re.sub(r'^```(?:json)?\s*\n?', '', text)
+        text = re.sub(r'\n?```\s*$', '', text)
+    text = text.strip()
+    # Pull the outermost {...} block out in case GPT-5 adds prose around the
+    # JSON despite the schema. re.DOTALL lets `.` span newlines.
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        text = match.group(0)
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        # Surface stop_reason + the text head/tail so truncation failures are
-        # debuggable (mirrors the ffmpeg-stderr and script_draft fixes).
-        stop_reason = getattr(response, "stop_reason", "?")
+        # Surface status + the text head/tail so parse failures are debuggable
+        # (mirrors scene_plan / research / visual_prompt). A truncated response
+        # (past the silent-truncation history above) means bump max_output_tokens.
+        status = getattr(response, "status", "?")
         head = text[:400]
         tail = text[-400:] if len(text) > 800 else ""
         raise RuntimeError(
-            f"TTS-prep JSON did not parse (stop_reason={stop_reason}, "
+            f"TTS-prep JSON did not parse (status={status}, "
             f"text_len={len(text)}, error={e!r}).\n"
             f"--- first 400 chars ---\n{head}\n"
             f"--- last 400 chars ---\n{tail}"
