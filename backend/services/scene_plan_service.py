@@ -1,7 +1,8 @@
 import json
 import os
+import re
 from dotenv import load_dotenv
-import anthropic
+from openai import OpenAI
 
 from services import cost_ledger
 from services.paths import PROJECTS_ROOT
@@ -10,9 +11,7 @@ from services.script_draft_service import load_script_draft
 
 load_dotenv()
 
-client = anthropic.Anthropic(
-    api_key=os.getenv("ANTHROPIC_API_KEY")
-)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 SCENE_PLAN_SCHEMA = {
     "type": "object",
@@ -65,30 +64,24 @@ def generate_scene_plan(project_name):
     topic = research.get("topic", script.get("title", ""))
     prompt = load_scene_plan_prompt().replace("{topic}", topic)
 
-    with client.messages.stream(
-        # Structured creative judgment (visual concept per beat) — Sonnet 4.6
-        # handles this class of task well at ~5x lower cost than Opus 4.7.
-        # Thinking disabled: adaptive thinking was burning the full 32K token
-        # budget before any output, leaving response.content with only a
-        # thinking block and no text block. Sonnet handles this structured
-        # task fine without thinking; if quality drops, re-enable but cap
-        # budget tightly (e.g., output_config.effort="low").
-        model="claude-sonnet-4-6",
-        max_tokens=32000,
-        output_config={"format": {"type": "json_schema", "schema": SCENE_PLAN_SCHEMA}},
-        messages=[
-            {
-                "role": "user",
-                "content": f"""
-{prompt}
-
-SCRIPT:
-{json.dumps(script, indent=2)}
-"""
+    # Force valid JSON via OpenAI structured outputs (strict json_schema),
+    # mirroring research_service / outline_service / visual_prompt_service. The
+    # scene_plan prompt is the model's instruction set; the full script draft is
+    # the input. GPT-5 handles this structured creative task (a visual concept
+    # per narration beat) well.
+    response = client.responses.create(
+        model="gpt-5",
+        instructions=prompt,
+        input=f"SCRIPT:\n{json.dumps(script, indent=2)}",
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "scene_plan",
+                "schema": SCENE_PLAN_SCHEMA,
+                "strict": True,
             }
-        ]
-    ) as stream:
-        response = stream.get_final_message()
+        },
+    )
 
     usage = getattr(response, "usage", None)
     in_tok = getattr(usage, "input_tokens", 0) if usage else 0
@@ -96,28 +89,33 @@ SCRIPT:
     cost_ledger.record(
         project_name,
         stage="scene_plan",
-        provider="anthropic",
-        model="claude-sonnet-4-6",
+        provider="openai",
+        model="gpt-5",
         input_tokens=in_tok,
         output_tokens=out_tok,
     )
 
-    text = next((b.text for b in response.content if b.type == "text"), None)
-    if text is None:
-        raise RuntimeError(
-            f"No text block in Claude response; block types present: "
-            f"{[b.type for b in response.content]}"
-        )
+    text = response.output_text.strip()
+    # Strip markdown code fences that models sometimes wrap around JSON output.
+    if text.startswith("```"):
+        text = re.sub(r'^```(?:json)?\s*\n?', '', text)
+        text = re.sub(r'\n?```\s*$', '', text)
+    text = text.strip()
+    # Pull the outermost {...} block out in case GPT-5 adds prose around the
+    # JSON despite the schema. re.DOTALL lets `.` span newlines.
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        text = match.group(0)
     try:
         return json.loads(text)
     except json.JSONDecodeError as e:
-        # Surface stop_reason + the text head/tail so truncation failures are
-        # debuggable (mirrors script_draft / tts_prep).
-        stop_reason = getattr(response, "stop_reason", "?")
+        # Surface status + the text head/tail so parse failures are debuggable
+        # (mirrors research / outline / visual_prompt).
+        status = getattr(response, "status", "?")
         head = text[:400]
         tail = text[-400:] if len(text) > 800 else ""
         raise RuntimeError(
-            f"Scene plan JSON did not parse (stop_reason={stop_reason}, "
+            f"Scene plan JSON did not parse (status={status}, "
             f"text_len={len(text)}, error={e!r}).\n"
             f"--- first 400 chars ---\n{head}\n"
             f"--- last 400 chars ---\n{tail}"

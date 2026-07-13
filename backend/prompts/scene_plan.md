@@ -1,4 +1,4 @@
-You are a video director planning visuals for a YouTube video. All visuals will be sourced from a stock-footage library (similar to Pexels) by searching for short keyword phrases.
+You are a video director planning visuals for a YouTube video. Each scene is sourced either from a stock-footage library (similar to Pexels, via a short keyword phrase) or from an AI image generator — you choose per scene with `visual_mode`. Either way, the `visual_description` you write is a short, concrete phrase naming the literal subject of the shot.
 
 The video's topic is: **{topic}**
 
@@ -7,7 +7,7 @@ You are given a finished YouTube script. The script has a hook, a list of `segme
 # Scene granularity
 
 - Target scene length: **5–9 seconds** of narration. Lean shorter, not longer — viewers retain better with frequent visual changes.
-- **Hook pacing exception:** scenes in the hook segment (`segment_id: -1`) should be **2–5 seconds** each, not 5–9. Faster cuts in the first 20–30 seconds boost first-minute retention. Plan more hook scenes if you need to — overlap a long sentence across two short scenes rather than letting one drag.
+- **Hook pacing (cut FAST):** the hook segment (`segment_id: -1`) cuts faster than anything else — **2–4 seconds** per scene, and MORE scenes than a body segment covering the same number of words. A rough target is **(hook narration seconds ÷ 3) scenes**. Split on every new noun or image the hook introduces; do NOT merge two hook beats into one clip to save scenes. Overlap a long sentence across two short scenes rather than letting one drag. Faster cuts in the first 20–30 seconds boost first-minute retention.
 - Cut to a new scene whenever the subject of the narration changes, a new noun is introduced, or a new beat lands. When in doubt, cut.
 - Don't over-cut a single coherent thought into three. Don't under-cut a paragraph that covers three distinct subjects into one.
 - A **10-minute video should land at roughly 70–100 scenes total** (one cut every ~6–8 seconds on average).
@@ -33,8 +33,8 @@ If a scene's narration is a transitional or abstract sentence ("here's where it 
 - **narration**: the exact line(s) of narration this clip plays over (copy verbatim from the script — do not rewrite). One full sentence or one consecutive clause group, ending at sensible punctuation.
 - **emotional_purpose**: one short phrase — the feeling this moment should create (curiosity, urgency, satisfaction, surprise, calm, etc.).
 - **visual_description**: a **short, search-friendly phrase** (3–8 words) that names the literal subject of the footage as a stock library would index it. This is what we type into the search box.
-- **on_screen_text**: any text overlay needed (title card, statistic, lower third) — leave empty string if none.
-- **visual_mode**: which kind of source best fits this scene. Set `"stock_video"` for a generic shot you could find in a stock library (hands pruning, a watering can, a garden bed, rain on leaves). Set `"ai_image"` for a specific, unusual, or hard-to-find shot a stock library is unlikely to carry (a particular labeled diagram, a surreal or conceptual composite, a named rare specimen). When unsure, lean to `"stock_video"`.
+- **on_screen_text**: a deliberate on-screen card — a section/step title, a hard number, or a key term/label. Leave it an **empty string** for most scenes. See **On-screen text** below.
+- **visual_mode**: which kind of source best fits this scene — `"stock_video"` or `"ai_image"`. See **Choosing visual_mode: ai_image vs stock_video** below for the criteria and examples.
 
 # Rules for visual_description
 
@@ -44,9 +44,30 @@ These rules exist because stock libraries index by literal subject, and broad qu
 - **Anchor in the SEGMENT, not the topic-at-large.** When the script's segment is about "compost tea brewing," every scene in that segment should ideally feature compost / brewing imagery — not generic gardening shots, even if the topic is gardening overall. The segment is the tighter anchor.
 - **Lead with the most specific noun.** "tomato leaves close up" beats "close up of leaves on a tomato plant." First word should be the literal subject.
 - **Concrete substitute for abstract narration.** When the narration is metaphorical ("saves you money," "starts a chemical reaction," "the secret weapon") or transitional ("here's where it gets interesting"), pick a concrete subject from the segment's subject matter. For a transitional sentence inside a "diluted urine" segment, search for "watering can pouring soil," not "person thinking" or "money."
-- **No generic people or lifestyle shots.** Avoid descriptions that are just a person doing a generic action (eating, walking, smiling, thinking). If a person belongs in the shot, name what they're doing with the topic-specific object — "hands pruning tomato plant" not "person gardening."
+- **No generic or filler people.** Never add a person just to fill a beat — no "a person doing X," no "hands thumbs up," no generic lifestyle shots (eating, walking, smiling, thinking). A people shot must be purposeful: name what the hands are doing with the topic-specific object — "hands pruning tomato plant," not "person gardening."
 - **Camera/lighting/mood do not belong in the query.** Stock libraries don't index by cinematography. Skip "extreme close-up," "golden hour," "documentary-style," etc.
 - **No named varieties, brands, or places.** "tomato" not "Cherokee Purple tomato"; "garden bed" not "Aidan's backyard."
+
+# Choosing visual_mode: ai_image vs stock_video
+
+Pick the source that will actually show the RIGHT thing. The AI-image generator now produces accurate, on-topic, consistent visuals, so prefer it whenever a shot is specific to this topic — stock is frequently off-topic or too generic for anything precise.
+
+- Choose **`ai_image`** when the shot is **topic-specific** and stock would be inaccurate or generic: a specific pest at a specific life-stage (a mosquito egg-ring on a bucket wall), a specific plant symptom (bud blast on a hosta scape), a specific subject or action the topic hinges on — anything that must show the EXACT thing the narration describes.
+- Choose **`stock_video`** for generic B-roll a stock library carries well: common objects (buckets, fans, watering cans, tools), environments (a backyard, a hardware store, a shade garden), and general actions (rain falling, hands mulching).
+- **When in doubt on a topic-specific or subject-critical shot, prefer `ai_image`.** Lean more toward `ai_image` than instinct suggests — a precise AI image beats an off-topic stock clip.
+
+# On-screen text (use it sparingly)
+
+On-screen text is a DELIBERATE CARD, not a caption. Reserve it for one of:
+- a section or step TITLE — `"Secret #2: Bud protection"`, `"Step 1: ..."`;
+- a hard statistic or number — `"1 inch of water / week"`, `"2–4 hrs morning sun"`;
+- a key term or label the viewer should catch — `"Bud blast"`;
+- a safety warning.
+
+Hard rules:
+- **NEVER echo or paraphrase the narration.** If the on-screen words are just the sentence being spoken, delete them.
+- **Roughly ONE on-screen card per 20–30 seconds of video** — NOT one per scene. The large majority of scenes have an **empty** `on_screen_text`.
+- The goal is a few clean title/step cards plus the occasional number, not running captions.
 
 # Visual variety across consecutive scenes
 

@@ -32,20 +32,22 @@ _lock = threading.Lock()
 # Price tables
 # ---------------------------------------------------------------------------
 #
-# Anthropic per-MTok rates (USD). Sonnet 4.6 = $3/$15, Opus 4.7 = $15/$75,
-# Haiku 4.5 = $1/$5. OpenAI GPT-5 = $1.25/$10 per MTok (PLACEHOLDER —
-# verify against current OpenAI pricing). Nano Banana = $0.039 per image.
+# Anthropic per-MTok rates (USD). Sonnet 4.6 = $3/$15, Opus 4.7 = $5/$25,
+# Haiku 4.5 = $1/$5. OpenAI GPT-5 = $1.25/$10, GPT-5-mini = $0.25/$2 per MTok
+# (PLACEHOLDER — verify against current OpenAI pricing). Nano Banana = $0.039
+# per image.
 # ElevenLabs = $0.00030 per character (PLACEHOLDER — depends on plan tier).
 # Pexels = $0 per clip (free under their license for our usage).
 
 _TOKEN_PRICES: dict[str, dict[str, tuple[float, float]]] = {
     "anthropic": {
         "claude-sonnet-4-6": (3.0, 15.0),
-        "claude-opus-4-7": (15.0, 75.0),
+        "claude-opus-4-7": (5.0, 25.0),
         "claude-haiku-4-5-20251001": (1.0, 5.0),
     },
     "openai": {
         "gpt-5": (1.25, 10.0),
+        "gpt-5-mini": (0.25, 2.0),
     },
 }
 
