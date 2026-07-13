@@ -35,7 +35,7 @@ _lock = threading.Lock()
 # Anthropic per-MTok rates (USD). Sonnet 4.6 = $3/$15, Opus 4.7 = $5/$25,
 # Haiku 4.5 = $1/$5. OpenAI GPT-5 = $1.25/$10, GPT-5-mini = $0.25/$2 per MTok
 # (PLACEHOLDER — verify against current OpenAI pricing). Nano Banana = $0.039
-# per image.
+# per image. Seedream 4.5 (fal) = $0.03 per image.
 # ElevenLabs = $0.00030 per character (PLACEHOLDER — depends on plan tier).
 # Pexels = $0 per clip (free under their license for our usage).
 
@@ -54,6 +54,10 @@ _TOKEN_PRICES: dict[str, dict[str, tuple[float, float]]] = {
 _UNIT_PRICES: dict[str, dict[str, float]] = {
     "gemini": {
         "gemini-2.5-flash-image": 0.039,
+    },
+    "fal": {
+        # Seedream 4.5 text-to-image (native ~3416x1920 16:9).
+        "seedream-4.5": 0.03,
     },
     "elevenlabs": {
         # Per-character flat rate, independent of model id.

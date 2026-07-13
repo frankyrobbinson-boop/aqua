@@ -40,11 +40,13 @@ from services.visual_provider_registry import default_provider_for_mode, get_pro
 _MAX_WORKERS = 8
 
 # Provider/model used for AI-image FALLBACKS — scenes whose stock search had no
-# on-topic clip and get routed to the AI provider (an on-topic still). Retained
-# only to estimate fallback spend for the run log (~$0.039/image); exact spend
-# is recorded in cost_ledger.json.
-_AI_FALLBACK_PROVIDER = "gemini"
-_AI_FALLBACK_MODEL = "gemini-2.5-flash-image"
+# on-topic clip and get routed to the AI provider (an on-topic still). The
+# ACTUAL provider is resolved dynamically via default_provider_for_mode
+# ("ai_image") in _resolve_ai_provider; these constants only drive the
+# fallback-spend estimate for the run log (~$0.03/image). Keep them in sync with
+# the ai_image default (Seedream 4.5 on fal). Exact spend is in cost_ledger.json.
+_AI_FALLBACK_PROVIDER = "fal"
+_AI_FALLBACK_MODEL = "seedream-4.5"
 
 
 # ---------------------------------------------------------------------------
