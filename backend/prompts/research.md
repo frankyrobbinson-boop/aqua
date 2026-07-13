@@ -13,7 +13,7 @@ Most of what's true about a topic is forgettable. Skip it. Find the facts a good
 For every fact you keep, know two things and write them both into `notes`:
 
 1. **The mechanism** — the physical or causal reason it's true, in one or two plain sentences the script can paraphrase. A surprising claim with no mechanism is unusable; mechanism is how the script earns the claim without citing anyone.
-2. **The feeling** — what it lets the viewer feel or picture (relief, vindication, "that'd look incredible in my yard," "I can stop doing the annoying thing"). This is the dopamine the script will build the section around, and the best ones pay in the title's currency. If a fact has a mechanism but no feeling, it's a footnote, not a key fact.
+2. **The feeling** — what it lets the viewer feel or picture (relief, vindication, "I want that in my life," "I can stop doing the annoying thing"). This is the dopamine the script will build the section around, and the best ones pay in the title's currency. If a fact has a mechanism but no feeling, it's a footnote, not a key fact.
 
 # Accuracy rules — these override everything above
 
@@ -26,11 +26,11 @@ For every fact you keep, know two things and write them both into `notes`:
 # Specifics and vocabulary
 
 - **Exact numbers.** Any tested specific — a depth, duration, temperature, ratio, spacing, frequency — goes in `key_facts` as an exact value with high confidence. "2-3 inches deeper than the pot," not "deeper."
-- **Domain vocabulary.** Named varieties, cultivars, category terms, jargon - include each with a one-clause plain meaning ("'Goldsturm' = the black-eyed Susan that's actually a perennial and comes back, vs. the lookalike that dies"). The script needs these so the viewer can shop and recognize.
+- **Domain vocabulary.** Named varieties, category terms, jargon - include each with a one-clause plain meaning ("'<the named variant>' = the one that actually does what it claims, vs. the lookalike that quietly fails"). The script needs these so the viewer can shop and recognize.
 
 # Angles
 
-`interesting_angles` are whole framings a video could be built on - a promise, a contrarian claim, a "why your X keeps dying," a "what grandma knew that got lost," a "the plant that thrives on the neglect you feel guilty about." Emotional framings, not subtopics.
+`interesting_angles` are whole framings a video could be built on - a promise, a contrarian claim, a "why your X keeps failing," a "what grandma knew that got lost," a "the one that works better the less you touch it." Emotional framings, not subtopics.
 
 {{AUDIENCE_BLOCK}}
 

@@ -11,7 +11,7 @@
     {
       "id": "discovery_list",
       "label": "Discovery List",
-      "description": "A set of plants, tools, or varieties the viewer is mostly meeting for the first time. Introduce each, make them want it, hand them the one thing that unlocks it.",
+      "description": "A set of items the viewer is mostly meeting for the first time. Introduce each, make them want it, hand them the one thing that unlocks it.",
       "outline_module": "discovery_list_outline.md",
       "script_module": "discovery_list_script.md"
     }
