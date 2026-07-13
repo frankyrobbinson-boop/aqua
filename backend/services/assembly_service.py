@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 
 from services.channel_registry import resolve_channel_editing
@@ -69,6 +70,40 @@ KB_DEFAULT_EASING = "linear"
 # the cv2 flag lazily inside the KB path so importing this module never needs cv2.
 RENDER_KB_INTERP = os.environ.get("RENDER_KB_INTERP", "lanczos4")
 
+# Continuous Ken Burns camera. RENDER_KB_CAMERA (default ON; "=0" restores the
+# legacy independent per-scene center zoom) drives ONE gentle ping-pong zoom
+# SHARED across each run of consecutive stills so the motion flows THROUGH the
+# hard cuts, with an auto-target aiming the push at each still's subject
+# (compute_camera_tracks); RENDER_KB_DRIFT selects the aim mode (fixed-anchor
+# pivot by default). The constants below are the LOCKED, validated
+# feel — copied VERBATIM from tools/kb_camera_drift.py (the P8_A12 + drift clip
+# the user approved): reversal period 8s, amplitude 0.12 (zoom spans 1.0..1.12),
+# smoothstep reversals eased over 0.10 of each ramp, and the ~1s envelope ease.
+RENDER_KB_CAMERA = os.environ.get("RENDER_KB_CAMERA", "1") != "0"
+KB_CAMERA_PERIOD_S = 8.0        # SETTING_P  — seconds between ping-pong reversals
+KB_CAMERA_AMPLITUDE = 0.12      # SETTING_A  — zoom fraction (1.0 .. 1.12)
+KB_CAMERA_INTERP = "smoothstep"  # SETTING_INTERP — eased-triangle reversals
+KB_CAMERA_EASE_FRAC = 0.10      # SETTING_EASE_FRAC — reversal ease fraction
+KB_CAMERA_EASE_SECONDS = 1.0    # == kb_camera.DEFAULT_EASE_SECONDS (quick envelope)
+
+# Crop-centre aim for the continuous KB camera. RENDER_KB_DRIFT default OFF =
+# PIVOT (fixed anchor): the crop centre is pinned to the target anchor for EVERY
+# frame, so the zoom simply tightens on the subject where it sits — a targeted
+# zoom with NO lateral slide (gate ``target`` → the clamped subject; gate
+# ``center`` → (0.5,0.5), a plain centre zoom). "=1" restores the validated
+# DRIFT-to-centre behaviour: the crop centre lerps from the frame centre toward
+# the anchor as the zoom rises (subject glides to centre on a push, reveals on a
+# pull). Only the per-frame crop centre differs — the shared ping-pong zoom TRACK
+# is identical either way, so this never touches the frame/audio-sync contract.
+RENDER_KB_DRIFT = os.environ.get("RENDER_KB_DRIFT", "0") == "1"
+
+# On-screen drawtext OST (the header/callout/counter overlays baked into the
+# EDL). RENDER_OST_DRAWTEXT default OFF: NO burned-in drawtext ships ("=1"
+# re-enables it for debugging). _build_overlay_drawtext stays in place, just
+# dormant. This gates ONLY the ffmpeg drawtext OST — Remotion section/title
+# cards and the karaoke subtitles (the subtitles= filter) are unaffected.
+RENDER_OST_DRAWTEXT = os.environ.get("RENDER_OST_DRAWTEXT", "0") == "1"
+
 # Bump when filter math changes in a way that should invalidate cached clips
 # (e.g., Ken Burns formula change, fade duration change). The boolean flags
 # in the cache key only catch flag flips; raw filter changes need this knob.
@@ -88,7 +123,13 @@ RENDER_KB_INTERP = os.environ.get("RENDER_KB_INTERP", "lanczos4")
 #      chain is replaced by a per-frame subpixel cv2.warpAffine; the key gains a
 #      motion_sig (motion + easing + interp) so a KB motion/easing/interp change
 #      re-renders only the affected clips.
-_CLIP_CACHE_VERSION = 11
+# v12: continuous KB camera + drift auto-target replace the per-scene center
+#      zoom, and drawtext OST is off by default. motion_sig → camera_sig (the
+#      actual per-frame zoom track + anchor + drift z-range, or the legacy motion
+#      for the RENDER_KB_CAMERA=0 path), and overlays_sig now reflects the
+#      EFFECTIVE overlays (none when RENDER_OST_DRAWTEXT is off), so toggling
+#      either flag re-renders exactly the affected clips.
+_CLIP_CACHE_VERSION = 12
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -564,6 +605,36 @@ def _motion_signature(
     )
 
 
+def _camera_signature(
+    zs: list[float],
+    anchor: tuple[float, float],
+    z_range: tuple[float, float],
+    interp: str,
+    drift: bool,
+) -> str:
+    """Stable signature of the continuous KB CAMERA render for the clip cache key:
+    the exact per-frame zoom track actually encoded (``zs`` = camera.zs_for(frames),
+    tail-padded for seam clips), the target anchor, the drift normalization window
+    (``z_range``), the warp interpolation, and the crop-centre aim mode (``drift``
+    == RENDER_KB_DRIFT: fixed-anchor pivot vs drift-to-centre). Because it hashes
+    the ACTUAL zooms rendered plus the aim mode, any change to the camera
+    constants, the run layout, the subject target, the requested frame count, or
+    the RENDER_KB_DRIFT flag re-renders only the affected clip; and flipping
+    RENDER_KB_CAMERA swaps this for _motion_signature, which differs, so the
+    legacy/camera toggle also re-renders. Rounded so the deterministic camera
+    reproduces an identical key across runs."""
+    return json.dumps(
+        {
+            "zs": [round(z, 6) for z in zs],
+            "anchor": [round(anchor[0], 6), round(anchor[1], 6)],
+            "z_range": [round(z_range[0], 6), round(z_range[1], 6)],
+            "interp": interp,
+            "drift": bool(drift),
+        },
+        sort_keys=True,
+    )
+
+
 def _scene_frame_count(scene: dict) -> int:
     """Exact number of frames this scene's clip must render to.
 
@@ -588,7 +659,7 @@ def _clip_cache_hit(
     ken_burns: bool,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
-    motion_sig: str = "",
+    camera_sig: str = "",
 ) -> bool:
     """True iff a previously-rendered clip is still valid for these inputs.
 
@@ -617,7 +688,7 @@ def _clip_cache_hit(
         and cache.get("ken_burns") == ken_burns
         and cache.get("overlays_sig") == _overlays_signature(overlays)
         and cache.get("edit_style_sig") == _edit_style_signature(edit_style)
-        and cache.get("motion_sig") == motion_sig
+        and cache.get("camera_sig") == camera_sig
         and cache.get("cache_version") == _CLIP_CACHE_VERSION
     )
 
@@ -658,6 +729,63 @@ def _kb_warp_matrix(
     return np.array([[s, 0.0, -x0 * s], [0.0, s, -y0 * s]], dtype=np.float64)
 
 
+# Guard for a degenerate (flat-zoom) drift window — mirrors kb_camera_drift.EPS.
+_KB_CAMERA_EPS = 1e-9
+
+
+@dataclass(frozen=True)
+class SceneCameraTrack:
+    """One scene's slice of the continuous Ken Burns camera (built by
+    compute_camera_tracks, consumed by the _render_kenburns_png camera branch).
+
+    ``anchor`` is the drift target — the edge-margin-clamped subject when the
+    still's gate is ``target``, else the frame centre (gate ``center`` → the drift
+    is a no-op plain centre zoom). ``z_range`` is (z_min, z_peak) over the scene's
+    NATURAL per-frame zoom window (``_zs``); the drift normalizes against it so it
+    stays stable on extended (seam) clips whose tail merely pad-holds. ``_zs`` is
+    the run camera's re-based per-frame zoom for this scene (len == the footage
+    frames the camera was built over)."""
+
+    gate: str
+    anchor: tuple[float, float]
+    z_range: tuple[float, float]
+    _zs: tuple[float, ...]
+
+    def zs_for(self, frames: int) -> list[float]:
+        """Per-frame zoom for a clip of EXACTLY ``frames`` frames (len == frames
+        always — the audio-sync contract). Returns the natural window when the
+        counts match; pad-holds the final zoom for the extra frames an EXTENDED
+        seam clip (render_extended_clip / a card seam) asks for — those tail
+        frames sit under the seam's fade/blur — and truncates only in the (unused
+        in practice) shorter case."""
+        zs = self._zs
+        n = len(zs)
+        if frames == n:
+            return list(zs)
+        if frames < n:
+            return list(zs[:frames])
+        return list(zs) + [zs[-1]] * (frames - n)
+
+
+def _kb_drift_center(
+    z: float, z_min: float, z_peak: float, anchor: tuple[float, float]
+) -> tuple[float, float]:
+    """Drift-to-center crop centre for the continuous KB camera at zoom ``z``
+    (ported VERBATIM from tools/kb_camera_drift.py `_drift_crop_center`): lerp(
+    centre, anchor, d) with d = (z - z_min)/(z_peak - z_min) clamped to [0,1] — 0
+    at the window's most-zoomed-out frame, 1 at its peak, so a push-in drifts the
+    subject to centre and a pull-out reveals it. Clamped into [0,1] (the warp's
+    in-bounds condition); a degenerate (flat) window yields d=0 → plain centre.
+    gate ``center`` passes anchor == (0.5, 0.5), so this returns (0.5, 0.5)."""
+    ax, ay = anchor
+    span = z_peak - z_min
+    d = (z - z_min) / span if span > _KB_CAMERA_EPS else 0.0
+    d = min(1.0, max(0.0, d))
+    cx = min(1.0, max(0.0, 0.5 + (ax - 0.5) * d))
+    cy = min(1.0, max(0.0, 0.5 + (ay - 0.5) * d))
+    return cx, cy
+
+
 def _render_kenburns_png(
     footage_path: str,
     output_path: str,
@@ -666,6 +794,9 @@ def _render_kenburns_png(
     motion: tuple[float, float, float, float, float, float],
     easing: str,
     vf: str,
+    zs: list[float] | None = None,
+    anchor: tuple[float, float] | None = None,
+    z_range: tuple[float, float] | None = None,
 ) -> None:
     """Subpixel Ken Burns encode for a PNG scene (frame-writer ported from
     tools/kenburns_subpixel.py — services must not import from tools).
@@ -673,11 +804,22 @@ def _render_kenburns_png(
     Resamples the still ONCE per output frame with cv2.warpAffine at fractional
     source coords (genuine sub-pixel sampling, no supersample canvas) and streams
     the raw BGR frames to a single libx264 encode. Generates EXACTLY ``frames``
-    frames (p = n/(frames-1), or 0 when frames==1) — the audio-sync contract every
-    clip path shares. The warp already produces the final OUT_W x OUT_H canvas, so
-    ``vf`` carries only pixel-format + the shared fade/overlays (no scale/crop/
-    zoom). cv2 reads BGR, so the frames pipe out as bgr24 with no channel swap.
-    cv2/numpy are imported lazily so importing this module never needs OpenCV."""
+    frames — the audio-sync contract every clip path shares. The warp already
+    produces the final OUT_W x OUT_H canvas, so ``vf`` carries only pixel-format +
+    the shared fade/overlays (no scale/crop/zoom). cv2 reads BGR, so the frames
+    pipe out as bgr24 with no channel swap. cv2/numpy are imported lazily so
+    importing this module never needs OpenCV.
+
+    Two focal modes, chosen per frame ONLY by the warp matrix M (the frame loop,
+    -frames:v, and the ``frames`` contract are identical either way):
+      * CAMERA (``zs`` given) — the continuous shared ping-pong: frame n uses the
+        exact per-frame zoom ``zs[n]``. The crop centre follows RENDER_KB_DRIFT:
+        OFF (default) PIVOTS on the fixed ``anchor`` (the zoom tightens on the
+        subject where it sits — no lateral slide); ON DRIFTS the crop from the
+        frame centre toward ``anchor`` as the zoom rises (normalized over
+        ``z_range``). ``zs`` MUST already be len == frames.
+      * LEGACY (``zs`` None) — the independent per-scene eased ``motion`` push
+        (p = n/(frames-1), or 0 when frames==1)."""
     import cv2  # lazy: only the KB PNG path needs OpenCV
     import numpy as np
 
@@ -688,6 +830,16 @@ def _render_kenburns_png(
         raise RuntimeError(f"Ken Burns: could not read still {footage_path}")
     src_h, src_w = src.shape[:2]
     denom = frames - 1 if frames > 1 else 1
+
+    use_camera = zs is not None
+    if use_camera:
+        if len(zs) != frames:
+            raise RuntimeError(
+                f"Ken Burns camera: zs has {len(zs)} entries but {frames} frames "
+                f"requested ({output_path}) — would desync audio."
+            )
+        cam_anchor = anchor if anchor is not None else (0.5, 0.5)
+        z_min, z_peak = z_range if z_range is not None else (min(zs), max(zs))
 
     proc = subprocess.Popen(
         [
@@ -706,8 +858,20 @@ def _render_kenburns_png(
     assert proc.stdin is not None
     try:
         for n in range(frames):
-            p = (n / denom) if frames > 1 else 0.0
-            M = _kb_warp_matrix(src_w, src_h, motion, p, easing)
+            if use_camera:
+                z = zs[n]
+                if RENDER_KB_DRIFT:
+                    # DRIFT: crop centre lerps frame-centre → anchor as z rises.
+                    cx, cy = _kb_drift_center(z, z_min, z_peak, cam_anchor)
+                else:
+                    # PIVOT (default): fixed anchor — zoom tightens in place.
+                    cx, cy = cam_anchor
+                M = _kb_warp_matrix(
+                    src_w, src_h, (z, z, cx, cy, cx, cy), 0.0, "linear"
+                )
+            else:
+                p = (n / denom) if frames > 1 else 0.0
+                M = _kb_warp_matrix(src_w, src_h, motion, p, easing)
             frame = cv2.warpAffine(
                 src, M, (OUT_W, OUT_H),
                 flags=interp, borderMode=cv2.BORDER_REFLECT_101,
@@ -734,6 +898,7 @@ def render_scene_clip(
     motion: tuple | None = None,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
+    camera: "SceneCameraTrack | None" = None,
 ):
     """Render one scene by trimming + scaling a stock-footage clip to OUT_W x OUT_H.
 
@@ -757,9 +922,15 @@ def render_scene_clip(
       encode.
 
     motion: optional (z0, z1, cx0, cy0, cx1, cy1) Ken Burns move; defaults to
-      KB_DEFAULT_MOTION. Only used on the Ken Burns PNG path. Call sites pass
-      nothing today, so every scene gets the default center zoom; per-scene
-      variety is a later iteration.
+      KB_DEFAULT_MOTION. Used on the Ken Burns PNG path ONLY when the continuous
+      camera is off (RENDER_KB_CAMERA=0) or no ``camera`` track is supplied — the
+      legacy independent per-scene center zoom.
+
+    camera: optional per-scene SceneCameraTrack (from compute_camera_tracks). When
+      RENDER_KB_CAMERA is on and this KB still has a track, its exact per-frame
+      zoom (camera.zs_for(frames)) + drift-to-center aim drive the warp instead of
+      ``motion``, so the move flows continuously through the run's cuts and pushes
+      toward the still's subject.
 
     overlays: zero or more EDL overlay dicts (kind / text / position /
       animation / start_offset / duration) drawn as drawtext filters composited
@@ -776,20 +947,37 @@ def render_scene_clip(
     frames = _scene_frame_count(scene)
     duration = frames / FPS
 
-    # Resolve the Ken Burns move (call sites pass nothing today → every scene
-    # gets the default center zoom). motion_sig keys the cache on the warp params
-    # so a motion / easing / interp change re-renders only the affected KB clips.
+    is_png = str(footage_path).lower().endswith(".png")
+    kb_png = ken_burns and is_png
+
+    # Ken Burns focal source: the continuous shared CAMERA (RENDER_KB_CAMERA on +
+    # a track supplied for this KB still) drives an exact per-frame zoom track +
+    # drift-to-center aim; otherwise the LEGACY independent per-scene ``motion``
+    # push. camera_sig keys the cache on whichever is active (the actual zoom track
+    # + anchor + drift window, or the legacy motion/easing/interp), so a camera,
+    # target, motion, or flag change re-renders only the affected KB clips.
     motion = motion or KB_DEFAULT_MOTION
-    motion_sig = _motion_signature(motion, KB_DEFAULT_EASING, RENDER_KB_INTERP)
+    use_camera = RENDER_KB_CAMERA and kb_png and camera is not None
+    if use_camera:
+        cam_zs = camera.zs_for(frames)
+        camera_sig = _camera_signature(
+            cam_zs, camera.anchor, camera.z_range, RENDER_KB_INTERP, RENDER_KB_DRIFT
+        )
+    else:
+        cam_zs = None
+        camera_sig = _motion_signature(motion, KB_DEFAULT_EASING, RENDER_KB_INTERP)
+
+    # Drawtext OST is off by default (RENDER_OST_DRAWTEXT): the effective overlays
+    # are None unless it is explicitly enabled. The SAME effective list drives both
+    # the render loop and the cache signature, so the key reflects what is actually
+    # burned in and toggling the flag re-renders. Cards + subtitles are untouched.
+    effective_overlays = overlays if RENDER_OST_DRAWTEXT else None
 
     if _clip_cache_hit(
         scene, footage_path, output_path, transition, ken_burns,
-        overlays=overlays, edit_style=edit_style, motion_sig=motion_sig,
+        overlays=effective_overlays, edit_style=edit_style, camera_sig=camera_sig,
     ):
         return  # cache hit — output already valid
-
-    is_png = str(footage_path).lower().endswith(".png")
-    kb_png = ken_burns and is_png
 
     # Ken Burns ON + PNG source → subpixel warp (encoded below). The warp
     # resamples the still straight to the final OUT_W x OUT_H canvas per frame, so
@@ -818,7 +1006,7 @@ def render_scene_clip(
     # the clip fade, and after scale/crop/Ken Burns so they compose over the
     # final 1920x1080 canvas (never zoomed or cropped). Chained in list order;
     # drawtext renders on top of whatever colour the frame is at that moment.
-    for overlay in (overlays or []):
+    for overlay in (effective_overlays or []):
         kind_style = (edit_style or {}).get(overlay.get("kind")) or {}
         overlay_filter = _build_overlay_drawtext(overlay, kind_style, duration)
         if overlay_filter:
@@ -828,10 +1016,15 @@ def render_scene_clip(
 
     if kb_png:
         # Subpixel Ken Burns: warp each frame from the native still and pipe the
-        # raw BGR frames through the vf (format + fade + overlays) to libx264.
+        # raw BGR frames through the vf (format + fade + overlays) to libx264. The
+        # continuous camera (cam_zs set) supplies the per-frame zoom + drift aim;
+        # otherwise the legacy per-scene ``motion`` push is used.
         _render_kenburns_png(
             footage_path, output_path,
             frames=frames, motion=motion, easing=KB_DEFAULT_EASING, vf=vf,
+            zs=cam_zs,
+            anchor=(camera.anchor if use_camera else None),
+            z_range=(camera.z_range if use_camera else None),
         )
     else:
         subprocess.run([
@@ -856,11 +1049,162 @@ def render_scene_clip(
             "fps": FPS,
             "transition": transition,
             "ken_burns": ken_burns,
-            "overlays_sig": _overlays_signature(overlays),
+            "overlays_sig": _overlays_signature(effective_overlays),
             "edit_style_sig": _edit_style_signature(edit_style),
-            "motion_sig": motion_sig,
+            "camera_sig": camera_sig,
             "cache_version": _CLIP_CACHE_VERSION,
         }, f)
+
+
+def compute_camera_tracks(
+    windows: list[dict],
+    edl_by_id: dict[int, dict],
+    footage_paths: dict,
+    *,
+    default_ken_burns: bool = False,
+    section_cards: dict[int, dict] | None = None,
+    card_seconds: float = SECTION_CARD_SECONDS,
+    model_path: str | Path | None = None,
+    use_cache: bool = True,
+) -> dict[int, SceneCameraTrack]:
+    """Continuous Ken Burns camera for a whole render, as ``{scene_id: track}``.
+
+    Partitions the scenes into RUNS of consecutive KB stills — a scene is a KB
+    still iff its footage is a PNG and its (EDL, else ``default_ken_burns``)
+    ken_burns is on — broken at any NON-CUT lead_in (a ``fade_black`` section
+    boundary or a ``blur_dissolve``), because the shared ping-pong flows through
+    HARD CUTS only; a non-cut transition visually resets the motion, so it starts
+    a fresh run (eased in from rest, matching _lead_in_seams' seam set). Non-KB
+    scenes (video footage / ken_burns off) belong to no run and get no track (they
+    never warp; render_scene_clip falls back to the legacy path for them).
+
+    Each run drives ONE ``kb_camera.compute_run`` at the LOCKED validated feel
+    (KB_CAMERA_* — P8_A12 + the drift envelope, copied verbatim from
+    tools/kb_camera_drift.py). Per scene the SceneSpec frame count is the scene's
+    authoritative _scene_frame_count — EXCEPT a section-CARD scene, whose card
+    fronts the footage: there the spec (and the camera) covers only the footage
+    frames ``_scene_frame_count - min(round(card_seconds*FPS), _scene_frame_count)``,
+    mirroring render_section_intro_clip's split, so the motion begins when the
+    footage does. The run's frame clock is the running SUM of those per-scene
+    footage frames — built from _scene_frame_count, NEVER specs_from_durations
+    (whose independent per-scene round(dur*fps) would diverge from the cumulative-
+    snapped authoritative counts and desync the audio).
+
+    Targeting (drift-to-center): each still is analyzed once (kb_shot_analysis,
+    U2-Netp) for a gate + subject anchor. gate ``target`` → the crop drifts toward
+    the clamped subject anchor as the zoom rises; gate ``center`` → anchor is the
+    frame centre, so the drift is a no-op plain center zoom. ONLY gate + anchor are
+    used — ``move``/pan fields are ignored (pan is unvalidated). analyze_still is
+    wrapped so ANY failure (missing model, load error) degrades targeting to centre
+    for the whole render — it never breaks the render. ``use_cache`` forwards to
+    analyze_still (pass False to write no per-still sidecars, e.g. validation)."""
+    from services import kb_camera  # sibling pure-math module (stdlib only)
+
+    card_ids = set(section_cards or {})
+
+    def _footage_frames(scene: dict) -> int:
+        """Frames the camera moves over: the whole scene, minus a fronting section
+        card's frames (mirrors render_section_intro_clip)."""
+        sf = _scene_frame_count(scene)
+        if scene["id"] in card_ids:
+            cs = (section_cards or {}).get(scene["id"], {}).get(
+                "card_seconds", card_seconds
+            )
+            return max(0, sf - min(round(cs * FPS), sf))
+        return sf
+
+    def _is_kb_still(scene: dict) -> bool:
+        src = footage_paths.get(scene["id"])
+        if not src or not str(src).lower().endswith(".png"):
+            return False
+        return bool(edl_by_id.get(scene["id"], {}).get("ken_burns", default_ken_burns))
+
+    def _lead_in_type(scene: dict) -> str:
+        return (edl_by_id.get(scene["id"], {}).get("lead_in") or {}).get("type", "cut")
+
+    # Load the analyzer once; ANY failure (no cv2, missing/broken model) disables
+    # targeting for the whole render (all-center) rather than breaking it.
+    targeting_ok = True
+    analyze_still = None
+    default_model = None
+    try:
+        from services.kb_shot_analysis import analyze_still as _analyze, DEFAULT_MODEL
+        analyze_still = _analyze
+        default_model = DEFAULT_MODEL
+    except Exception as e:  # noqa: BLE001 — degrade to centre, never break render
+        targeting_ok = False
+        print(
+            f"  WARN: KB shot-analysis unavailable ({type(e).__name__}: "
+            f"{str(e)[:120]}); Ken Burns camera will center-zoom (no drift)."
+        )
+    model_arg = Path(model_path) if model_path else default_model
+
+    def _gate_anchor(scene: dict) -> tuple[str, tuple[float, float]]:
+        nonlocal targeting_ok
+        if not targeting_ok or analyze_still is None:
+            return "center", (0.5, 0.5)
+        try:
+            r = analyze_still(
+                footage_paths[scene["id"]], model_path=model_arg, use_cache=use_cache
+            )
+            return r["gate"], (float(r["anchor"][0]), float(r["anchor"][1]))
+        except Exception as e:  # noqa: BLE001 — first failure disables + centers
+            targeting_ok = False
+            print(
+                f"  WARN: KB targeting failed on scene {scene['id']} "
+                f"({type(e).__name__}: {str(e)[:120]}); center-zoom for the rest."
+            )
+            return "center", (0.5, 0.5)
+
+    # Partition into runs of consecutive KB stills (break at any non-cut lead_in
+    # or non-KB scene).
+    runs: list[list[dict]] = []
+    run: list[dict] = []
+    for scene in windows:
+        if not _is_kb_still(scene):
+            if run:
+                runs.append(run)
+                run = []
+            continue
+        if run and _lead_in_type(scene) != "cut":
+            runs.append(run)
+            run = []
+        run.append(scene)
+    if run:
+        runs.append(run)
+
+    # Build each run's shared camera + per-scene tracks.
+    tracks: dict[int, SceneCameraTrack] = {}
+    for run in runs:
+        specs: list = []
+        run_scenes: list[tuple[dict, str]] = []  # (scene, gate) aligned to specs
+        start = 0
+        for scene in run:
+            ff = _footage_frames(scene)
+            if ff <= 0:
+                continue  # card fills its whole scene → no footage to move on
+            gate, anchor = _gate_anchor(scene)
+            specs.append(kb_camera.SceneSpec(frames=ff, start=start, anchor=anchor))
+            run_scenes.append((scene, gate))
+            start += ff
+        if not specs:
+            continue
+        run_cam = kb_camera.compute_run(
+            specs,
+            reversal_period_s=KB_CAMERA_PERIOD_S,
+            amplitude=KB_CAMERA_AMPLITUDE,
+            interp=KB_CAMERA_INTERP,
+            ease_frac=KB_CAMERA_EASE_FRAC,
+            ease_seconds=KB_CAMERA_EASE_SECONDS,
+        )
+        for (scene, gate), cam in zip(run_scenes, run_cam.scenes):
+            tracks[scene["id"]] = SceneCameraTrack(
+                gate=gate,
+                anchor=cam.anchor,
+                z_range=(min(cam.z), max(cam.z)),
+                _zs=tuple(cam.z),
+            )
+    return tracks
 
 
 def render_extended_clip(
@@ -874,6 +1218,7 @@ def render_extended_clip(
     motion: tuple | None = None,
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
+    camera: "SceneCameraTrack | None" = None,
 ) -> str:
     """Render one scene clip lengthened by ``extra_frames`` for a section
     crossfade, to a DISTINCT ``scene_{id}.xfade.mp4`` (its own cache sidecar; the
@@ -884,7 +1229,11 @@ def render_extended_clip(
     still emit exactly Fa+Fb frames. Delegates to render_scene_clip with a
     frame-bumped scene, so Ken Burns / fade / overlays all animate over the
     extended clock (the accepted trade-off: a B-side header animates on the
-    +6-frame clip). ``duration`` is updated alongside ``frames`` because
+    +6-frame clip). When a continuous-camera ``camera`` track is supplied it is
+    forwarded unchanged: its zs_for(frames) pad-holds the final zoom over the
+    ``extra_frames`` tail (which the seam's fade/blur covers), so the natural
+    frames stay byte-identical to the plain clip. ``duration`` is updated
+    alongside ``frames`` because
     render_scene_clip's cache-hit check reads scene['duration']; leaving it stale
     would spuriously miss the cache on every rerun."""
     frames = _scene_frame_count(scene) + extra_frames
@@ -892,7 +1241,7 @@ def render_extended_clip(
     render_scene_clip(
         ext_scene, footage_path, out,
         transition=transition, ken_burns=ken_burns, motion=motion,
-        overlays=overlays, edit_style=edit_style,
+        overlays=overlays, edit_style=edit_style, camera=camera,
     )
     return out
 
@@ -1131,6 +1480,7 @@ def render_section_intro_clip(
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
     reencode: bool = False,
+    camera: "SceneCameraTrack | None" = None,
 ) -> str:
     """Render a section-intro scene as ``[card | card_frames] ++ [footage |
     footage_frames]`` where ``card_frames + footage_frames == scene['frames']``
@@ -1171,10 +1521,13 @@ def render_section_intro_clip(
 
     segs = [card_seg]
     if footage_frames > 0:
+        # The camera track was built over these SAME footage_frames (the card
+        # split mirrors compute_camera_tracks), so zs_for(footage_frames) is the
+        # exact natural window — the footage move begins right where the card ends.
         render_scene_clip(
             {**scene, "frames": footage_frames}, footage_path, foot_seg,
             transition=transition, ken_burns=ken_burns, motion=motion,
-            overlays=overlays, edit_style=edit_style,
+            overlays=overlays, edit_style=edit_style, camera=camera,
         )
         segs.append(foot_seg)
 
@@ -1385,6 +1738,21 @@ def render_all_scene_clips(
     # same style; this re-resolves the same channel so they stay consistent.
     edit_style = resolve_channel_editing(_project_channel_id(project_name))
 
+    # Continuous Ken Burns camera for the whole run of stills (one shared ping-pong
+    # per still-run + drift-to-center targeting), keyed by scene id. Empty when the
+    # camera is off (RENDER_KB_CAMERA=0) → render_scene_clip uses the legacy
+    # per-scene center zoom. Built from the SAME windows + EDL + card splits the
+    # render below uses, so each scene's track matches the frames it renders.
+    camera_tracks = (
+        compute_camera_tracks(
+            windows, edl_by_id, footage_paths,
+            default_ken_burns=ken_burns,
+            section_cards=section_cards,
+            card_seconds=card_seconds,
+        )
+        if RENDER_KB_CAMERA else {}
+    )
+
     clips_dir = str(PROJECTS_ROOT / project_name / "clips")
     os.makedirs(clips_dir, exist_ok=True)
 
@@ -1432,6 +1800,7 @@ def render_all_scene_clips(
                 card_props=card.get("props"),
                 transition=per_scene_transition, ken_burns=per_scene_ken_burns,
                 overlays=footage_overlays, edit_style=edit_style,
+                camera=camera_tracks.get(sid),
             )
             rendered += 1
             clip_paths.append(out_card)
@@ -1450,6 +1819,7 @@ def render_all_scene_clips(
                 ken_burns=per_scene_ken_burns,
                 overlays=overlays,
                 edit_style=edit_style,
+                camera=camera_tracks.get(sid),
             )
             rendered += 1
         clip_paths.append(out)
@@ -1610,6 +1980,20 @@ def concat_clips_crossfade(
     edit_style = resolve_channel_editing(_project_channel_id(project_name))
     cards = section_cards or {}
 
+    # Same continuous-camera tracks the plain render used (built over the PLAIN
+    # windows + EDL + card splits, NOT the extended seam clocks), so each extended
+    # seam clip's natural frames match its plain counterpart and only the padded
+    # tail differs. Empty when RENDER_KB_CAMERA=0 → legacy per-scene zoom.
+    camera_tracks = (
+        compute_camera_tracks(
+            windows, edl_by_id, footage_paths,
+            default_ken_burns=ken_burns,
+            section_cards=section_cards,
+            card_seconds=card_seconds,
+        )
+        if RENDER_KB_CAMERA else {}
+    )
+
     clips_dir = str(PROJECTS_ROOT / project_name / "clips")
     half = SECTION_FADEBLACK_FRAMES // 2
 
@@ -1688,6 +2072,7 @@ def concat_clips_crossfade(
                     # decoded again by the xfade/concat filters below, which drop
                     # frames off a concat-demuxer copy (see _concat_segments_copy).
                     reencode=True,
+                    camera=camera_tracks.get(sid),
                 )
             else:
                 out = os.path.join(clips_dir, f"scene_{sid:03d}.xfade.mp4")
@@ -1698,6 +2083,7 @@ def concat_clips_crossfade(
                     ken_burns=per_ken_burns,
                     overlays=overlays,
                     edit_style=edit_style,
+                    camera=camera_tracks.get(sid),
                 )
             input_paths[j] = out
         fa = _scene_frame_count(windows[i])
@@ -1744,6 +2130,7 @@ def concat_clips_crossfade(
                 ken_burns=entry.get("ken_burns", ken_burns),
                 overlays=entry.get("overlays", []),
                 edit_style=edit_style,
+                camera=camera_tracks.get(sid),
             )
             input_paths[j] = out
 

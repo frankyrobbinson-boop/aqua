@@ -9,6 +9,10 @@ __pycache__/
 # Rendered Remotion MP4s (motion-graphics module output)
 /backend/output/remotion/
 
+# Local ML model blobs (downloaded on demand by probes, e.g. u2netp.onnx); the
+# tracked backend/models/research.py stays committed.
+/backend/models/*.onnx
+
 # macOS Finder metadata
 .DS_Store
 

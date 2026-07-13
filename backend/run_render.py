@@ -90,6 +90,21 @@ def run_render(project_name: str) -> str:
     section_transitions = os.environ.get("RENDER_SECTION_TRANSITIONS") != "0"
     output_name = os.environ.get("RENDER_OUTPUT_NAME", "final.mp4")
 
+    # Three more render knobs are read directly by services/assembly_service
+    # (module level), so they need no plumbing here — documented for discoverability:
+    #   RENDER_KB_CAMERA  — default ON. One continuous Ken Burns ping-pong zoom
+    #     SHARED across each run of consecutive stills (motion flows through the
+    #     cuts) + an auto-target aiming the zoom at each still's subject (aim mode
+    #     set by RENDER_KB_DRIFT). "=0" restores the legacy per-scene center zoom.
+    #   RENDER_KB_DRIFT — default OFF. Crop-centre aim for the KB camera: OFF pivots
+    #     on a FIXED anchor (targeted zoom — the subject stays put and the zoom
+    #     tightens on it, no lateral slide); "=1" DRIFTS the crop from the frame
+    #     centre toward the subject as the zoom rises (drift-to-center). Center-
+    #     gated stills zoom on (0.5,0.5) either way.
+    #   RENDER_OST_DRAWTEXT — default OFF. No burned-in drawtext OST (header /
+    #     callout / counter overlays) ships; "=1" re-enables it for debugging.
+    #     Remotion section/title cards and the karaoke subtitles are unaffected.
+
     # Ensure a current-version EDL exists before assembly. The EDL is the
     # per-scene render decision list (transition, ken_burns, overlays); when
     # absent OR at a stale schema version we (re)generate one using the
