@@ -242,29 +242,44 @@ export function VisualPacingPanel({
         </label>
       </div>
 
-      <div className="mb-5">
-        <VisualTimelineBar segments={timelineSegments} />
-      </div>
+      {scenes.length > 0 && (
+        <VisualActionsCluster
+          onGenerate={onGenerate}
+          onRefetch={onRefetch}
+          onRegeneratePrompts={onRegeneratePrompts}
+          canGenerate={canGenerate}
+          submitting={submitting}
+          run={run}
+          promptStatus={promptStatus}
+          promptRun={promptRun}
+        />
+      )}
 
-      {promptStatus && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-border bg-surface/40 px-3 py-2 text-xs text-muted">
-          <span className="truncate">
-            {promptStatus.exists
-              ? `Prompts: ${promptStatus.scene_count} generated · ${promptStatus.model ?? "?"} · ${promptStatus.source ?? "?"} · ${formatRelativeTime(promptStatus.generated_at)}`
-              : "Prompts: not generated yet — will run automatically when you click Generate Scenes."}
-          </span>
-          {promptStatus.exists && (
-            <button
-              type="button"
-              onClick={onRegeneratePrompts}
-              disabled={promptRun?.status === "running"}
-              className="rounded border border-border bg-surface px-2 py-1 text-xs text-foreground hover:bg-surface-2 disabled:cursor-not-allowed disabled:text-muted"
-            >
-              {promptRun?.status === "running"
-                ? "Regenerating prompts..."
-                : "Regenerate prompts"}
-            </button>
-          )}
+      {run && (
+        <div className="mt-4 overflow-hidden rounded-lg border border-border bg-background">
+          <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-2">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                run.status === "completed"
+                  ? "bg-success"
+                  : run.status === "failed"
+                    ? "bg-danger"
+                    : "bg-accent animate-pulse"
+              }`}
+            />
+            <span className="text-xs font-medium text-foreground">
+              {run.status === "running"
+                ? "Generating visuals..."
+                : run.status === "completed"
+                  ? "Generation complete — scene cards updated"
+                  : run.status === "failed"
+                    ? "Generation failed"
+                    : "Queued"}
+            </span>
+          </div>
+          <pre className="max-h-72 overflow-auto px-4 py-2 font-mono text-xs leading-relaxed text-muted-strong">
+            {run.logs.length === 0 ? "Waiting for output..." : run.logs.join("\n")}
+          </pre>
         </div>
       )}
 
@@ -295,6 +310,20 @@ export function VisualPacingPanel({
               ? "Waiting for output..."
               : promptRun.logs.join("\n")}
           </pre>
+        </div>
+      )}
+
+      <div className="mb-5">
+        <VisualTimelineBar segments={timelineSegments} />
+      </div>
+
+      {promptStatus && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-border bg-surface/40 px-3 py-2 text-xs text-muted">
+          <span className="truncate">
+            {promptStatus.exists
+              ? `Prompts: ${promptStatus.scene_count} generated · ${promptStatus.model ?? "?"} · ${promptStatus.source ?? "?"} · ${formatRelativeTime(promptStatus.generated_at)}`
+              : "Prompts: not generated yet — will run automatically when you click Generate Scenes."}
+          </span>
         </div>
       )}
 
@@ -331,7 +360,7 @@ export function VisualPacingPanel({
         </div>
       )}
 
-      {scenes.length === 0 ? (
+      {scenes.length === 0 && (
         <button
           type="button"
           onClick={onGenerate}
@@ -346,62 +375,6 @@ export function VisualPacingPanel({
                 ? `Generate ${totalScenes} Scene${totalScenes === 1 ? "" : "s"}`
                 : "Generate Scenes"}
         </button>
-      ) : (
-        <div className="mt-5 space-y-2">
-          <button
-            type="button"
-            onClick={onRefetch}
-            disabled={!canGenerate}
-            className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-muted"
-          >
-            {submitting
-              ? "Starting..."
-              : run?.status === "running"
-                ? "Generating visuals..."
-                : "Refetch footage"}
-          </button>
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={!canGenerate}
-            className="w-full rounded-md border border-border bg-surface px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:text-muted"
-          >
-            Re-plan from script
-          </button>
-          <p className="text-[10px] text-muted">
-            Refetch keeps your scene plan and fills missing/changed clips.
-            Re-plan regenerates the scene plan from the script (costs an LLM
-            call).
-          </p>
-        </div>
-      )}
-
-      {run && (
-        <div className="mt-4 overflow-hidden rounded-lg border border-border bg-background">
-          <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-2">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                run.status === "completed"
-                  ? "bg-success"
-                  : run.status === "failed"
-                    ? "bg-danger"
-                    : "bg-accent animate-pulse"
-              }`}
-            />
-            <span className="text-xs font-medium text-foreground">
-              {run.status === "running"
-                ? "Generating visuals..."
-                : run.status === "completed"
-                  ? "Generation complete — scene cards updated"
-                  : run.status === "failed"
-                    ? "Generation failed"
-                    : "Queued"}
-            </span>
-          </div>
-          <pre className="max-h-72 overflow-auto px-4 py-2 font-mono text-xs leading-relaxed text-muted-strong">
-            {run.logs.length === 0 ? "Waiting for output..." : run.logs.join("\n")}
-          </pre>
-        </div>
       )}
 
       {scenes.length > 0 && (
@@ -454,6 +427,73 @@ export function VisualPacingPanel({
         </div>
       )}
     </section>
+  );
+}
+
+/** Top-of-panel action cluster: one primary "regenerate everything" button
+ *  (re-plan → prompts → footage, same handler as the old Re-plan button) plus
+ *  two granular secondary actions — footage-only refetch and prompts-only
+ *  regen. Purely presentational; all handlers/flags are owned by
+ *  VisualPacingPanel and passed in. */
+function VisualActionsCluster({
+  onGenerate,
+  onRefetch,
+  onRegeneratePrompts,
+  canGenerate,
+  submitting,
+  run,
+  promptStatus,
+  promptRun,
+}: {
+  onGenerate: () => void;
+  onRefetch: () => void;
+  onRegeneratePrompts: () => void;
+  canGenerate: boolean;
+  submitting: boolean;
+  run: RunState | null;
+  promptStatus: VisualPromptStatus | null;
+  promptRun: RunState | null;
+}) {
+  return (
+    <div className="mb-5 space-y-2">
+      <button
+        type="button"
+        onClick={onGenerate}
+        disabled={!canGenerate}
+        className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:bg-surface-3 disabled:text-muted"
+      >
+        {submitting
+          ? "Starting..."
+          : run?.status === "running"
+            ? "Generating visuals..."
+            : "Regenerate all visuals"}
+      </button>
+      <p className="text-[10px] text-muted">
+        Re-plans scenes + prompts and refetches all footage — costs an LLM call.
+      </p>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onRefetch}
+          disabled={!canGenerate}
+          className="flex-1 rounded-md border border-border bg-surface px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:text-muted"
+        >
+          Refetch footage
+        </button>
+        {promptStatus?.exists && (
+          <button
+            type="button"
+            onClick={onRegeneratePrompts}
+            disabled={promptRun?.status === "running"}
+            className="flex-1 rounded-md border border-border bg-surface px-4 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:cursor-not-allowed disabled:text-muted"
+          >
+            {promptRun?.status === "running"
+              ? "Regenerating prompts..."
+              : "Regenerate prompts"}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
