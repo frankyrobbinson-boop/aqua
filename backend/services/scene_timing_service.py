@@ -11,7 +11,7 @@ from services.voice_prep_service import _expand_numbers
 # boundary to this grid and stamps an integer scene['frames'], then the render
 # encodes exactly that many frames per clip. A mismatch would desync the
 # assembled video length from the narration timeline.
-FPS = 25
+FPS = 60
 
 
 class SceneTimingError(Exception):

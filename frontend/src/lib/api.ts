@@ -577,7 +577,7 @@ export async function startRender(
       render_section_cards: opts?.render_section_cards ?? true,
       render_section_transitions: opts?.render_section_transitions ?? true,
       background_music: opts?.background_music ?? false,
-      music_volume: opts?.music_volume ?? 0.08,
+      music_volume: opts?.music_volume ?? 0.05,
     }),
   });
 }

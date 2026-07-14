@@ -93,13 +93,14 @@ def run_render(project_name: str) -> str:
     # Background-music bed (MVP): RENDER_MUSIC=="1" mixes the songs dropped in
     # backend/music/ low under the narration (filename order, looped to fill the
     # video); default off. RENDER_MUSIC_VOLUME is the bed's linear gain under the
-    # voice (default 0.08). An empty/missing music folder degrades to no music.
+    # voice (default 0.05 — a flat low bed). An empty/missing music folder degrades
+    # to no music.
     music = os.environ.get("RENDER_MUSIC", "0") == "1"
     try:
-        music_volume = float(os.environ.get("RENDER_MUSIC_VOLUME", "0.08"))
+        music_volume = float(os.environ.get("RENDER_MUSIC_VOLUME", "0.05"))
     except ValueError:
-        print("  WARN: RENDER_MUSIC_VOLUME invalid, falling back to 0.08")
-        music_volume = 0.08
+        print("  WARN: RENDER_MUSIC_VOLUME invalid, falling back to 0.05")
+        music_volume = 0.05
 
     # Three more render knobs are read directly by services/assembly_service
     # (module level), so they need no plumbing here — documented for discoverability:

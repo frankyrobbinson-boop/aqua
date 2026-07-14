@@ -133,8 +133,9 @@ EDL_SCHEMA_VERSION = 6
 # conclusion (and the mid-hook title scene). A constant default for now; a channel
 # ``edit_defaults`` block will make the width (and type) configurable per channel
 # in a later step. Assembly owns the ACTUAL fade width (SECTION_FADEBLACK_FRAMES);
-# this mirrors it (28) so the EDL records the true width, not a stale hint.
-DEFAULT_LEAD_IN_FRAMES = 28
+# this mirrors it (68 at 60fps) so the EDL records the true width, not a stale hint.
+# EDL metadata only — assembly is authoritative for the rendered seam width.
+DEFAULT_LEAD_IN_FRAMES = 68
 
 # Mid-tier ``blur_dissolve`` defaults recorded on a ``blur_dissolve`` lead_in's
 # ``params``. Like DEFAULT_LEAD_IN_FRAMES mirrors the fade width, these MIRROR the
@@ -142,8 +143,8 @@ DEFAULT_LEAD_IN_FRAMES = 28
 # BLUR_DISSOLVE_MAX_BLUR) so the EDL records the true values, not stale hints;
 # assembly stays authoritative for the render. ``frames`` is N (the window spans
 # 2N frames — the last N of clip A + the first N of clip B); ``max_blur`` is the
-# peak defocus (px @1080p).
-DEFAULT_BLUR_DISSOLVE_FRAMES = 10
+# peak defocus (px @1080p). EDL metadata only — assembly owns the rendered window.
+DEFAULT_BLUR_DISSOLVE_FRAMES = 24
 DEFAULT_BLUR_DISSOLVE_MAX_BLUR = 36
 
 # Mid-tier blur-dissolve classifier knobs — TUNE THESE to change how OFTEN a

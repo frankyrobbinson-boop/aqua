@@ -21,7 +21,7 @@ from services.scene_timing_service import load_scene_windows, load_audio_timelin
 from services.subtitle_service import build_subtitles
 from services.voice_service import CHUNK_GAP
 
-FPS = 25
+FPS = 60
 OUT_W, OUT_H = 1920, 1080
 
 # Frontend dir hosting the Remotion renderer (scripts/render-remotion.mjs) used
@@ -138,7 +138,9 @@ RENDER_OST_DRAWTEXT = os.environ.get("RENDER_OST_DRAWTEXT", "0") == "1"
 #      for the RENDER_KB_CAMERA=0 path), and overlays_sig now reflects the
 #      EFFECTIVE overlays (none when RENDER_OST_DRAWTEXT is off), so toggling
 #      either flag re-renders exactly the affected clips.
-_CLIP_CACHE_VERSION = 12
+# v13: fps 25→60 — scene frame counts, camera zoom tracks, and seam widths all
+#      change, so every cached clip is invalidated.
+_CLIP_CACHE_VERSION = 13
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -147,16 +149,19 @@ FADE_DUR = 0.15
 
 # Fade-to-black width (in frames) applied at each section-boundary seam when
 # section_transitions is on and the incoming scene's EDL lead_in is ``fade_black``
-# (the section starts + the conclusion, + a mid-hook title scene). 28 frames ==
-# 1.12s at 25 fps: a long-ish, GENTLE fade THROUGH black — the picture dips to
-# black at the ORIGINAL cut (the fade's centre, sitting in the section-boundary
-# silence) and the incoming section/title card then rises FROM black. Even, so the
-# half-width (14) added to BOTH clips flanking a seam is exact and the blended pair
-# still emits exactly Fa+Fb frames (total video length — and therefore the audio +
-# subtitle timelines — stay unchanged). This is the everyday section treatment,
-# not a hard slam. Distinct from FADE_DUR (per-clip dip-to-black) and from the
-# mid-tier ``blur_dissolve`` below.
-SECTION_FADEBLACK_FRAMES = 28
+# (the section starts + the conclusion, + a mid-hook title scene). Derived from FPS
+# so a future fps change needs no edit here; encodes ~1.12s (68 at 60fps, 28 at
+# 25fps): a long-ish, GENTLE fade THROUGH black — the picture dips to black at the
+# ORIGINAL cut (the fade's centre, sitting in the section-boundary silence) and the
+# incoming section/title card then rises FROM black. This MUST stay EVEN — the fade
+# seam extends each flank by N//2 and xfades over N, so an odd N drops a frame per
+# section seam and slowly desyncs; the ``* 2`` forces even. The half-width (N//2)
+# added to BOTH clips flanking a seam is thus exact and the blended pair still emits
+# exactly Fa+Fb frames (total video length — and therefore the audio + subtitle
+# timelines — stay unchanged). This is the everyday section treatment, not a hard
+# slam. Distinct from FADE_DUR (per-clip dip-to-black) and from the mid-tier
+# ``blur_dissolve`` below.
+SECTION_FADEBLACK_FRAMES = round(1.12 * FPS / 2) * 2
 
 # Mid-tier blur-dissolve (defocus dissolve) params. A ``blur_dissolve`` lead_in
 # (edl_service's within-segment visual-subject-shift classifier) marks a seam where
@@ -169,12 +174,14 @@ SECTION_FADEBLACK_FRAMES = 28
 # motion). The overlap is an EASED cross-dissolve PLUS a ramped Gaussian defocus (A
 # blurs 0->peak as it is covered, B peak->0 as it resolves), so the seam reads
 # sharp -> soft -> sharp. Because each pair still emits exactly Fa+Fb frames it is
-# duration-neutral, like the fade. ~10 frames (0.8s @25fps) reads a tier above a hard
-# cut but clearly below the 28-frame section fade. Everything runs on the pipeline's
+# duration-neutral, like the fade. N ≈ 0.4s (a 2N ≈ 0.8s overlap) reads a tier above
+# a hard cut but clearly below the section fade. Everything runs on the pipeline's
 # OWN clips in ffmpeg — NOT a Chromium/Remotion round trip — so the transition shares
 # the surrounding footage's exact colour pipeline and single-generation quality and
 # leaves no colour/brightness seam at either edge of the overlap.
-BLUR_DISSOLVE_FRAMES = 10
+# Derived from FPS (fps-proof). Encodes ~0.4s; the 2N overlap ≈ 0.8s (24 at 60fps,
+# 10 at 25fps).
+BLUR_DISSOLVE_FRAMES = round(0.4 * FPS)
 # Peak defocus blur at each layer's far end of the dissolve, as a gblur sigma in px
 # @1080p (== the CSS-blur radius the /remotion blurDissolve presentation uses, so
 # the look matches); roughly half this is visible at the mid-dissolve crossover.
@@ -751,7 +758,7 @@ class SceneCameraTrack:
     still's gate is ``target``, else the frame centre (gate ``center`` → the drift
     is a no-op plain centre zoom). ``z_range`` is (z_min, z_peak) over the scene's
     NATURAL per-frame zoom window (``_zs``); the drift normalizes against it so it
-    stays stable on extended (seam) clips whose tail merely pad-holds. ``_zs`` is
+    stays stable on extended (seam) clips whose tail extends past it. ``_zs`` is
     the run camera's re-based per-frame zoom for this scene (len == the footage
     frames the camera was built over)."""
 
@@ -763,16 +770,28 @@ class SceneCameraTrack:
     def zs_for(self, frames: int) -> list[float]:
         """Per-frame zoom for a clip of EXACTLY ``frames`` frames (len == frames
         always — the audio-sync contract). Returns the natural window when the
-        counts match; pad-holds the final zoom for the extra frames an EXTENDED
-        seam clip (render_extended_clip / a card seam) asks for — those tail
-        frames sit under the seam's fade/blur — and truncates only in the (unused
-        in practice) shorter case."""
+        counts match; for an EXTENDED seam clip (render_extended_clip / a card
+        seam) that asks for MORE frames, CONTINUES the run's velocity with a
+        clamped linear extrapolation so the incoming clip keeps gliding rather than
+        velocity-freezing on a hard pad-hold (that freeze reads as a stutter on the
+        incoming side of the seam); truncates only in the (unused in practice)
+        shorter case."""
         zs = self._zs
         n = len(zs)
         if frames == n:
             return list(zs)
         if frames < n:
             return list(zs[:frames])
+        if n >= 2:
+            # Continue the run's per-frame velocity, clamped to the camera's zoom
+            # bounds [1.0, 1.0 + amplitude], so the motion carries through the seam
+            # instead of freezing on the last zoom.
+            v = zs[-1] - zs[-2]
+            return list(zs) + [
+                min(1.0 + KB_CAMERA_AMPLITUDE, max(1.0, zs[-1] + v * (i + 1)))
+                for i in range(frames - n)
+            ]
+        # n < 2: no velocity to continue — fall back to the old pad-hold.
         return list(zs) + [zs[-1]] * (frames - n)
 
 
@@ -1291,9 +1310,9 @@ def _normalize_video_chain() -> str:
     """The per-input normalization applied to EVERY concat-filter input (scene
     clips AND card MP4s) before it reaches the concat/xfade filters.
 
-    Fit-to-fill 1920x1080, constant 25 fps, yuv420p, square pixels. The concat
+    Fit-to-fill 1920x1080, constant 60 fps, yuv420p, square pixels. The concat
     filter demands identical width/height/SAR/format/fps across inputs; card
-    MP4s render at 30 fps from Remotion and clips are already 25 fps CFR, so
+    MP4s render at 30 fps from Remotion and clips are already 60 fps CFR, so
     forcing one shape here is what lets the two interleave. Applied to clips too
     (not just cards) so a single code path guarantees the match."""
     return (
@@ -1327,7 +1346,7 @@ def render_section_card(
     comes from the preset, so nothing falls back to the designer's demo props.
     ``props=None`` passes only the overridden keys and lets the comp supply its
     own defaults. The raw card renders at the comp's native 30 fps;
-    _normalize_card_to_clip resamples it to the canonical 25 fps / 1920x1080 /
+    _normalize_card_to_clip resamples it to the canonical 60 fps / 1920x1080 /
     yuv420p / SAR 1:1 shape and caps it to exact frames."""
     card_props = dict(props or {})
     card_props["index"] = str(index)
@@ -1355,10 +1374,10 @@ def _normalize_card_to_clip(raw_path: str, frames: int, out_path: str) -> str:
     """Re-encode a raw Remotion card MP4 to the canonical scene-clip shape and
     cap it to exactly ``frames`` frames.
 
-    ``_normalize_video_chain`` fits it to 1920x1080 / 25 fps / yuv420p / SAR 1:1
+    ``_normalize_video_chain`` fits it to 1920x1080 / 60 fps / yuv420p / SAR 1:1
     (matching every plain scene clip so the concat demuxer can stream-copy the
     seam), and ``-frames:v frames`` trims it to the card's frame budget. The raw
-    card is >= this many frames (2.5 s at 25 fps == 62.5 frames >= 62), so the
+    card is >= this many frames (2.5 s at 60 fps == 150 frames), so the
     cap only ever drops the tail.
 
     The extra ``scale=in_range=pc:out_range=tv`` after the shared chain converts
@@ -1408,10 +1427,21 @@ def _blur_dissolve_inoutquint(t: float) -> float:
     return 16 * t ** 5 if t < 0.5 else 1 - ((-2 * t + 2) ** 5) / 2
 
 
-def _blur_dissolve_sendcmd(to_peak: bool, start_frame: int, count: int) -> str:
+def _blur_dissolve_sendcmd(
+    to_peak: bool, start_frame: int, count: int, target: str
+) -> str:
     """Per-frame ``gblur sigma`` commands that ramp a blur-dissolve's defocus across
     its ``count``-frame overlap (count == 2N), formatted for a ``sendcmd`` filter
     driving one side's gblur.
+
+    ``target`` is that gblur's UNIQUE per-instance name — the FULL ``gblur@ba{k}`` /
+    ``gblur@bb{k}`` (ffmpeg's ``filtertype@id`` instance name, type prefix INCLUDED; the
+    bare ``ba{k}`` id does NOT match and would silently apply no blur); every command
+    addresses it by that full name rather than the bare ``gblur`` type. sendcmd matches a
+    filter by its instance name when one is set, else by type — so with the bare type
+    each seam's ramp would BROADCAST to every gblur in the graph, and the A-side and
+    B-side sigma ramps would collide into a sharp-center/streaked mess. Per-instance
+    targeting keeps each ramp on its own gblur.
 
     Each command fires at a frame's own timestamp on that side's timeline: clip A's
     tail overlap begins at ``start_frame`` == Fa-N (its last 2N frames), clip B's head
@@ -1431,7 +1461,7 @@ def _blur_dissolve_sendcmd(to_peak: bool, start_frame: int, count: int) -> str:
         e = _blur_dissolve_inoutquint(j / denom)
         sigma = peak * e if to_peak else peak * (1 - e)
         t = (start_frame + j) / FPS
-        cmds.append(f"{t:.4f} gblur sigma {max(0.01, sigma):.4f}")
+        cmds.append(f"{t:.4f} {target} sigma {max(0.01, sigma):.4f}")
     return ";".join(cmds)
 
 
@@ -1441,7 +1471,7 @@ def _concat_segments_copy(
     """Join already-canonical segments with the concat demuxer (stream copy).
 
     Both the card segment and the footage segment are encoded to the identical
-    canonical shape (1920x1080 / 25 fps / yuv420p tv-range / SAR 1:1 / tb
+    canonical shape (1920x1080 / 60 fps / yuv420p tv-range / SAR 1:1 / tb
     1/12800), so a stream copy preserves every frame with no re-encode. If the
     demuxer ever refuses the seam, fall back to a concat-filter re-encode of just
     this 2-segment join (re-normalizing each input) and note it.
@@ -2219,13 +2249,13 @@ def concat_clips_crossfade(
             a_start = fa - n_blur
             lines.append(
                 f"[n{k}]sendcmd=c='"
-                f"{_blur_dissolve_sendcmd(True, a_start, blur_overlap)}',"
-                f"gblur=sigma=0.01:steps=3[ba{k}]"
+                f"{_blur_dissolve_sendcmd(True, a_start, blur_overlap, f'gblur@ba{k}')}',"
+                f"gblur@ba{k}=sigma=0.01:steps=3[ba{k}]"
             )
             lines.append(
                 f"[n{k + 1}]sendcmd=c='"
-                f"{_blur_dissolve_sendcmd(False, 0, blur_overlap)}',"
-                f"gblur=sigma=0.01:steps=3[bb{k}]"
+                f"{_blur_dissolve_sendcmd(False, 0, blur_overlap, f'gblur@bb{k}')}',"
+                f"gblur@bb{k}=sigma=0.01:steps=3[bb{k}]"
             )
             lines.append(
                 f"[ba{k}][bb{k}]xfade=transition=custom:"
@@ -2367,7 +2397,7 @@ def mux_audio(
     output_name: str = "final.mp4",
     duration_cap: float | None = None,
     music: bool = False,
-    music_volume: float = 0.08,
+    music_volume: float = 0.05,
 ) -> str:
     """Combine silent video with full audio track. If a subtitle path is given,
     burn subtitles into the video (requires re-encoding).
@@ -2419,12 +2449,20 @@ def mux_audio(
         cmd += ["-c:v", "copy"]
 
     if music_bed is not None:
-        # apad the narration to (at least) the video length — same role apad plays
-        # on the plain path — then lower the bed to music_volume and amix the two.
-        # duration=first keys the mix on the padded voice; normalize=0 is MANDATORY:
-        # amix's default normalize=1 scales every input by 1/inputs, which would
-        # silently drop the (already loudnorm'd) narration ~6 dB. The bed carries
-        # its own fixed volume= gain, so no loudnorm is applied to the mix.
+        # FLAT LOW BED: the bed plays at a single fixed low gain UNDER the narration
+        # for the whole video (no dynamic level riding). apad the narration to (at
+        # least) the video length — same role apad plays on the plain path — then
+        # lower the bed to music_volume and amix the two. duration=first keys the
+        # mix on the padded voice; normalize=0 is MANDATORY: amix's default
+        # normalize=1 scales every input by 1/inputs, which would silently drop the
+        # (already loudnorm'd) narration ~6 dB. The bed carries its own fixed
+        # volume= gain, so no loudnorm is applied to the mix.
+        #
+        # Auto-ducking (a sidechaincompress that lifted the bed in the narration
+        # gaps) was REMOVED by request: the user wants the music low and steady the
+        # whole time, not swelling after every pause. Selective/keyed music swells
+        # (a level automation that rises only on chosen beats) are a future
+        # enhancement.
         cmd += [
             "-filter_complex",
             f"[1:a]apad[voice];"
@@ -2462,7 +2500,7 @@ def assemble(
     card_comp: str = SECTION_CARD_COMP,
     output_name: str = "final.mp4",
     music: bool = False,
-    music_volume: float = 0.08,
+    music_volume: float = 0.05,
 ) -> str:
     """Full assembly: audio → clips → concat → subtitles → mux → <output_name>
 

@@ -64,7 +64,7 @@ import math
 from dataclasses import dataclass
 
 # Output frame rate -- matches the pipeline (assembly_service FPS / the KB tools).
-FPS = 25
+FPS = 60
 
 # Fraction of each half-segment spent easing the velocity in/out of a reversal;
 # the remaining middle runs at steady (constant) velocity. 0.25 => ease over the
@@ -247,7 +247,7 @@ def compute_run(
         and 1->0 at the end (a quick fixed ease, ~1s by default), capped to 1/3 of
         the run so short clips still ease fully. Distinct from ``ease_frac``, which
         eases the ping-pong's own reversals; this eases the whole move on/off.
-    fps : output frame rate (default 25).
+    fps : output frame rate (default 60).
 
     Returns a ``RunCamera`` with a ``SceneCamera`` per input scene plus the raw
     global ``g`` / ``velocity`` signals.

@@ -592,7 +592,7 @@ function RenderTab({
   const [sectionCards, setSectionCards] = useState(true);
   const [kenBurns, setKenBurns] = useState(false);
   const [music, setMusic] = useState(false);
-  const [musicVolume, setMusicVolume] = useState(0.08);
+  const [musicVolume, setMusicVolume] = useState(0.05);
 
   return (
     <div className="space-y-6">
@@ -663,11 +663,13 @@ function RenderTab({
 }
 
 // Background-music volume presets (linear gain of the bed under the narration).
-// Values mirror backend defaults; "Low" (0.08) is the default.
+// Values mirror backend defaults; "Low" (0.05) is the default. The bed plays at a
+// flat low gain for the whole video (auto-ducking was removed by request; selective
+// music swells are a future enhancement).
 const MUSIC_VOLUME_PRESETS = [
-  { label: "Low", value: 0.08 },
-  { label: "Med", value: 0.12 },
-  { label: "High", value: 0.18 },
+  { label: "Low", value: 0.05 },
+  { label: "Med", value: 0.08 },
+  { label: "High", value: 0.12 },
 ] as const;
 
 function RenderConfigPanel({

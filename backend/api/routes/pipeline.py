@@ -47,7 +47,7 @@ class RenderRequest(ProjectStageRequest):
     # Background music (MVP): mix the songs in backend/music/ low under the
     # narration. music_volume is the bed's linear gain under the voice.
     background_music: bool = False
-    music_volume: float = 0.08
+    music_volume: float = 0.05
 
 
 class StageResponse(BaseModel):
