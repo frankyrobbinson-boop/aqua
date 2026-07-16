@@ -116,11 +116,11 @@ def run_render(project_name: str) -> str:
     #   RENDER_OST_DRAWTEXT — default OFF. No burned-in drawtext OST (header /
     #     callout / counter overlays) ships; "=1" re-enables it for debugging.
     #     Remotion section/title cards and the karaoke subtitles are unaffected.
-    #   RENDER_STAGE2_ASSEMBLY — default OFF. Selects the stream-copy assembly (each
-    #     segment rendered with the karaoke subtitles already burned in, then
-    #     concat -c copy + a -c:v copy audio mux) in place of the old two-re-encode
-    #     concat-filter + subtitle-mux path. "=1" enables it; off is the byte-
-    #     identical old path.
+    #   RENDER_STAGE2_ASSEMBLY — default ON. Selects the single-generation stream-copy
+    #     assembly (each segment rendered with the karaoke subtitles already burned in,
+    #     then concat -c copy + a -c:v copy audio mux) in place of the old two-re-encode
+    #     concat-filter + subtitle-mux path. Set "=0" to fall back to the byte-identical
+    #     legacy path (the escape hatch / rollback).
 
     # Ensure a current-version EDL exists before assembly. The EDL is the
     # per-scene render decision list (transition, ken_burns, overlays); when

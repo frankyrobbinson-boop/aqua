@@ -113,15 +113,16 @@ RENDER_KB_DRIFT = os.environ.get("RENDER_KB_DRIFT", "0") == "1"
 # cards and the karaoke subtitles (the subtitles= filter) are unaffected.
 RENDER_OST_DRAWTEXT = os.environ.get("RENDER_OST_DRAWTEXT", "0") == "1"
 
-# Stage-2 assembly. RENDER_STAGE2_ASSEMBLY (default OFF) selects the stream-copy
+# Stage-2 assembly. RENDER_STAGE2_ASSEMBLY (default ON) selects the stream-copy
 # assembly path in assemble(): every segment (a run-clip or a seam bridge) is
 # rendered with the karaoke subtitles ALREADY burned in, then the segments are joined
 # by ``concat -c copy`` and the audio muxed with ``-c:v copy`` — ONE clean generation,
 # replacing the old path's TWO whole-video re-encodes (the concat-filter blend + the
-# subtitle mux). "=1" enables it; unset/anything-else keeps the old 3-encode path,
-# which stays byte-identical when the flag is off. Env-only, so every existing caller
-# (API routes, run_video_only) behaves exactly as today by default.
-RENDER_STAGE2_ASSEMBLY = os.environ.get("RENDER_STAGE2_ASSEMBLY", "0") == "1"
+# subtitle mux). This is now the DEFAULT assembly; set RENDER_STAGE2_ASSEMBLY=0 (the
+# escape hatch / rollback) to force the legacy three-encode path, which stays
+# byte-identical. Env-only, so every existing caller (API routes, run_video_only) gets
+# Stage-2 by default.
+RENDER_STAGE2_ASSEMBLY = os.environ.get("RENDER_STAGE2_ASSEMBLY", "1") == "1"
 
 # Bump when filter math changes in a way that should invalidate cached clips
 # (e.g., Ken Burns formula change, fade duration change). The boolean flags
@@ -3280,9 +3281,9 @@ def mux_audio(
 # burn the karaoke subtitles — three encode generations. Stage-2 burns the
 # subtitles into each SEGMENT up front (a run-clip via render_scene_clip(subtitles=),
 # a non-cut seam via render_seam_bridge) and joins the finished segments by STREAM
-# COPY, so the deliverable is ONE clean generation. Guarded behind
-# RENDER_STAGE2_ASSEMBLY (default OFF); the old path is untouched and byte-identical
-# when the flag is off. _stage2_segments + _render_stage2_run_clip are the shared
+# COPY, so the deliverable is ONE clean generation. Selected by
+# RENDER_STAGE2_ASSEMBLY (default ON); the old path is untouched and byte-identical
+# when the flag is off (=0). _stage2_segments + _render_stage2_run_clip are the shared
 # source of truth tools/stage2_assembly.py exercises for its correctness proofs.
 # ---------------------------------------------------------------------------
 
@@ -3657,7 +3658,7 @@ def assemble(
     # stream-copy-concat them — ONE clean generation. Build the whole-video .ass ONCE
     # (the same blank_windows the old path uses) and hand it, the pre-assembled audio,
     # and the cards to stage2_assemble, which reproduces every render option. Default
-    # OFF → the old three-encode path below runs unchanged.
+    # ON; set the flag to 0 → the old three-encode path below runs unchanged.
     if RENDER_STAGE2_ASSEMBLY:
         ass_path = build_subtitles(
             project_name,
