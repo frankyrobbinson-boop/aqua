@@ -695,6 +695,7 @@ def _clip_cache_hit(
     edit_style: dict | None = None,
     camera_sig: str = "",
     chip_sig: str = "",
+    subtitle_sig: str = "",
 ) -> bool:
     """True iff a previously-rendered clip is still valid for these inputs.
 
@@ -703,7 +704,10 @@ def _clip_cache_hit(
     (fontsize / box / animation timings) invalidates only the affected
     scene(s), not the whole project's clip cache. ``chip_sig`` extends this to the
     over-footage fact chip: when the chip (its content, placement, or file mtime)
-    changes, only that scene re-renders."""
+    changes, only that scene re-renders. ``subtitle_sig`` extends it to a Stage-2
+    burned-in subtitle segment: it defaults to "" (the production path burns no
+    subtitle here), and a legacy sidecar written before this key existed also reads
+    "" via the .get default, so a plain no-subtitle clip stays a cache hit."""
     cache_path = _clip_cache_path(output_path)
     if not (os.path.exists(output_path) and os.path.exists(cache_path)):
         return False
@@ -727,6 +731,7 @@ def _clip_cache_hit(
         and cache.get("edit_style_sig") == _edit_style_signature(edit_style)
         and cache.get("camera_sig") == camera_sig
         and cache.get("chip_sig", "") == chip_sig
+        and cache.get("subtitle_sig", "") == subtitle_sig
         and cache.get("cache_version") == _CLIP_CACHE_VERSION
     )
 
@@ -783,6 +788,28 @@ class ChipComposite:
     path: str
     start_offset: float
     duration: float
+
+
+@dataclass(frozen=True)
+class SubtitleBurn:
+    """The whole-video karaoke ``.ass`` to burn onto ONE assembly segment (a
+    run-clip or a seam bridge) after an INTEGER PTS shift, so the UNMODIFIED global
+    subtitles land at this segment's place on the timeline.
+
+    ``ass_path`` is the one whole-video ``subtitles.ass`` (built once, NEVER
+    re-sliced or rewritten); ``frame_offset`` is this segment's global first-frame
+    index (the cumulative frames before it), used as the ``setpts`` shift so the
+    ``subtitles`` filter reads each frame's true global time; ``sig`` is the
+    clip-cache signature (the .ass Dialogue lines that fall on this scene + the
+    offset). Burning the global .ass after an integer ``frame_offset/FPS`` shift is
+    bit-exact to burning it over the whole timeline (framemd5-proven), so this
+    per-segment burn reproduces the legacy whole-video mux_audio burn while letting
+    the finished segments concat by stream copy (no whole-video subtitle re-encode).
+    Used only by the Stage-2 assembly path; production never constructs one."""
+
+    ass_path: str
+    frame_offset: int
+    sig: str
 
 
 @dataclass(frozen=True)
@@ -1115,6 +1142,82 @@ def _chip_signature(chip: "ChipComposite | None") -> str:
     )
 
 
+def _ass_time_to_seconds(t: str) -> float:
+    """Parse an ASS ``H:MM:SS.cc`` timestamp to seconds — the inverse of
+    subtitle_service._format_time."""
+    h, m, s = t.split(":")
+    return int(h) * 3600 + int(m) * 60 + float(s)
+
+
+def _subtitle_signature(ass_path: str, scene: dict, frame_offset: int) -> str:
+    """Stable signature of the global .ass Dialogue lines that fall on THIS scene,
+    for the clip cache key (mirrors _chip_signature / _overlays_signature).
+
+    Keys on every ``Dialogue:`` line whose [start, end] OVERLAPS the scene's
+    [start_time, end_time] span (any straddle counts), plus the ``frame_offset``
+    (the setpts shift). A subtitle edit that touches a cue over this scene — or a
+    frame_offset change (the scene moved on the timeline) — re-renders only the
+    affected clip; a change elsewhere in the .ass leaves this scene's key untouched.
+    A missing/unreadable .ass yields a stable signature keyed on just the offset (so
+    the clip still caches deterministically)."""
+    ss = float(scene.get("start_time", 0.0))
+    se = float(
+        scene.get("end_time", ss + max(0.1, float(scene.get("duration", 0.0))))
+    )
+    lines: list[str] = []
+    try:
+        with open(ass_path) as f:
+            for raw in f:
+                if not raw.startswith("Dialogue:"):
+                    continue
+                # Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,
+                #           Effect,Text  — Text may hold commas, so split only the
+                #           9 leading fields off.
+                fields = raw[len("Dialogue:"):].split(",", 9)
+                if len(fields) < 10:
+                    continue
+                try:
+                    ds = _ass_time_to_seconds(fields[1].strip())
+                    de = _ass_time_to_seconds(fields[2].strip())
+                except ValueError:
+                    continue
+                if ds < se and de > ss:  # any overlap, partial straddle included
+                    lines.append(raw.rstrip("\n"))
+    except OSError:
+        pass
+    return json.dumps({"lines": lines, "frame_offset": frame_offset}, sort_keys=True)
+
+
+def _subtitle_filter_chain(burn: "SubtitleBurn") -> str:
+    """The vf tail that burns the global .ass onto ONE segment: shift PTS forward by
+    the segment's global frame offset so the ``subtitles`` filter reads this
+    segment's place on the whole-video timeline, burn the UNMODIFIED global .ass,
+    then reset PTS to start at 0 (so the finished segment stream-copy-concats
+    cleanly). The integer ``frame_offset/FPS`` shift is exact, so this per-segment
+    burn is bit-identical to burning the .ass over the whole timeline
+    (framemd5-proven) — reproducing the legacy whole-video mux burn without a
+    whole-video subtitle re-encode."""
+    return (
+        f"setpts=PTS+{burn.frame_offset}/{FPS}/TB,"
+        f"subtitles='{_escape_filter_arg(burn.ass_path)}',"
+        f"setpts=PTS-STARTPTS"
+    )
+
+
+def _build_subtitle_burn(
+    scene: dict, global_frame_offset: int, ass_path: str,
+) -> "SubtitleBurn":
+    """Construct the SubtitleBurn for a run-clip ``scene`` at
+    ``global_frame_offset`` (its cumulative first-frame index on the whole-video
+    timeline), with the cache signature computed over the global .ass lines that
+    fall on this scene."""
+    return SubtitleBurn(
+        ass_path=ass_path,
+        frame_offset=global_frame_offset,
+        sig=_subtitle_signature(ass_path, scene, global_frame_offset),
+    )
+
+
 def _overlay_position(edl_pos: str | None) -> str:
     """Map an EDL callout ``position`` to a FloralTag ``OverlayPosition``. Every
     result clears the bottom karaoke-subtitle band (the overlay type has no bottom
@@ -1244,6 +1347,7 @@ def render_scene_clip(
     edit_style: dict | None = None,
     camera: "SceneCameraTrack | None" = None,
     chip: "ChipComposite | None" = None,
+    subtitles: "SubtitleBurn | None" = None,
 ):
     """Render one scene by trimming + scaling a stock-footage clip to OUT_W x OUT_H.
 
@@ -1291,7 +1395,15 @@ def render_scene_clip(
       _ensure_callout_chip) alpha-composited over the final frame for its timed
       window — the callout's on-screen form. Duration-neutral (the base clip
       drives the frame count). camera.ring (the attention ring) rides the Ken
-      Burns warp on the KB-still path."""
+      Burns warp on the KB-still path.
+
+    subtitles: optional SubtitleBurn (Stage-2 assembly ONLY). When set, the global
+      karaoke .ass is burned onto this clip — bottom-anchored — after an integer PTS
+      shift to this scene's timeline offset, appended ONCE to the shared vf so it
+      covers every encode path; the chip/overlays are top-anchored, so the subtitle
+      never overlaps them and the composite is pixel-identical regardless of layer
+      order. None (production) appends nothing and writes subtitle_sig "", so the
+      clip stays byte-identical to the pre-subtitle path (legacy sidecars match)."""
     # Frame count is the single source of truth for this clip's length. The
     # timeline was frame-quantized upstream, so we encode exactly this many
     # frames and derive the duration clock from it — every filter (Ken Burns,
@@ -1335,10 +1447,16 @@ def render_scene_clip(
     # content/placement change (or its removal) re-renders only this scene.
     chip_sig = _chip_signature(chip)
 
+    # Stage-2 burned-in subtitle segment: "" in production (subtitles is None), so
+    # the key is unchanged and legacy sidecars stay valid; when set, keys on the
+    # .ass cues over this scene + the timeline offset so a subtitle edit re-renders
+    # only the affected clip.
+    subtitle_sig = subtitles.sig if subtitles is not None else ""
+
     if _clip_cache_hit(
         scene, footage_path, output_path, transition, ken_burns,
         overlays=effective_overlays, edit_style=edit_style, camera_sig=camera_sig,
-        chip_sig=chip_sig,
+        chip_sig=chip_sig, subtitle_sig=subtitle_sig,
     ):
         return  # cache hit — output already valid
 
@@ -1376,6 +1494,15 @@ def render_scene_clip(
             filters.append(overlay_filter)
 
     vf = ",".join(filters)
+
+    # Stage-2: burn the whole-video karaoke subtitles onto this clip after an
+    # integer PTS shift to this scene's timeline offset, appended to the vf ONCE
+    # here so the SAME chain covers all four encode paths below (KB±chip,
+    # video±chip). Subtitles are bottom-anchored and chips/overlays top-anchored, so
+    # the subtitle never overlaps them and the composite is pixel-identical whatever
+    # the layer order. None in production → nothing appended (byte-identical).
+    if subtitles is not None:
+        vf = vf + "," + _subtitle_filter_chain(subtitles)
 
     if kb_png:
         # Subpixel Ken Burns: warp each frame from the native still and pipe the
@@ -1443,6 +1570,7 @@ def render_scene_clip(
             "edit_style_sig": _edit_style_signature(edit_style),
             "camera_sig": camera_sig,
             "chip_sig": chip_sig,
+            "subtitle_sig": subtitle_sig,
             "cache_version": _CLIP_CACHE_VERSION,
         }, f)
 
@@ -2735,6 +2863,225 @@ def concat_clips_crossfade(
         )
 
     return silent_video
+
+
+def render_seam_bridge(
+    project: str,
+    windows: list[dict],
+    edl_by_id: dict[int, dict],
+    i: int,
+    footage_paths: dict,
+    cards: dict[int, dict] | None,
+    edit_style: dict | None,
+    camera_tracks: dict[int, "SceneCameraTrack"],
+    ass_path: str,
+    out_path: str,
+    *,
+    transition: str = "cut",
+    ken_burns: bool = False,
+) -> str:
+    """Render ONE non-cut seam (the pair of scenes at list indices ``i`` and
+    ``i+1``) as a single self-contained BRIDGE clip with the global karaoke
+    subtitles already burned in — the Stage-2 counterpart of the per-seam blend
+    concat_clips_crossfade does inline.
+
+    The seam is reproduced EXACTLY as concat_clips_crossfade renders it for this
+    ``i``: the two flanking clips are re-rendered SUBTITLE-FREE and extended by the
+    seam's pad (render_extended_clip / render_section_intro_clip — unchanged), each
+    normalized via _normalize_video_chain, and blended with the IDENTICAL
+    ``xfade=fadeblack`` (a ``fade_black`` section boundary) or per-side gblur
+    ``sendcmd`` ramps + ``xfade=custom`` blur expr (a ``blur_dissolve``) at the same
+    offset / duration / constants. The global .ass is then burned onto the blended
+    result via _subtitle_filter_chain at the bridge's OWN global frame offset (the
+    cumulative frames before scene ``i``) — subtitle AFTER the blend — in the SAME
+    single libx264 encode, so the finished bridge is one clean generation that
+    concats by stream copy.
+
+    Each blended pair still emits exactly Fa+Fb frames (the xfade math is unchanged),
+    so the ordered run-clips + bridges sum to the quantized frame total and the
+    audio / subtitle timelines stay in sync. Extended flanks are written beside
+    ``out_path`` (its directory), never the project's clips/. ``cards`` maps the
+    section-intro CARD scenes (as in concat_clips_crossfade); a card on a fade seam's
+    incoming side is re-rendered card-fronted (the previous footage fades to black,
+    the card rises FROM black). Raises on a ``cut`` seam (never a bridge) or a
+    degenerate blur seam whose flank is too short to dissolve (the EDL classifier
+    keeps those from arising)."""
+    cards = cards or {}
+    clips_dir = os.path.dirname(out_path)
+    incoming = (
+        (edl_by_id.get(windows[i + 1]["id"], {}).get("lead_in") or {})
+        .get("type", "cut")
+    )
+    # The bridge's global first-frame index == cumulative frames before scene i,
+    # which is exactly where the global .ass lines for this pair sit; the
+    # _subtitle_filter_chain setpts shift places them on the blended frames.
+    frame_offset = sum(_scene_frame_count(windows[j]) for j in range(i))
+    sub_tail = _subtitle_filter_chain(
+        SubtitleBurn(ass_path=ass_path, frame_offset=frame_offset, sig="")
+    )
+    norm = _normalize_video_chain()
+    # Force the blended + subtitled bridge back to the EXACT run-clip stream shape
+    # right before libx264 so the `-c copy` concat seam is seamless. The subtitles /
+    # xfade filters float the working format up to yuv444p (profile High 4:4:4
+    # Predictive); a chroma-subsampling change mid-stream forces players to re-init
+    # the decoder at the seam — the section-transition "freeze". setsar=0 leaves SAR
+    # UNDEFINED to match render_scene_clip's `format=yuv420p` tail (which carries no
+    # setsar, so run-clips read SAR N/A); _normalize_video_chain's setsar=1 on the
+    # flanks would otherwise stamp the bridge 1:1 against the run-clips' N/A.
+    out_shape = "format=yuv420p,setsar=0"
+    fa = _scene_frame_count(windows[i])
+
+    if incoming == "fade_black":
+        # Mirrors concat_clips_crossfade's fade seam: extend both flanks by
+        # +SECTION_FADEBLACK_FRAMES//2 and xfade THROUGH black centered on the
+        # original cut. A card flank is re-rendered card-fronted (+half seconds so
+        # the card covers its whole line, footage_frames unchanged), reencode=True
+        # so the joined clip survives the decode-based xfade below.
+        half = SECTION_FADEBLACK_FRAMES // 2
+        flanks: list[str] = []
+        for j in (i, i + 1):
+            scene = windows[j]
+            sid = scene["id"]
+            src = footage_paths.get(sid)
+            if not src or not os.path.exists(src):
+                raise FileNotFoundError(f"No footage for scene {sid}")
+            entry = edl_by_id.get(sid, {})
+            per_transition = entry.get("transition", transition)
+            per_ken_burns = entry.get("ken_burns", ken_burns)
+            overlays = entry.get("overlays", [])
+            callout = next(
+                (o for o in overlays if o.get("kind") == "callout"), None
+            )
+            chip = _ensure_callout_chip(scene, callout, clips_dir)
+            card = cards.get(sid)
+            if card:
+                out = os.path.join(clips_dir, f"scene_{sid:03d}.card.xfade.mp4")
+                ext_frames = _scene_frame_count(scene) + half
+                ext_scene = {
+                    **scene,
+                    "frames": ext_frames,
+                    "duration": round(ext_frames / FPS, 3),
+                }
+                footage_overlays = [
+                    o for o in overlays if o.get("kind") not in ("header", "counter")
+                ]
+                render_section_intro_clip(
+                    ext_scene, src, out,
+                    index=card["index"], title=card["title"],
+                    item_noun=card.get("item_noun", ""),
+                    card_seconds=card.get("card_seconds", SECTION_CARD_SECONDS)
+                    + half / FPS,
+                    card_comp=card.get("comp", SECTION_CARD_COMP),
+                    card_props=card.get("props"),
+                    transition=per_transition, ken_burns=per_ken_burns,
+                    overlays=footage_overlays, edit_style=edit_style,
+                    reencode=True,
+                    camera=camera_tracks.get(sid), chip=chip,
+                )
+            else:
+                out = os.path.join(clips_dir, f"scene_{sid:03d}.xfade.mp4")
+                render_extended_clip(
+                    scene, src, out,
+                    extra_frames=half,
+                    transition=per_transition, ken_burns=per_ken_burns,
+                    overlays=overlays, edit_style=edit_style,
+                    camera=camera_tracks.get(sid), chip=chip,
+                )
+            flanks.append(out)
+        offset = (fa - half) / FPS
+        xfade_dur = SECTION_FADEBLACK_FRAMES / FPS
+        graph = (
+            f"[0:v]{norm}[n0];[1:v]{norm}[n1];"
+            f"[n0][n1]xfade=transition=fadeblack:"
+            f"duration={xfade_dur:.3f}:offset={offset:.3f}[x];"
+            f"[x]{sub_tail},{out_shape}[v]"
+        )
+    elif incoming == "blur_dissolve":
+        # Mirrors concat_clips_crossfade's blur seam: extend both flanks by +N real
+        # footage frames and defocus-dissolve them over a CENTERED 2N overlap (each
+        # side ramped-blurred on its own timeline, eased-crossfaded). Constants +
+        # expr copied verbatim from concat_clips_crossfade. Flanks are always plain
+        # (the classifier keeps a blur seam off a section-card clip).
+        n_blur = BLUR_DISSOLVE_FRAMES
+        fb = _scene_frame_count(windows[i + 1])
+        if fa <= n_blur or fb <= n_blur:
+            raise NotImplementedError(
+                f"Blur-dissolve seam at clips {i}/{i + 1}: a flank is <= "
+                f"{n_blur} frames — too short to defocus-dissolve. (The EDL "
+                f"classifier keeps this from arising.)"
+            )
+        flanks = []
+        for j in (i, i + 1):
+            scene = windows[j]
+            sid = scene["id"]
+            src = footage_paths.get(sid)
+            if not src or not os.path.exists(src):
+                raise FileNotFoundError(f"No footage for scene {sid}")
+            entry = edl_by_id.get(sid, {})
+            overlays = entry.get("overlays", [])
+            callout = next(
+                (o for o in overlays if o.get("kind") == "callout"), None
+            )
+            chip = _ensure_callout_chip(scene, callout, clips_dir)
+            out = os.path.join(clips_dir, f"scene_{sid:03d}.blur.mp4")
+            render_extended_clip(
+                scene, src, out,
+                extra_frames=n_blur,
+                transition=entry.get("transition", transition),
+                ken_burns=entry.get("ken_burns", ken_burns),
+                overlays=overlays, edit_style=edit_style,
+                camera=camera_tracks.get(sid), chip=chip,
+            )
+            flanks.append(out)
+        a_start = fa - n_blur
+        blur_overlap = 2 * n_blur
+        blur_xfade_dur = blur_overlap / FPS
+        # Copied verbatim from concat_clips_crossfade (kept identical so the blend
+        # pixels match): xfade custom P runs 1->0, ease (1-P) on inOutQuint into a
+        # 0->1 PE, blend A*(1-PE)+B*PE. Single seam per graph → bare gblur@ba /
+        # gblur@bb instance names are unambiguous.
+        blur_expr = (
+            "st(1, 1-P); "
+            "st(0, if(lt(ld(1),0.5), 16*pow(ld(1),5), 1-pow(-2*ld(1)+2,5)/2)); "
+            "A*(1-ld(0))+B*ld(0)"
+        )
+        graph = (
+            f"[0:v]{norm}[n0];[1:v]{norm}[n1];"
+            f"[n0]sendcmd=c='"
+            f"{_blur_dissolve_sendcmd(True, a_start, blur_overlap, 'gblur@ba')}',"
+            f"gblur@ba=sigma=0.01:steps=3[ba];"
+            f"[n1]sendcmd=c='"
+            f"{_blur_dissolve_sendcmd(False, 0, blur_overlap, 'gblur@bb')}',"
+            f"gblur@bb=sigma=0.01:steps=3[bb];"
+            f"[ba][bb]xfade=transition=custom:"
+            f"duration={blur_xfade_dur:.4f}:offset={a_start / FPS:.4f}:"
+            f"expr='{blur_expr}'[xb];"
+            f"[xb]{sub_tail},{out_shape}[v]"
+        )
+    else:
+        raise ValueError(
+            f"render_seam_bridge called on a '{incoming}' seam at clip {i} "
+            f"(bridges are only for fade_black / blur_dissolve lead_ins)."
+        )
+
+    try:
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-i", os.path.abspath(flanks[0]),
+            "-i", os.path.abspath(flanks[1]),
+            "-filter_complex", graph,
+            "-map", "[v]",
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            os.path.abspath(out_path),
+        ], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr.decode("utf-8", errors="replace") if e.stderr else ""
+        print(
+            f"  [{project}] seam bridge {i}->{i + 1} "
+            f"(scenes {windows[i]['id']}->{windows[i + 1]['id']}) failed:\n{stderr}"
+        )
+        raise
+    return out_path
 
 
 def build_music_bed(
