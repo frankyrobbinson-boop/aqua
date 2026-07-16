@@ -102,7 +102,7 @@ def run_render(project_name: str) -> str:
         print("  WARN: RENDER_MUSIC_VOLUME invalid, falling back to 0.05")
         music_volume = 0.05
 
-    # Three more render knobs are read directly by services/assembly_service
+    # Four more render knobs are read directly by services/assembly_service
     # (module level), so they need no plumbing here — documented for discoverability:
     #   RENDER_KB_CAMERA  — default ON. One continuous Ken Burns ping-pong zoom
     #     SHARED across each run of consecutive stills (motion flows through the
@@ -116,6 +116,11 @@ def run_render(project_name: str) -> str:
     #   RENDER_OST_DRAWTEXT — default OFF. No burned-in drawtext OST (header /
     #     callout / counter overlays) ships; "=1" re-enables it for debugging.
     #     Remotion section/title cards and the karaoke subtitles are unaffected.
+    #   RENDER_STAGE2_ASSEMBLY — default OFF. Selects the stream-copy assembly (each
+    #     segment rendered with the karaoke subtitles already burned in, then
+    #     concat -c copy + a -c:v copy audio mux) in place of the old two-re-encode
+    #     concat-filter + subtitle-mux path. "=1" enables it; off is the byte-
+    #     identical old path.
 
     # Ensure a current-version EDL exists before assembly. The EDL is the
     # per-scene render decision list (transition, ken_burns, overlays); when

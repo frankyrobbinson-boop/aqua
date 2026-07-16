@@ -86,7 +86,6 @@ from services.assembly_service import (  # noqa: E402
     OUT_H,
     OUT_W,
     SECTION_CARD_SECONDS,
-    _build_subtitle_burn,
     _card_seconds_by_scene,
     _cards_from_edl,
     _ensure_callout_chip,
@@ -94,7 +93,9 @@ from services.assembly_service import (  # noqa: E402
     _lead_in_seams,
     _load_or_create_edl,
     _project_channel_id,
+    _render_stage2_run_clip,
     _scene_frame_count,
+    _stage2_segments,
     _subtitle_filter_chain,
     SubtitleBurn,
     assemble,
@@ -324,37 +325,6 @@ def _load_inputs() -> dict:
     }
 
 
-def _partition(windows: list[dict], seam_lefts: set[int]) -> list[dict]:
-    """Walk the scenes into the ordered 70-segment list: a non-cut seam at left
-    index ``i`` becomes ONE bridge covering scenes (i, i+1); every other scene is a
-    run-clip. Each segment carries its global frame ``offset`` (cumulative frames
-    before it) and its own frame ``count``. (The EDL guarantees no two seams are
-    adjacent, so no scene is claimed by two bridges.)"""
-    segs: list[dict] = []
-    cum = 0
-    i = 0
-    n = len(windows)
-    while i < n:
-        if i in seam_lefts:
-            fa = _scene_frame_count(windows[i])
-            fb = _scene_frame_count(windows[i + 1])
-            segs.append({
-                "kind": "bridge", "i": i, "offset": cum, "count": fa + fb,
-                "ids": [windows[i]["id"], windows[i + 1]["id"]],
-            })
-            cum += fa + fb
-            i += 2
-        else:
-            f = _scene_frame_count(windows[i])
-            segs.append({
-                "kind": "run", "i": i, "offset": cum, "count": f,
-                "ids": [windows[i]["id"]],
-            })
-            cum += f
-            i += 1
-    return segs
-
-
 def _build_ass(inputs: dict) -> str:
     """Build the whole-video karaoke .ass with the SAME blank_windows assemble()
     computes (each section card's [start, start+card_frames/FPS] span suppresses the
@@ -382,32 +352,29 @@ def _build_ass(inputs: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def _render_run_clip(inputs: dict, seg: dict, ass_path: str) -> str:
-    """Render one run-clip scene via render_scene_clip WITH the subtitle burn at the
-    scene's global frame offset — the exact production render params (transition /
-    ken_burns / overlays / edit_style / camera / chip) plus subtitles=<burn>."""
-    windows = inputs["windows"]
-    scene = windows[seg["i"]]
+    """Render one run-clip scene through the PRODUCTION Stage-2 renderer
+    (_render_stage2_run_clip) — the exact production params (per-scene transition /
+    ken_burns / overlays / edit_style / camera / chip) plus the subtitle burn at the
+    scene's global frame offset — writing only under /tmp (CLIPS_DIR). Delegating to
+    the production function is the point: the tool proves the SAME code the pipeline
+    ships, not a reimplementation."""
+    scene = inputs["windows"][seg["i"]]
     sid = scene["id"]
     src = inputs["footage_paths"].get(sid)
     if not src or not os.path.exists(src):
         raise FileNotFoundError(f"No footage for scene {sid}")
-    entry = inputs["edl_by_id"].get(sid, {})
-    overlays = entry.get("overlays", [])
-    callout = next((o for o in overlays if o.get("kind") == "callout"), None)
-    chip = _ensure_callout_chip(scene, callout, str(CLIPS_DIR))
-    burn = _build_subtitle_burn(scene, seg["offset"], ass_path)
-    out = str(CLIPS_DIR / f"scene_{sid:03d}.mp4")
-    render_scene_clip(
-        scene, src, out,
-        transition=entry.get("transition", "cut"),
-        ken_burns=entry.get("ken_burns", True),
-        overlays=overlays,
+    return _render_stage2_run_clip(
+        scene, src, str(CLIPS_DIR / f"scene_{sid:03d}.sub.mp4"),
+        edl_by_id=inputs["edl_by_id"],
+        cards=inputs["cards"] or None,
         edit_style=inputs["edit_style"],
-        camera=inputs["camera_tracks"].get(sid),
-        chip=chip,
-        subtitles=burn,
+        camera_tracks=inputs["camera_tracks"],
+        clips_dir=str(CLIPS_DIR),
+        ass_path=ass_path,
+        global_offset=seg["offset"],
+        transition="cut",
+        ken_burns=True,
     )
-    return out
 
 
 def _render_bridge(inputs: dict, seg: dict, ass_path: str) -> str:
@@ -444,7 +411,7 @@ def cmd_run(args: argparse.Namespace) -> None:
     inputs = _load_inputs()
     windows = inputs["windows"]
     seam_lefts = set(_lead_in_seams(windows, inputs["edl_by_id"]))
-    segs = _partition(windows, seam_lefts)
+    segs = _stage2_segments(windows, seam_lefts)
     n_run = sum(1 for s in segs if s["kind"] == "run")
     n_bridge = sum(1 for s in segs if s["kind"] == "bridge")
     total_frames = sum(s["count"] for s in segs)
@@ -629,7 +596,7 @@ def cmd_prove_subtitles(args: argparse.Namespace) -> None:
     inputs = _load_inputs()
     windows = inputs["windows"]
     seam_lefts = set(_lead_in_seams(windows, inputs["edl_by_id"]))
-    segs = _partition(windows, seam_lefts)
+    segs = _stage2_segments(windows, seam_lefts)
     total = sum(s["count"] for s in segs)
     ass_path = _build_ass(inputs)
     esc = _escape_filter_arg(ass_path)

@@ -113,6 +113,16 @@ RENDER_KB_DRIFT = os.environ.get("RENDER_KB_DRIFT", "0") == "1"
 # cards and the karaoke subtitles (the subtitles= filter) are unaffected.
 RENDER_OST_DRAWTEXT = os.environ.get("RENDER_OST_DRAWTEXT", "0") == "1"
 
+# Stage-2 assembly. RENDER_STAGE2_ASSEMBLY (default OFF) selects the stream-copy
+# assembly path in assemble(): every segment (a run-clip or a seam bridge) is
+# rendered with the karaoke subtitles ALREADY burned in, then the segments are joined
+# by ``concat -c copy`` and the audio muxed with ``-c:v copy`` — ONE clean generation,
+# replacing the old path's TWO whole-video re-encodes (the concat-filter blend + the
+# subtitle mux). "=1" enables it; unset/anything-else keeps the old 3-encode path,
+# which stays byte-identical when the flag is off. Env-only, so every existing caller
+# (API routes, run_video_only) behaves exactly as today by default.
+RENDER_STAGE2_ASSEMBLY = os.environ.get("RENDER_STAGE2_ASSEMBLY", "0") == "1"
+
 # Bump when filter math changes in a way that should invalidate cached clips
 # (e.g., Ken Burns formula change, fade duration change). The boolean flags
 # in the cache key only catch flag flips; raw filter changes need this knob.
@@ -3262,6 +3272,293 @@ def mux_audio(
     return out
 
 
+# ---------------------------------------------------------------------------
+# Stage-2 assembly (subtitles burned per-segment, segments stream-copy-concat'd)
+#
+# The old path renders SUBTITLE-FREE clips, blends every seam through ONE concat
+# FILTER graph (re-encoding all frames), then re-encodes the WHOLE video AGAIN to
+# burn the karaoke subtitles — three encode generations. Stage-2 burns the
+# subtitles into each SEGMENT up front (a run-clip via render_scene_clip(subtitles=),
+# a non-cut seam via render_seam_bridge) and joins the finished segments by STREAM
+# COPY, so the deliverable is ONE clean generation. Guarded behind
+# RENDER_STAGE2_ASSEMBLY (default OFF); the old path is untouched and byte-identical
+# when the flag is off. _stage2_segments + _render_stage2_run_clip are the shared
+# source of truth tools/stage2_assembly.py exercises for its correctness proofs.
+# ---------------------------------------------------------------------------
+
+def _stage2_segments(windows: list[dict], seam_lefts: set[int]) -> list[dict]:
+    """Partition the scenes into the ordered Stage-2 segment list — the SINGLE
+    source of truth for the run-clip/bridge layout (tools/stage2_assembly imports
+    this).
+
+    A non-cut seam at left index ``i`` (``i in seam_lefts`` — a ``fade_black``
+    section boundary or a ``blur_dissolve``, from _lead_in_seams) becomes ONE
+    ``bridge`` covering scenes (i, i+1); every other scene becomes a ``run`` clip.
+    Each segment carries its ``kind`` ("run"|"bridge"), its left list index ``i``,
+    its global frame ``offset`` (the cumulative scene frames before it — the subtitle
+    PTS shift), its frame ``count``, and the scene ``ids`` it spans. The EDL
+    classifier guarantees no two non-cut seams are adjacent (_lead_in_seams enforces
+    it), so no scene is claimed by two bridges. ``seam_lefts`` empty (section
+    transitions off) → every scene is a run-clip."""
+    segs: list[dict] = []
+    cum = 0
+    i = 0
+    n = len(windows)
+    while i < n:
+        if i in seam_lefts:
+            fa = _scene_frame_count(windows[i])
+            fb = _scene_frame_count(windows[i + 1])
+            segs.append({
+                "kind": "bridge", "i": i, "offset": cum, "count": fa + fb,
+                "ids": [windows[i]["id"], windows[i + 1]["id"]],
+            })
+            cum += fa + fb
+            i += 2
+        else:
+            f = _scene_frame_count(windows[i])
+            segs.append({
+                "kind": "run", "i": i, "offset": cum, "count": f,
+                "ids": [windows[i]["id"]],
+            })
+            cum += f
+            i += 1
+    return segs
+
+
+def _render_stage2_run_clip(
+    scene: dict,
+    src: str,
+    out_path: str,
+    *,
+    edl_by_id: dict[int, dict],
+    cards: dict[int, dict] | None,
+    edit_style: dict | None,
+    camera_tracks: dict[int, "SceneCameraTrack"],
+    clips_dir: str,
+    ass_path: str,
+    global_offset: int,
+    transition: str = "cut",
+    ken_burns: bool = False,
+) -> str:
+    """Render ONE Stage-2 run-clip (a single scene NOT on a non-cut seam) to
+    ``out_path`` — the Stage-2 counterpart of render_all_scene_clips' per-scene body,
+    and the shared renderer tools/stage2_assembly exercises.
+
+    Mirrors that body EXACTLY: the per-scene transition / ken_burns come from the EDL
+    entry (falling back to the ``transition`` / ``ken_burns`` defaults — the render
+    toggle, NOT hardcoded), plus the overlays and the over-footage fact chip
+    (_ensure_callout_chip). A PLAIN scene renders via render_scene_clip WITH the
+    subtitle burn for this scene at ``global_offset`` (bottom-anchored, so it never
+    touches the top-anchored chip/overlays — the composite is order-independent). A
+    section-CARD scene (``sid in cards``) renders card-fronted via
+    render_section_intro_clip exactly as render_all_scene_clips does — header/counter
+    overlays stripped (the card badge carries the number + title) — with NO subtitle
+    burn: its narrated line plays entirely under the card and the card's cue is
+    blanked in the .ass, so there is nothing to burn (and render_section_intro_clip
+    takes no subtitle). Returns ``out_path``. Used only by the Stage-2 path — the old
+    path is untouched."""
+    sid = scene["id"]
+    entry = edl_by_id.get(sid, {})
+    per_scene_transition = entry.get("transition", transition)
+    per_scene_ken_burns = entry.get("ken_burns", ken_burns)
+    overlays = entry.get("overlays", [])
+
+    # Over-footage fact chip for this scene's surviving callout (None when the scene
+    # has no callout, no room, or the chip render failed → the scene still renders).
+    callout = next((o for o in overlays if o.get("kind") == "callout"), None)
+    chip = _ensure_callout_chip(scene, callout, clips_dir)
+
+    card = (cards or {}).get(sid)
+    if card:
+        # Section-intro scene → title card fronting a shortened footage segment (zero
+        # added time). The card carries the section number (badge) + title, so header
+        # + counter overlays are dropped from the footage segment; any other overlay
+        # (e.g. a callout) is kept. NO subtitle burn — the card's whole narrated line
+        # is blanked in the .ass (assemble()'s blank_windows).
+        footage_overlays = [
+            o for o in overlays if o.get("kind") not in ("header", "counter")
+        ]
+        render_section_intro_clip(
+            scene, src, out_path,
+            index=card["index"], title=card["title"],
+            item_noun=card.get("item_noun", ""),
+            card_seconds=card.get("card_seconds", SECTION_CARD_SECONDS),
+            card_comp=card.get("comp", SECTION_CARD_COMP),
+            card_props=card.get("props"),
+            transition=per_scene_transition, ken_burns=per_scene_ken_burns,
+            overlays=footage_overlays, edit_style=edit_style,
+            camera=camera_tracks.get(sid), chip=chip,
+        )
+        return out_path
+
+    render_scene_clip(
+        scene, src, out_path,
+        transition=per_scene_transition,
+        ken_burns=per_scene_ken_burns,
+        overlays=overlays,
+        edit_style=edit_style,
+        camera=camera_tracks.get(sid),
+        chip=chip,
+        subtitles=_build_subtitle_burn(scene, global_offset, ass_path),
+    )
+    return out_path
+
+
+def concat_stage2(
+    project_name: str, ordered_paths: list[str], windows: list[dict],
+) -> str:
+    """Stream-copy-concat the ordered Stage-2 segments (subtitle-burned run-clips +
+    seam bridges) into video/video_no_audio.mp4, then ASSERT the frame total.
+
+    Every segment already carries the canonical run-clip stream shape (bridges are
+    forced back to it right before their libx264 encode — see render_seam_bridge), so
+    the concat demuxer joins them by stream copy with NO re-encode: the finished
+    picture is ONE clean generation. Guards the duration-neutral invariant exactly as
+    concat_clips_crossfade does — the joined frame count MUST equal the quantized
+    scene-frame total (== the audio/subtitle clock) — and raises loudly on a mismatch
+    (a silently dropped/duplicated frame would desync the audio) rather than shipping
+    a truncated cut. Writes the SAME video/video_no_audio.mp4 sink as concat_clips so
+    the downstream mux is unchanged, and returns its path."""
+    video_dir = str(PROJECTS_ROOT / project_name / "video")
+    os.makedirs(video_dir, exist_ok=True)
+    concat_path = os.path.join(video_dir, "clips_concat.txt")
+    with open(concat_path, "w") as f:
+        for p in ordered_paths:
+            f.write(f"file '{os.path.abspath(p)}'\n")
+
+    silent_video = os.path.join(video_dir, "video_no_audio.mp4")
+    subprocess.run([
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0", "-i", concat_path,
+        "-c", "copy", silent_video,
+    ], check=True, capture_output=True)
+
+    expected_frames = sum(_scene_frame_count(s) for s in windows)
+    actual_frames = _count_video_frames(silent_video)
+    if actual_frames != expected_frames:
+        raise RuntimeError(
+            f"Stage-2 concat for {project_name!r} produced {actual_frames} frames "
+            f"but the scene timeline totals {expected_frames} — a segment is the "
+            f"wrong length (the audio would desync). Refusing to ship a truncated "
+            f"video."
+        )
+    return silent_video
+
+
+def stage2_assemble(
+    project_name: str,
+    footage_paths: dict,
+    audio: str,
+    ass_path: str,
+    cards: dict[int, dict] | None,
+    *,
+    transition: str = "cut",
+    ken_burns: bool = False,
+    section_transitions: bool = False,
+    card_seconds: float = SECTION_CARD_SECONDS,
+    card_comp: str = SECTION_CARD_COMP,
+    output_name: str = "final.mp4",
+    music: bool = False,
+    music_volume: float = 0.05,
+) -> str:
+    """Stage-2 assembly: render each segment with the karaoke subtitles ALREADY
+    burned in, stream-copy-concat the segments, then ``-c:v copy`` mux the audio —
+    ONE clean generation in place of the old path's two whole-video re-encodes.
+    Selected by assemble() when RENDER_STAGE2_ASSEMBLY is on; the assembled length,
+    audio sync, and every render option (transition / ken_burns / section cards /
+    section transitions / music) are identical to the old path.
+
+    ``audio`` is the pre-assembled narration (video/full_audio.mp3 from
+    assemble_audio) and ``ass_path`` the whole-video karaoke .ass (build_subtitles
+    with the card blank_windows) — both built ONCE by assemble() and shared, so the
+    two paths agree on the timeline. windows / edl_by_id / edit_style / camera_tracks
+    are rebuilt IDENTICALLY to render_all_scene_clips so each segment's render params
+    match the old path. ``section_transitions`` off → no seams → every scene is a
+    run-clip (plain hard-cut concat; cards are still card-fronted).
+
+    The scenes partition (_stage2_segments) into ordered run-clips + seam bridges: a
+    run-clip (scene_{sid}.sub.mp4) renders one scene via _render_stage2_run_clip with
+    its subtitle burn; a bridge (bridge_{i}.mp4) renders one non-cut seam via
+    render_seam_bridge (blend + subtitle-after-blend). The DISTINCT .sub.mp4 / bridge_
+    names keep the old clips/ cache intact, so a flag-off rollback stays warm.
+    concat_stage2 joins them (asserting the frame total) and mux_audio adds the
+    narration (+ optional music bed) with NO video re-encode (subtitle_path=None)."""
+    windows = load_scene_windows(project_name)
+    edl = _load_or_create_edl(
+        project_name, transition=transition, ken_burns=ken_burns,
+    )
+    edl_by_id: dict[int, dict] = {e["id"]: e for e in edl.get("scenes", [])}
+    edit_style = resolve_channel_editing(_project_channel_id(project_name))
+
+    # The SAME continuous Ken Burns camera render_all_scene_clips builds (one shared
+    # ping-pong per still-run + drift targeting), over the SAME windows + EDL + card
+    # splits, so each segment's motion matches the old path. Empty when the camera is
+    # off (RENDER_KB_CAMERA=0) → render_scene_clip's legacy per-scene zoom.
+    camera_tracks = (
+        compute_camera_tracks(
+            windows, edl_by_id, footage_paths,
+            default_ken_burns=ken_burns,
+            section_cards=cards or None,
+            card_seconds=card_seconds,
+            ring_style=edit_style.get("ring"),
+        )
+        if RENDER_KB_CAMERA else {}
+    )
+
+    clips_dir = str(PROJECTS_ROOT / project_name / "clips")
+    os.makedirs(clips_dir, exist_ok=True)
+
+    # A non-cut seam becomes a bridge over (i, i+1); every other scene a run-clip.
+    # section_transitions off → no seams → all run-clips (cards still card-fronted,
+    # joined by hard cuts). ``card_comp`` is accepted for render-option parity but
+    # not threaded onward: each card carries its own resolved comp (from
+    # _cards_from_edl), so the module-default fallback is never exercised.
+    seam_lefts = (
+        set(_lead_in_seams(windows, edl_by_id)) if section_transitions else set()
+    )
+    segs = _stage2_segments(windows, seam_lefts)
+
+    ordered: list[str] = []
+    for seg in segs:
+        if seg["kind"] == "bridge":
+            i = seg["i"]
+            out = os.path.join(clips_dir, f"bridge_{i:03d}.mp4")
+            print(
+                f"  Rendering seam bridge: clips {i}->{i + 1} "
+                f"(scenes {seg['ids'][0]}->{seg['ids'][1]})..."
+            )
+            render_seam_bridge(
+                project_name, windows, edl_by_id, i, footage_paths,
+                cards, edit_style, camera_tracks, ass_path, out,
+                transition=transition, ken_burns=ken_burns,
+            )
+            ordered.append(out)
+            continue
+        scene = windows[seg["i"]]
+        sid = scene["id"]
+        src = footage_paths.get(sid)
+        if not src or not os.path.exists(src):
+            raise FileNotFoundError(f"No footage for scene {sid}")
+        out = os.path.join(clips_dir, f"scene_{sid:03d}.sub.mp4")
+        print(f"  Rendering run-clip: scene {sid}  ({scene['duration']:.1f}s)...")
+        _render_stage2_run_clip(
+            scene, src, out,
+            edl_by_id=edl_by_id, cards=cards, edit_style=edit_style,
+            camera_tracks=camera_tracks, clips_dir=clips_dir, ass_path=ass_path,
+            global_offset=seg["offset"], transition=transition, ken_burns=ken_burns,
+        )
+        ordered.append(out)
+
+    print("  Concatenating Stage-2 segments (stream copy)...")
+    silent = concat_stage2(project_name, ordered, windows)
+
+    print("  Muxing audio (no video re-encode; subtitles already burned)...")
+    return mux_audio(
+        project_name, silent, audio, subtitle_path=None,
+        output_name=output_name, music=music, music_volume=music_volume,
+    )
+
+
 def assemble(
     project_name: str,
     footage_paths: dict,
@@ -3334,6 +3631,47 @@ def assemble(
     print("  Assembling audio...")
     audio = assemble_audio(project_name)
 
+    # Windows covered by a section card, so the subtitle builder can suppress any
+    # karaoke cue that would otherwise render over a card. Each window is
+    # [scene start_time, start_time + card_frames/FPS] using the SAME frame math
+    # render_section_intro_clip uses (the PER-CARD card_seconds, capped at the
+    # scene), so the window's right edge lands on the card→footage seam. Because
+    # the card now holds through its whole narrated line, this suppresses that
+    # line's subtitle entirely (the card carries it) while the NEXT scene's
+    # narration — a new clip — keeps its subtitle. None when cards are off. Hoisted
+    # above both assembly paths (it is pure — depends only on cards + windows), so
+    # the old path's outputs stay byte-identical and the Stage-2 path reuses it.
+    blank_windows = None
+    if cards:
+        windows_by_id = {s["id"]: s for s in load_scene_windows(project_name)}
+        blank_windows = []
+        for sid in cards:
+            s = windows_by_id[sid]
+            scene_frames = _scene_frame_count(s)
+            cs = cards[sid].get("card_seconds", card_seconds)
+            card_frames = min(round(cs * FPS), scene_frames)
+            start = s["start_time"]
+            blank_windows.append((start, round(start + card_frames / FPS, 3)))
+
+    # Stage-2 (RENDER_STAGE2_ASSEMBLY): burn the subtitles into each segment and
+    # stream-copy-concat them — ONE clean generation. Build the whole-video .ass ONCE
+    # (the same blank_windows the old path uses) and hand it, the pre-assembled audio,
+    # and the cards to stage2_assemble, which reproduces every render option. Default
+    # OFF → the old three-encode path below runs unchanged.
+    if RENDER_STAGE2_ASSEMBLY:
+        ass_path = build_subtitles(
+            project_name,
+            str(PROJECTS_ROOT / project_name / "video" / "subtitles.ass"),
+            blank_windows=blank_windows,
+        )
+        return stage2_assemble(
+            project_name, footage_paths, audio, ass_path, cards or None,
+            transition=transition, ken_burns=ken_burns,
+            section_transitions=section_transitions,
+            card_seconds=card_seconds, card_comp=card_comp,
+            output_name=output_name, music=music, music_volume=music_volume,
+        )
+
     print("  Rendering scene clips...")
     clips = render_all_scene_clips(
         project_name, footage_paths, transition=transition, ken_burns=ken_burns,
@@ -3355,26 +3693,6 @@ def assemble(
         )
     else:
         silent = concat_clips(project_name, clips)
-
-    # Windows covered by a section card, so the subtitle builder can suppress any
-    # karaoke cue that would otherwise render over a card. Each window is
-    # [scene start_time, start_time + card_frames/FPS] using the SAME frame math
-    # render_section_intro_clip uses (the PER-CARD card_seconds, capped at the
-    # scene), so the window's right edge lands on the card→footage seam. Because
-    # the card now holds through its whole narrated line, this suppresses that
-    # line's subtitle entirely (the card carries it) while the NEXT scene's
-    # narration — a new clip — keeps its subtitle. None when cards are off.
-    blank_windows = None
-    if cards:
-        windows_by_id = {s["id"]: s for s in load_scene_windows(project_name)}
-        blank_windows = []
-        for sid in cards:
-            s = windows_by_id[sid]
-            scene_frames = _scene_frame_count(s)
-            cs = cards[sid].get("card_seconds", card_seconds)
-            card_frames = min(round(cs * FPS), scene_frames)
-            start = s["start_time"]
-            blank_windows.append((start, round(start + card_frames / FPS, 3)))
 
     print("  Building subtitles...")
     sub_path = build_subtitles(
