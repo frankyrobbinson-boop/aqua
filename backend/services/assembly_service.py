@@ -140,7 +140,12 @@ RENDER_OST_DRAWTEXT = os.environ.get("RENDER_OST_DRAWTEXT", "0") == "1"
 #      either flag re-renders exactly the affected clips.
 # v13: fps 25→60 — scene frame counts, camera zoom tracks, and seam widths all
 #      change, so every cached clip is invalidated.
-_CLIP_CACHE_VERSION = 13
+# v14: over-footage fact CHIP + attention RING. render_scene_clip gains a chip
+#      composite (a transparent Remotion FloralTag overlaid in ffmpeg) and the KB
+#      camera gains a per-scene ring drawn in the warp loop; the key adds a
+#      chip_sig and folds the RingSpec into camera_sig, so a chip/ring change
+#      re-renders only the affected clip. Callouts are no longer drawtext.
+_CLIP_CACHE_VERSION = 14
 
 # Per-clip fade-in/out duration when transition="fade". 0.15s in + 0.15s out
 # per clip keeps total video duration unchanged (audio stays in sync) and
@@ -627,17 +632,19 @@ def _camera_signature(
     z_range: tuple[float, float],
     interp: str,
     drift: bool,
+    ring: "RingSpec | None" = None,
 ) -> str:
     """Stable signature of the continuous KB CAMERA render for the clip cache key:
     the exact per-frame zoom track actually encoded (``zs`` = camera.zs_for(frames),
     tail-padded for seam clips), the target anchor, the drift normalization window
-    (``z_range``), the warp interpolation, and the crop-centre aim mode (``drift``
-    == RENDER_KB_DRIFT: fixed-anchor pivot vs drift-to-centre). Because it hashes
-    the ACTUAL zooms rendered plus the aim mode, any change to the camera
-    constants, the run layout, the subject target, the requested frame count, or
-    the RENDER_KB_DRIFT flag re-renders only the affected clip; and flipping
-    RENDER_KB_CAMERA swaps this for _motion_signature, which differs, so the
-    legacy/camera toggle also re-renders. Rounded so the deterministic camera
+    (``z_range``), the warp interpolation, the crop-centre aim mode (``drift``
+    == RENDER_KB_DRIFT: fixed-anchor pivot vs drift-to-centre), and the attention
+    RING (its warped anchor / timing / stroke, or None). Because it hashes the
+    ACTUAL zooms rendered plus the aim mode + ring, any change to the camera
+    constants, the run layout, the subject target, the requested frame count, the
+    RENDER_KB_DRIFT flag, or the ring re-renders only the affected clip; and
+    flipping RENDER_KB_CAMERA swaps this for _motion_signature, which differs, so
+    the legacy/camera toggle also re-renders. Rounded so the deterministic camera
     reproduces an identical key across runs."""
     return json.dumps(
         {
@@ -646,6 +653,17 @@ def _camera_signature(
             "z_range": [round(z_range[0], 6), round(z_range[1], 6)],
             "interp": interp,
             "drift": bool(drift),
+            "ring": (
+                {
+                    "anchor": [round(ring.anchor[0], 6), round(ring.anchor[1], 6)],
+                    "start_frame": ring.start_frame,
+                    "draw_frames": ring.draw_frames,
+                    "color_bgr": list(ring.color_bgr),
+                    "radius_frac": round(ring.radius_frac, 6),
+                    "thickness": ring.thickness,
+                }
+                if ring is not None else None
+            ),
         },
         sort_keys=True,
     )
@@ -676,13 +694,16 @@ def _clip_cache_hit(
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
     camera_sig: str = "",
+    chip_sig: str = "",
 ) -> bool:
     """True iff a previously-rendered clip is still valid for these inputs.
 
     The overlays signature + editing-style signature are part of the key so an
     EDL overlay change (text / position / animation) OR a channel style change
     (fontsize / box / animation timings) invalidates only the affected
-    scene(s), not the whole project's clip cache."""
+    scene(s), not the whole project's clip cache. ``chip_sig`` extends this to the
+    over-footage fact chip: when the chip (its content, placement, or file mtime)
+    changes, only that scene re-renders."""
     cache_path = _clip_cache_path(output_path)
     if not (os.path.exists(output_path) and os.path.exists(cache_path)):
         return False
@@ -705,6 +726,7 @@ def _clip_cache_hit(
         and cache.get("overlays_sig") == _overlays_signature(overlays)
         and cache.get("edit_style_sig") == _edit_style_signature(edit_style)
         and cache.get("camera_sig") == camera_sig
+        and cache.get("chip_sig", "") == chip_sig
         and cache.get("cache_version") == _CLIP_CACHE_VERSION
     )
 
@@ -750,6 +772,49 @@ _KB_CAMERA_EPS = 1e-9
 
 
 @dataclass(frozen=True)
+class ChipComposite:
+    """A rendered fact-chip clip (transparent ProRes 4444) to composite over one
+    scene, plus WHEN it appears. ``path`` is the ``scene_{sid}.chip.mov``;
+    ``start_offset`` is the frame-quantized scene-local second the chip fades in;
+    ``duration`` is its on-screen length. Both drive the ffmpeg overlay window
+    (``between(t, off, off+duration)``). Built by ``_ensure_callout_chip`` from a
+    scene's surviving ``callout`` overlay."""
+
+    path: str
+    start_offset: float
+    duration: float
+
+
+@dataclass(frozen=True)
+class RingSpec:
+    """An attention ring drawn around a target-gated still's subject, synced to
+    its fact chip. ``anchor`` is the subject in source [0,1] coords (warped by the
+    per-frame KB matrix so the ring tracks it through the zoom/drift);
+    ``start_frame`` is the footage frame the draw-on begins (== the chip onset);
+    ``draw_frames`` is the arc draw-on length (it holds a full circle after);
+    ``color_bgr`` is the stroke color; ``radius_frac`` is of OUT_H (scaled by the
+    live zoom); ``thickness`` is the stroke px. Built in compute_camera_tracks."""
+
+    anchor: tuple[float, float]
+    start_frame: int
+    draw_frames: int
+    color_bgr: tuple[int, int, int]
+    radius_frac: float
+    thickness: int
+
+
+def _hex_to_bgr(hex_color: str) -> tuple[int, int, int]:
+    """``#rrggbb`` → an OpenCV ``(B, G, R)`` 0–255 tuple (cv2 draws in BGR).
+    Falls back to a warm cream on a malformed value so a ring never crashes."""
+    s = (hex_color or "").lstrip("#")
+    try:
+        r, g, b = int(s[0:2], 16), int(s[2:4], 16), int(s[4:6], 16)
+    except (ValueError, IndexError):
+        r, g, b = 0xF4, 0xED, 0xE0
+    return (b, g, r)
+
+
+@dataclass(frozen=True)
 class SceneCameraTrack:
     """One scene's slice of the continuous Ken Burns camera (built by
     compute_camera_tracks, consumed by the _render_kenburns_png camera branch).
@@ -766,6 +831,12 @@ class SceneCameraTrack:
     anchor: tuple[float, float]
     z_range: tuple[float, float]
     _zs: tuple[float, ...]
+    # ``confidence`` is the U2-Netp mean-probability inside the subject mask
+    # (analyze_still), carried so the ring can gate on it (>= ring confidence_min,
+    # above the 0.65 target gate). ``ring`` is this scene's attention ring, or
+    # None when it doesn't fire. Both default so pre-ring construction still works.
+    confidence: float = 0.0
+    ring: "RingSpec | None" = None
 
     def zs_for(self, frames: int) -> list[float]:
         """Per-frame zoom for a clip of EXACTLY ``frames`` frames (len == frames
@@ -814,6 +885,39 @@ def _kb_drift_center(
     return cx, cy
 
 
+def _draw_ring(frame, M, ring: "RingSpec", z: float, src_w: int, src_h: int, n: int) -> None:
+    """Draw the attention ring onto one already-warped BGR ``frame`` IN PLACE.
+
+    The ring's source anchor is pushed through the SAME per-frame warp ``M`` (the
+    2x3 affine that produced ``frame``), so it sits on the subject for BOTH the
+    pivot aim (fixed anchor) and the drift aim (subject glides to centre). The arc
+    sweeps clockwise from 12 o'clock, drawing on over ``draw_frames`` from
+    ``start_frame`` and then holding a full circle. Radius scales with the live
+    zoom ``z`` so the ring stays proportional to the subject. Drawn on a copy +
+    alpha-blended (~0.85) so ONLY the ring pixels go translucent (identical
+    non-ring pixels blend to themselves). Adds no frames — duration-neutral."""
+    import cv2  # lazy: only the KB PNG path needs OpenCV
+    import numpy as np
+
+    denom = max(1, ring.draw_frames)
+    prog = min(1.0, max(0.0, (n - ring.start_frame) / denom))
+    end_angle = 360.0 * prog
+    if end_angle <= 0.0:
+        return  # nothing to draw yet (arc opens on the frame after start_frame)
+    ax, ay = ring.anchor
+    out = M @ np.array([ax * src_w, ay * src_h, 1.0], dtype=np.float64)
+    center = (int(round(float(out[0]))), int(round(float(out[1]))))
+    radius = int(round(ring.radius_frac * OUT_H * z))
+    if radius < 1:
+        return
+    overlay = frame.copy()
+    cv2.ellipse(
+        overlay, center, (radius, radius), 0.0, -90.0, -90.0 + end_angle,
+        ring.color_bgr, ring.thickness, cv2.LINE_AA,
+    )
+    cv2.addWeighted(overlay, 0.85, frame, 0.15, 0.0, frame)
+
+
 def _render_kenburns_png(
     footage_path: str,
     output_path: str,
@@ -825,6 +929,8 @@ def _render_kenburns_png(
     zs: list[float] | None = None,
     anchor: tuple[float, float] | None = None,
     z_range: tuple[float, float] | None = None,
+    chip: "ChipComposite | None" = None,
+    ring: "RingSpec | None" = None,
 ) -> None:
     """Subpixel Ken Burns encode for a PNG scene (frame-writer ported from
     tools/kenburns_subpixel.py — services must not import from tools).
@@ -847,7 +953,14 @@ def _render_kenburns_png(
         frame centre toward ``anchor`` as the zoom rises (normalized over
         ``z_range``). ``zs`` MUST already be len == frames.
       * LEGACY (``zs`` None) — the independent per-scene eased ``motion`` push
-        (p = n/(frames-1), or 0 when frames==1)."""
+        (p = n/(frames-1), or 0 when frames==1).
+
+    ``chip`` (optional): a transparent fact-chip clip alpha-composited over the
+    warped frames for its window via ``-filter_complex`` (no chip → the unchanged
+    single-input ``-vf`` encode, byte-identical to before). ``ring`` (optional,
+    camera path only): an attention ring drawn on each warped frame at the subject
+    anchor. Both are duration-neutral — the base-driven ``-frames:v`` caps output
+    and the ring adds no frames."""
     import cv2  # lazy: only the KB PNG path needs OpenCV
     import numpy as np
 
@@ -869,8 +982,37 @@ def _render_kenburns_png(
         cam_anchor = anchor if anchor is not None else (0.5, 0.5)
         z_min, z_peak = z_range if z_range is not None else (min(zs), max(zs))
 
-    proc = subprocess.Popen(
-        [
+    # No chip → the unchanged single-input ``-vf`` encode (BYTE-IDENTICAL to the
+    # pre-chip path). With a chip → a two-input ``-filter_complex``: the warped
+    # base frames (input 0) run through the SAME ``vf``, the transparent chip.mov
+    # (input 1) is conformed 30→60 fps and time-shifted so its frame 0 lands at
+    # the chip onset, then alpha-composited over the base for its window. The
+    # base-driven ``-frames:v frames`` caps output to the scene length either way
+    # (duration-neutral); ``eof_action=pass`` holds the base once the chip ends.
+    if chip is not None:
+        off = chip.start_offset
+        end = off + chip.duration
+        filter_complex = (
+            f"[0:v]{vf}[base];"
+            f"[1:v]fps={FPS},setpts=PTS-STARTPTS+{off:.6f}/TB[cv];"
+            f"[base][cv]overlay=0:0:enable='between(t,{off:.6f},{end:.6f})':"
+            f"eof_action=pass:format=auto,format=yuv420p[v]"
+        )
+        cmd = [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "rawvideo", "-pixel_format", "bgr24",
+            "-video_size", f"{OUT_W}x{OUT_H}", "-framerate", str(FPS),
+            "-i", "-",
+            "-i", os.path.abspath(chip.path),
+            "-filter_complex", filter_complex,
+            "-map", "[v]",
+            "-frames:v", str(frames),
+            "-an", "-r", str(FPS),
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            output_path,
+        ]
+    else:
+        cmd = [
             "ffmpeg", "-y", "-v", "error",
             "-f", "rawvideo", "-pixel_format", "bgr24",
             "-video_size", f"{OUT_W}x{OUT_H}", "-framerate", str(FPS),
@@ -880,12 +1022,14 @@ def _render_kenburns_png(
             "-an", "-r", str(FPS),
             "-c:v", "libx264", "-preset", "fast", "-crf", "18",
             output_path,
-        ],
-        stdin=subprocess.PIPE, stderr=subprocess.PIPE,
+        ]
+    proc = subprocess.Popen(
+        cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE,
     )
     assert proc.stdin is not None
     try:
         for n in range(frames):
+            z = None
             if use_camera:
                 z = zs[n]
                 if RENDER_KB_DRIFT:
@@ -904,6 +1048,11 @@ def _render_kenburns_png(
                 src, M, (OUT_W, OUT_H),
                 flags=interp, borderMode=cv2.BORDER_REFLECT_101,
             )
+            # Attention ring: drawn on the warped frame at the subject anchor
+            # pushed through the SAME M (correct for pivot AND drift). Only fires
+            # on the camera path (z from zs[n]); adds no frames.
+            if ring is not None and z is not None and n >= ring.start_frame:
+                _draw_ring(frame, M, ring, z, src_w, src_h, n)
             proc.stdin.write(np.ascontiguousarray(frame).tobytes())
     except BrokenPipeError:
         pass  # ffmpeg exited early; its stderr (read below) carries the reason
@@ -932,8 +1081,155 @@ def _clip_camera_sig(
         return _camera_signature(
             camera.zs_for(_scene_frame_count(scene)),
             camera.anchor, camera.z_range, RENDER_KB_INTERP, RENDER_KB_DRIFT,
+            camera.ring,
         )
     return _motion_signature(KB_DEFAULT_MOTION, KB_DEFAULT_EASING, RENDER_KB_INTERP)
+
+
+def _chip_signature(chip: "ChipComposite | None") -> str:
+    """Stable signature of a scene's over-footage fact CHIP for the clip cache
+    key, or "" when there's no chip. Keys on the chip file's basename + quantized
+    start_offset + duration + its mtime.
+
+    The chip FILE is content-addressed by _ensure_callout_chip (its
+    ``.chip.mov.json`` sidecar is keyed on fact + icon + position + duration), so
+    any content change re-renders the chip and bumps its mtime — this signature
+    therefore reflects BOTH the chip's content and its placement. render_scene_clip
+    computes it for its inner cache-hit + sidecar and render_all_scene_clips'
+    outer probe computes the identical value from the same ChipComposite, so the
+    two always agree (mirrors _clip_camera_sig's role for the camera_sig)."""
+    if chip is None:
+        return ""
+    try:
+        mtime = os.path.getmtime(chip.path)
+    except OSError:
+        mtime = 0.0
+    return json.dumps(
+        {
+            "name": os.path.basename(chip.path),
+            "start_offset": round(chip.start_offset, 6),
+            "duration": round(chip.duration, 6),
+            "mtime": mtime,
+        },
+        sort_keys=True,
+    )
+
+
+def _overlay_position(edl_pos: str | None) -> str:
+    """Map an EDL callout ``position`` to a FloralTag ``OverlayPosition``. Every
+    result clears the bottom karaoke-subtitle band (the overlay type has no bottom
+    option): the channel default ``upper_third`` (and any unknown value) → top-left,
+    the approved look-dev anchor; explicit ``top`` / ``center`` → top-centre;
+    ``top_right`` → top-right."""
+    if edl_pos in ("top", "center"):
+        return "top-center"
+    if edl_pos == "top_right":
+        return "top-right"
+    return "top-left"
+
+
+def render_callout_chip(
+    fact: str,
+    icon: str | None,
+    position: str,
+    duration: float,
+    out_path: str,
+) -> str | None:
+    """Render ONE transparent fact chip (Remotion ``OverlayFloralTag``) to a
+    ProRes 4444 ``.mov`` with alpha, via the SAME node renderer the section cards
+    use (scripts/render-remotion.mjs), cwd=<frontend>. Only the CONTENT props are
+    passed (``fact`` / ``icon`` / ``position`` / ``durationInSeconds``) — every
+    LOOK token (palette / font / body / invert) inherits from the comp's
+    FLORAL_TAG_DEFAULTS, so nothing is hardcoded to a niche. ``icon`` None/empty
+    renders a text-only chip (an EXPLICIT empty ``icon`` overrides the comp's demo
+    default so it doesn't leak). On any render failure: log + return None so the
+    caller simply skips the chip and the scene still renders."""
+    props: dict = {
+        "fact": fact,
+        "position": position,
+        "durationInSeconds": round(float(duration), 3),
+        # Explicit — "" renders a text-only chip and overrides the comp default
+        # icon (omitting the key would let FLORAL_TAG_DEFAULTS.icon leak through).
+        "icon": icon if icon else "",
+    }
+    cmd = [
+        "node", str(RENDER_SCRIPT),
+        "--comp=OverlayFloralTag",
+        f"--props={json.dumps(props)}",
+        "--codec=prores",
+        "--prores-profile=4444",
+        "--alpha",
+        f"--out={out_path}",
+    ]
+    try:
+        subprocess.run(cmd, cwd=str(FRONTEND_DIR), check=True, capture_output=True)
+    except (subprocess.CalledProcessError, OSError) as e:
+        stderr = (
+            e.stderr.decode("utf-8", errors="replace")
+            if getattr(e, "stderr", None) else ""
+        )
+        stdout = (
+            e.stdout.decode("utf-8", errors="replace")
+            if getattr(e, "stdout", None) else ""
+        )
+        print(
+            f"  WARN: callout chip render failed for {fact!r}; skipping chip.\n"
+            f"{stdout}\n{stderr}"
+        )
+        return None
+    return out_path
+
+
+def _ensure_callout_chip(
+    scene: dict, callout: dict | None, clips_dir: str,
+) -> "ChipComposite | None":
+    """Render (or reuse) the fact chip for a scene's surviving ``callout`` overlay
+    and return a ChipComposite, or None when there's no callout / no room / the
+    render failed.
+
+    The chip holds for ``callout.duration`` (or the whole scene), clamped so it
+    never runs past the scene end after its onset. The onset is frame-quantized
+    (``round(off*FPS)/FPS``) so it lands on a real frame. The chip.mov is cached
+    behind a ``.chip.mov.json`` sidecar keyed on fact + icon + position + duration
+    + cache_version, so it re-renders only when its content changes."""
+    if not callout:
+        return None
+    fact = (callout.get("text") or "").strip()
+    if not fact:
+        return None
+    scene_frames = _scene_frame_count(scene)
+    scene_dur = scene_frames / FPS
+    off = round(float(callout.get("start_offset") or 0.0) * FPS) / FPS
+    raw_dur = callout.get("duration")
+    want = float(raw_dur) if raw_dur is not None else scene_dur
+    chip_dur = min(want, scene_dur - off)
+    if chip_dur <= 0:
+        return None  # no room left in the scene after the onset
+    icon = callout.get("icon")
+    position = _overlay_position(callout.get("position"))
+    sid = scene["id"]
+    out_path = os.path.join(clips_dir, f"scene_{sid:03d}.chip.mov")
+    sidecar = out_path + ".json"
+    key = {
+        "fact": fact,
+        "icon": icon or "",
+        "position": position,
+        "duration": round(chip_dur, 3),
+        "cache_version": _CLIP_CACHE_VERSION,
+    }
+    hit = False
+    if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+        try:
+            with open(sidecar) as f:
+                hit = json.load(f) == key
+        except (OSError, json.JSONDecodeError):
+            hit = False
+    if not hit:
+        if render_callout_chip(fact, icon, position, chip_dur, out_path) is None:
+            return None  # render failed → no chip (scene still renders)
+        with open(sidecar, "w") as f:
+            json.dump(key, f)
+    return ChipComposite(path=out_path, start_offset=off, duration=chip_dur)
 
 
 def render_scene_clip(
@@ -947,6 +1243,7 @@ def render_scene_clip(
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
     camera: "SceneCameraTrack | None" = None,
+    chip: "ChipComposite | None" = None,
 ):
     """Render one scene by trimming + scaling a stock-footage clip to OUT_W x OUT_H.
 
@@ -986,7 +1283,15 @@ def render_scene_clip(
       they're never zoomed or cropped. edit_style is the resolved channel
       editing style supplying each kind's look (fontsize / box / animation
       timings). Both are read from edl.json + resolve_channel_editing per
-      scene by render_all_scene_clips."""
+      scene by render_all_scene_clips. ``callout`` overlays are NEVER drawtext —
+      they render as the ``chip`` composite below, so they're excluded here even
+      under RENDER_OST_DRAWTEXT (no double-render).
+
+    chip: optional over-footage fact CHIP (a transparent Remotion FloralTag,
+      _ensure_callout_chip) alpha-composited over the final frame for its timed
+      window — the callout's on-screen form. Duration-neutral (the base clip
+      drives the frame count). camera.ring (the attention ring) rides the Ken
+      Burns warp on the KB-still path."""
     # Frame count is the single source of truth for this clip's length. The
     # timeline was frame-quantized upstream, so we encode exactly this many
     # frames and derive the duration clock from it — every filter (Ken Burns,
@@ -1009,21 +1314,31 @@ def render_scene_clip(
     if use_camera:
         cam_zs = camera.zs_for(frames)
         camera_sig = _camera_signature(
-            cam_zs, camera.anchor, camera.z_range, RENDER_KB_INTERP, RENDER_KB_DRIFT
+            cam_zs, camera.anchor, camera.z_range, RENDER_KB_INTERP, RENDER_KB_DRIFT,
+            camera.ring,
         )
     else:
         cam_zs = None
         camera_sig = _motion_signature(motion, KB_DEFAULT_EASING, RENDER_KB_INTERP)
 
-    # Drawtext OST is off by default (RENDER_OST_DRAWTEXT): the effective overlays
-    # are None unless it is explicitly enabled. The SAME effective list drives both
-    # the render loop and the cache signature, so the key reflects what is actually
-    # burned in and toggling the flag re-renders. Cards + subtitles are untouched.
-    effective_overlays = overlays if RENDER_OST_DRAWTEXT else None
+    # Callouts render as the composited CHIP (the ``chip`` arg), NEVER drawtext,
+    # so they're stripped from the drawtext overlays even under RENDER_OST_DRAWTEXT
+    # (no double-render). Drawtext OST (header/counter) stays off by default; the
+    # SAME effective list drives both the render loop and the cache signature, so
+    # the key reflects what is actually burned in. Cards + subtitles are untouched.
+    drawtext_overlays = [
+        o for o in (overlays or []) if o.get("kind") != "callout"
+    ]
+    effective_overlays = drawtext_overlays if RENDER_OST_DRAWTEXT else None
+
+    # The chip is a separate composite input; key the cache on it so a chip
+    # content/placement change (or its removal) re-renders only this scene.
+    chip_sig = _chip_signature(chip)
 
     if _clip_cache_hit(
         scene, footage_path, output_path, transition, ken_burns,
         overlays=effective_overlays, edit_style=edit_style, camera_sig=camera_sig,
+        chip_sig=chip_sig,
     ):
         return  # cache hit — output already valid
 
@@ -1073,7 +1388,34 @@ def render_scene_clip(
             zs=cam_zs,
             anchor=(camera.anchor if use_camera else None),
             z_range=(camera.z_range if use_camera else None),
+            chip=chip,
+            ring=(camera.ring if use_camera else None),
         )
+    elif chip is not None:
+        # Video footage + a fact chip: composite the transparent chip over the
+        # fit-to-fill base with the SAME graph the KB path uses (conform 30→60,
+        # time-shift to the onset, alpha overlay for its window). Base-driven
+        # ``-frames:v`` keeps it duration-neutral; ``eof_action=pass`` holds the
+        # base after the chip ends. (Rings never fire on video scenes.)
+        off = chip.start_offset
+        end = off + chip.duration
+        filter_complex = (
+            f"[0:v]{vf}[base];"
+            f"[1:v]fps={FPS},setpts=PTS-STARTPTS+{off:.6f}/TB[cv];"
+            f"[base][cv]overlay=0:0:enable='between(t,{off:.6f},{end:.6f})':"
+            f"eof_action=pass:format=auto,format=yuv420p[v]"
+        )
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-stream_loop", "-1", "-i", footage_path,
+            "-i", os.path.abspath(chip.path),
+            "-filter_complex", filter_complex,
+            "-map", "[v]",
+            "-frames:v", str(frames),
+            "-an",  # drop the stock clip's audio
+            "-c:v", "libx264", "-preset", "fast", "-crf", "18",
+            output_path,
+        ], check=True, capture_output=True)
     else:
         subprocess.run([
             "ffmpeg", "-y",
@@ -1100,6 +1442,7 @@ def render_scene_clip(
             "overlays_sig": _overlays_signature(effective_overlays),
             "edit_style_sig": _edit_style_signature(edit_style),
             "camera_sig": camera_sig,
+            "chip_sig": chip_sig,
             "cache_version": _CLIP_CACHE_VERSION,
         }, f)
 
@@ -1114,6 +1457,7 @@ def compute_camera_tracks(
     card_seconds: float = SECTION_CARD_SECONDS,
     model_path: str | Path | None = None,
     use_cache: bool = True,
+    ring_style: dict | None = None,
 ) -> dict[int, SceneCameraTrack]:
     """Continuous Ken Burns camera for a whole render, as ``{scene_id: track}``.
 
@@ -1145,7 +1489,14 @@ def compute_camera_tracks(
     used — ``move``/pan fields are ignored (pan is unvalidated). analyze_still is
     wrapped so ANY failure (missing model, load error) degrades targeting to centre
     for the whole render — it never breaks the render. ``use_cache`` forwards to
-    analyze_still (pass False to write no per-still sidecars, e.g. validation)."""
+    analyze_still (pass False to write no per-still sidecars, e.g. validation).
+
+    ``ring_style`` (optional, the channel editing ``ring`` block): when enabled,
+    each track may carry a ``RingSpec`` — an attention ring around the subject,
+    synced to the scene's fact chip. It fires only on a scene that KEEPS a callout,
+    whose gate is ``target`` and whose subject confidence clears
+    ``confidence_min``, and only up to ``max_per_video`` per render. None/absent →
+    no rings (every track's ``ring`` is None)."""
     from services import kb_camera  # sibling pure-math module (stdlib only)
 
     card_ids = set(section_cards or {})
@@ -1187,22 +1538,69 @@ def compute_camera_tracks(
         )
     model_arg = Path(model_path) if model_path else default_model
 
-    def _gate_anchor(scene: dict) -> tuple[str, tuple[float, float]]:
+    def _gate_anchor(scene: dict) -> tuple[str, tuple[float, float], float]:
         nonlocal targeting_ok
         if not targeting_ok or analyze_still is None:
-            return "center", (0.5, 0.5)
+            return "center", (0.5, 0.5), 0.0
         try:
             r = analyze_still(
                 footage_paths[scene["id"]], model_path=model_arg, use_cache=use_cache
             )
-            return r["gate"], (float(r["anchor"][0]), float(r["anchor"][1]))
+            return (
+                r["gate"],
+                (float(r["anchor"][0]), float(r["anchor"][1])),
+                float(r.get("confidence", 0.0)),
+            )
         except Exception as e:  # noqa: BLE001 — first failure disables + centers
             targeting_ok = False
             print(
                 f"  WARN: KB targeting failed on scene {scene['id']} "
                 f"({type(e).__name__}: {str(e)[:120]}); center-zoom for the rest."
             )
-            return "center", (0.5, 0.5)
+            return "center", (0.5, 0.5), 0.0
+
+    # Attention-ring policy for this render — niche-neutral (all look from the
+    # channel editing ``ring`` block), per-video count capped. A ring fires on a
+    # scene ONLY when it keeps a callout (a fact chip to anchor to), its gate is
+    # ``target``, and its subject confidence clears ``confidence_min`` (above the
+    # 0.65 target gate). Its start_frame == the chip onset so the two sync.
+    ring_enabled = bool(ring_style and ring_style.get("enabled"))
+    ring_conf_min = float((ring_style or {}).get("confidence_min", 0.75))
+    ring_max = int((ring_style or {}).get("max_per_video", 4))
+    ring_color = _hex_to_bgr((ring_style or {}).get("color", "#f4ede0"))
+    ring_radius_frac = float((ring_style or {}).get("radius_frac", 0.14))
+    ring_thickness = int((ring_style or {}).get("thickness", 6))
+    ring_draw_frames = max(
+        1, round(float((ring_style or {}).get("draw_seconds", 0.5)) * FPS)
+    )
+    ring_count = 0
+
+    def _surviving_callout(scene: dict) -> dict | None:
+        for o in edl_by_id.get(scene["id"], {}).get("overlays", []):
+            if o.get("kind") == "callout":
+                return o
+        return None
+
+    def _decide_ring(
+        scene: dict, gate: str, confidence: float, cam_anchor: tuple[float, float]
+    ) -> "RingSpec | None":
+        nonlocal ring_count
+        if not ring_enabled or ring_count >= ring_max:
+            return None
+        if gate != "target" or confidence < ring_conf_min:
+            return None
+        callout = _surviving_callout(scene)
+        if callout is None:
+            return None
+        ring_count += 1
+        return RingSpec(
+            anchor=cam_anchor,  # source anchor; the warp M tracks it per frame
+            start_frame=round(float(callout.get("start_offset") or 0.0) * FPS),
+            draw_frames=ring_draw_frames,
+            color_bgr=ring_color,
+            radius_frac=ring_radius_frac,
+            thickness=ring_thickness,
+        )
 
     # Partition into runs of consecutive KB stills (break at any non-cut lead_in
     # or non-KB scene).
@@ -1225,15 +1623,16 @@ def compute_camera_tracks(
     tracks: dict[int, SceneCameraTrack] = {}
     for run in runs:
         specs: list = []
-        run_scenes: list[tuple[dict, str]] = []  # (scene, gate) aligned to specs
+        # (scene, gate, confidence) aligned to specs
+        run_scenes: list[tuple[dict, str, float]] = []
         start = 0
         for scene in run:
             ff = _footage_frames(scene)
             if ff <= 0:
                 continue  # card fills its whole scene → no footage to move on
-            gate, anchor = _gate_anchor(scene)
+            gate, anchor, confidence = _gate_anchor(scene)
             specs.append(kb_camera.SceneSpec(frames=ff, start=start, anchor=anchor))
-            run_scenes.append((scene, gate))
+            run_scenes.append((scene, gate, confidence))
             start += ff
         if not specs:
             continue
@@ -1245,12 +1644,14 @@ def compute_camera_tracks(
             ease_frac=KB_CAMERA_EASE_FRAC,
             ease_seconds=KB_CAMERA_EASE_SECONDS,
         )
-        for (scene, gate), cam in zip(run_scenes, run_cam.scenes):
+        for (scene, gate, confidence), cam in zip(run_scenes, run_cam.scenes):
             tracks[scene["id"]] = SceneCameraTrack(
                 gate=gate,
                 anchor=cam.anchor,
                 z_range=(min(cam.z), max(cam.z)),
                 _zs=tuple(cam.z),
+                confidence=confidence,
+                ring=_decide_ring(scene, gate, confidence, cam.anchor),
             )
     return tracks
 
@@ -1267,6 +1668,7 @@ def render_extended_clip(
     overlays: list[dict] | None = None,
     edit_style: dict | None = None,
     camera: "SceneCameraTrack | None" = None,
+    chip: "ChipComposite | None" = None,
 ) -> str:
     """Render one scene clip lengthened by ``extra_frames`` for a section
     crossfade, to a DISTINCT ``scene_{id}.xfade.mp4`` (its own cache sidecar; the
@@ -1289,7 +1691,7 @@ def render_extended_clip(
     render_scene_clip(
         ext_scene, footage_path, out,
         transition=transition, ken_burns=ken_burns, motion=motion,
-        overlays=overlays, edit_style=edit_style, camera=camera,
+        overlays=overlays, edit_style=edit_style, camera=camera, chip=chip,
     )
     return out
 
@@ -1540,6 +1942,7 @@ def render_section_intro_clip(
     edit_style: dict | None = None,
     reencode: bool = False,
     camera: "SceneCameraTrack | None" = None,
+    chip: "ChipComposite | None" = None,
 ) -> str:
     """Render a section-intro scene as ``[card | card_frames] ++ [footage |
     footage_frames]`` where ``card_frames + footage_frames == scene['frames']``
@@ -1586,7 +1989,7 @@ def render_section_intro_clip(
         render_scene_clip(
             {**scene, "frames": footage_frames}, footage_path, foot_seg,
             transition=transition, ken_burns=ken_burns, motion=motion,
-            overlays=overlays, edit_style=edit_style, camera=camera,
+            overlays=overlays, edit_style=edit_style, camera=camera, chip=chip,
         )
         segs.append(foot_seg)
 
@@ -1808,6 +2211,7 @@ def render_all_scene_clips(
             default_ken_burns=ken_burns,
             section_cards=section_cards,
             card_seconds=card_seconds,
+            ring_style=edit_style.get("ring"),
         )
         if RENDER_KB_CAMERA else {}
     )
@@ -1832,6 +2236,14 @@ def render_all_scene_clips(
         per_scene_transition = entry.get("transition", transition)
         per_scene_ken_burns = entry.get("ken_burns", ken_burns)
         overlays = entry.get("overlays", [])
+
+        # Over-footage fact chip for this scene's surviving callout (None when the
+        # scene has no callout, no room, or the chip render failed → the scene
+        # still renders). Built once; fed to whichever render path runs below.
+        callout = next(
+            (o for o in overlays if o.get("kind") == "callout"), None
+        )
+        chip = _ensure_callout_chip(scene, callout, clips_dir)
 
         # Section-intro scene → render a title card fronting a shortened footage
         # segment (zero added time) to scene_{sid}.card.mp4. The card carries the
@@ -1859,7 +2271,7 @@ def render_all_scene_clips(
                 card_props=card.get("props"),
                 transition=per_scene_transition, ken_burns=per_scene_ken_burns,
                 overlays=footage_overlays, edit_style=edit_style,
-                camera=camera_tracks.get(sid),
+                camera=camera_tracks.get(sid), chip=chip,
             )
             rendered += 1
             clip_paths.append(out_card)
@@ -1871,6 +2283,7 @@ def render_all_scene_clips(
             camera_sig=_clip_camera_sig(
                 scene, src, per_scene_ken_burns, camera_tracks.get(sid),
             ),
+            chip_sig=_chip_signature(chip),
         ):
             cached += 1
         else:
@@ -1882,6 +2295,7 @@ def render_all_scene_clips(
                 overlays=overlays,
                 edit_style=edit_style,
                 camera=camera_tracks.get(sid),
+                chip=chip,
             )
             rendered += 1
         clip_paths.append(out)
@@ -2052,6 +2466,7 @@ def concat_clips_crossfade(
             default_ken_burns=ken_burns,
             section_cards=section_cards,
             card_seconds=card_seconds,
+            ring_style=edit_style.get("ring"),
         )
         if RENDER_KB_CAMERA else {}
     )
@@ -2096,6 +2511,13 @@ def concat_clips_crossfade(
             per_transition = entry.get("transition", transition)
             per_ken_burns = entry.get("ken_burns", ken_burns)
             overlays = entry.get("overlays", [])
+            # Fact chip for this flank's surviving callout (None for card scenes,
+            # whose callout is dropped). Built from the ORIGINAL scene span so the
+            # +half extension only pads the tail (which the fade covers).
+            callout = next(
+                (o for o in overlays if o.get("kind") == "callout"), None
+            )
+            chip = _ensure_callout_chip(scene, callout, clips_dir)
             card = cards.get(sid)
             if card:
                 # Card scene on a seam: extend the CARD-FRONTED clip (not a plain
@@ -2134,7 +2556,7 @@ def concat_clips_crossfade(
                     # decoded again by the xfade/concat filters below, which drop
                     # frames off a concat-demuxer copy (see _concat_segments_copy).
                     reencode=True,
-                    camera=camera_tracks.get(sid),
+                    camera=camera_tracks.get(sid), chip=chip,
                 )
             else:
                 out = os.path.join(clips_dir, f"scene_{sid:03d}.xfade.mp4")
@@ -2145,7 +2567,7 @@ def concat_clips_crossfade(
                     ken_burns=per_ken_burns,
                     overlays=overlays,
                     edit_style=edit_style,
-                    camera=camera_tracks.get(sid),
+                    camera=camera_tracks.get(sid), chip=chip,
                 )
             input_paths[j] = out
         fa = _scene_frame_count(windows[i])
@@ -2184,15 +2606,20 @@ def concat_clips_crossfade(
             if not src or not os.path.exists(src):
                 raise FileNotFoundError(f"No footage for scene {sid}")
             entry = edl_by_id.get(sid, {})
+            blur_overlays = entry.get("overlays", [])
+            callout = next(
+                (o for o in blur_overlays if o.get("kind") == "callout"), None
+            )
+            chip = _ensure_callout_chip(scene, callout, clips_dir)
             out = os.path.join(clips_dir, f"scene_{sid:03d}.blur.mp4")
             render_extended_clip(
                 scene, src, out,
                 extra_frames=n_blur,
                 transition=entry.get("transition", transition),
                 ken_burns=entry.get("ken_burns", ken_burns),
-                overlays=entry.get("overlays", []),
+                overlays=blur_overlays,
                 edit_style=edit_style,
-                camera=camera_tracks.get(sid),
+                camera=camera_tracks.get(sid), chip=chip,
             )
             input_paths[j] = out
 

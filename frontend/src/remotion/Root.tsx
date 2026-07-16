@@ -5,6 +5,12 @@ import { CARDS } from "./cards/registry";
 import { DEFAULT_DURATION_IN_SECONDS, FPS, HEIGHT, WIDTH } from "./constants";
 import { LottiePreview } from "./LottiePreview";
 import {
+  FLORAL_TAG_DEFAULTS,
+  MEASUREMENT_STAMP_DEFAULTS,
+} from "./overlays/defaults";
+import { FloralTag } from "./overlays/FloralTag";
+import { MeasurementStamp } from "./overlays/MeasurementStamp";
+import {
   DEFAULT_BLACK_HOLD_FRAMES,
   DEFAULT_FADE_IN_FRAMES,
   DEFAULT_FADE_OUT_FRAMES,
@@ -122,6 +128,50 @@ export const RemotionRoot = () => {
         }}
         calculateMetadata={({ props }) => ({
           durationInFrames: footageDurationInFrames(props),
+        })}
+      />
+
+      {/* On-screen-text (OST) overlays: small fact chips that animate over real
+          footage — a FloralTag (plain fact) and a MeasurementStamp (number-hero).
+          Standalone comps (NOT in the CARDS registry), registered here for the
+          /remotion Player + headless design renders (scripts/render-ost-overlays.mjs).
+          OverlayFloralTag is now PIPELINE-WIRED: assembly_service renders it as a
+          transparent ProRes 4444 chip (scripts/render-remotion.mjs
+          --comp=OverlayFloralTag --codec=prores --alpha) and composites it over the
+          footage, and it's allowlisted in the backend ALLOWED_COMPS for the debug
+          endpoint. OverlayMeasurementStamp stays look-dev only. Each derives its
+          length from props.durationInSeconds. */}
+      <Composition
+        id="OverlayFloralTag"
+        component={FloralTag}
+        durationInFrames={Math.round(FLORAL_TAG_DEFAULTS.durationInSeconds * FPS)}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+        defaultProps={FLORAL_TAG_DEFAULTS}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.max(
+            1,
+            Math.round(props.durationInSeconds * FPS),
+          ),
+        })}
+      />
+
+      <Composition
+        id="OverlayMeasurementStamp"
+        component={MeasurementStamp}
+        durationInFrames={Math.round(
+          MEASUREMENT_STAMP_DEFAULTS.durationInSeconds * FPS,
+        )}
+        fps={FPS}
+        width={WIDTH}
+        height={HEIGHT}
+        defaultProps={MEASUREMENT_STAMP_DEFAULTS}
+        calculateMetadata={({ props }) => ({
+          durationInFrames: Math.max(
+            1,
+            Math.round(props.durationInSeconds * FPS),
+          ),
         })}
       />
     </>

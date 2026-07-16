@@ -69,6 +69,11 @@ ALLOWED_COMPS = frozenset(
         "FloralSlide13",
         "FloralSlide14",
         "FloralSlide15",
+        # OST overlay comp — the over-footage fact chip. The render PIPELINE calls
+        # the render script directly (assembly_service.render_callout_chip); this
+        # entry only allows the standalone /remotion debug endpoint to render it.
+        # NOT added to the frontend CARDS registry.
+        "OverlayFloralTag",
     }
 )
 

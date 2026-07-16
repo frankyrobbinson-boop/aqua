@@ -303,11 +303,16 @@ _EDITING_DEFAULTS: dict = {
         "box_border": 20,
     },
     "callout": {
-        "enabled": False,
+        "enabled": True,
         "animation": "pop",
         "position": "upper_third",
         "start_offset": 0.3,
-        "duration": 1.8,
+        "lead": 0.15,
+        "read_base": 1.5,        # read floor = base + per_word * fact_word_count
+        "read_per_word": 0.35,
+        "read_floor_min": 2.5,   # hard minimum hold (readability) & no-timeline fallback
+        "max_hold": 5.5,         # per-chip ceiling (don't overstay)
+        "tail": 0.3,             # gap kept before scene end
         "settle": 0.15,
         "fontsize": 56,
         "box_opacity": 0.55,
@@ -320,6 +325,23 @@ _EDITING_DEFAULTS: dict = {
         "fontsize": 40,
         "box_opacity": 0.5,
         "box_border": 12,
+    },
+    # Attention RING drawn on a target-gated Ken Burns still, synced to its fact
+    # chip (assembly_service): a partial arc that draws on around the detected
+    # subject, then holds. Niche-neutral global default — ``_flatten_editing``
+    # iterates this dict so it flows through like the other kinds and a channel
+    # preset can override it. ``confidence_min`` sits ABOVE the 0.65 target gate
+    # so only high-confidence subjects get a ring; ``color`` is a cream hex
+    # (hex→BGR in the render), ``radius_frac`` is of OUT_H at z, ``draw_seconds``
+    # is the draw-on time, and ``max_per_video`` caps how many rings a video gets.
+    "ring": {
+        "enabled": False,
+        "color": "#f4ede0",
+        "confidence_min": 0.75,
+        "draw_seconds": 0.5,
+        "radius_frac": 0.14,
+        "thickness": 6,
+        "max_per_video": 4,
     },
 }
 

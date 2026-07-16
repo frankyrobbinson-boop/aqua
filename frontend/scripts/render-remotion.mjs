@@ -7,9 +7,12 @@
  *
  * Invoked by the FastAPI task runner (backend/api/routes/remotion.py) with
  * cwd=<frontend>. It bundles src/remotion/index.ts, selects the composition,
- * and renders an H.264 MP4 to --out. Progress + `[[STAGE:render:...]]` markers
- * stream on stdout so the SSE task log shows live progress. We use the
- * programmatic API (not the `remotion` CLI) so we control the args and stream.
+ * and renders to --out. Default is an H.264 MP4; `--codec=prores --alpha`
+ * (`--prores-profile=4444`) renders a TRANSPARENT ProRes 4444 .mov instead — the
+ * over-footage fact chips assembly_service composites. Progress +
+ * `[[STAGE:render:...]]` markers stream on stdout so the SSE task log shows live
+ * progress. We use the programmatic API (not the `remotion` CLI) so we control
+ * the args and stream.
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -95,6 +98,16 @@ async function main() {
 
   const inputProps = args.props ? JSON.parse(args.props) : {};
 
+  // Codec selection. Default h264 (the /remotion card path — byte-identical to
+  // before). `--codec=prores` with `--alpha` renders a TRANSPARENT ProRes 4444
+  // (yuva444p10le + PNG frame extraction, supported by @remotion/renderer here) —
+  // the over-footage fact chips the pipeline composites.
+  const codec = typeof args.codec === "string" ? args.codec : "h264";
+  const proResProfile =
+    typeof args["prores-profile"] === "string" ? args["prores-profile"] : "4444";
+  const wantAlpha =
+    args.alpha === true || args.alpha === "true" || args.alpha === "1";
+
   // Bake GardenBloom's Lottie decorations into the MP4: the endpoint forwards
   // only the small lottie CONFIG (names + loop/recolor, density, amount), so we
   // load each animation's JSON here and attach it as `lottieData` — the exact
@@ -162,23 +175,51 @@ async function main() {
     chromiumOptions: CHROMIUM_OPTIONS,
   });
 
-  console.log(`[render] Rendering media (h264, gl=${CHROMIUM_OPTIONS.gl})...`);
-  let lastRenderPct = -5;
-  await renderMedia({
-    composition,
-    serveUrl,
-    codec: "h264",
-    outputLocation,
-    inputProps,
-    chromiumOptions: CHROMIUM_OPTIONS,
-    onProgress: ({ progress }) => {
-      const pct = Math.floor(progress * 100);
-      if (pct >= lastRenderPct + 5) {
-        lastRenderPct = pct;
-        console.log(`[render] Rendering: ${pct}%`);
-      }
-    },
-  });
+  if (codec === "prores") {
+    console.log(
+      `[render] Rendering media (prores ${proResProfile}${
+        wantAlpha ? " alpha" : ""
+      }, gl=${CHROMIUM_OPTIONS.gl})...`,
+    );
+    let lastRenderPct = -5;
+    await renderMedia({
+      composition,
+      serveUrl,
+      codec: "prores",
+      proResProfile,
+      // Transparent renders need the alpha-carrying pixel format + PNG frame
+      // extraction; opaque ProRes leaves these to the codec default.
+      ...(wantAlpha ? { pixelFormat: "yuva444p10le", imageFormat: "png" } : {}),
+      outputLocation,
+      inputProps,
+      chromiumOptions: CHROMIUM_OPTIONS,
+      onProgress: ({ progress }) => {
+        const pct = Math.floor(progress * 100);
+        if (pct >= lastRenderPct + 5) {
+          lastRenderPct = pct;
+          console.log(`[render] Rendering: ${pct}%`);
+        }
+      },
+    });
+  } else {
+    console.log(`[render] Rendering media (h264, gl=${CHROMIUM_OPTIONS.gl})...`);
+    let lastRenderPct = -5;
+    await renderMedia({
+      composition,
+      serveUrl,
+      codec: "h264",
+      outputLocation,
+      inputProps,
+      chromiumOptions: CHROMIUM_OPTIONS,
+      onProgress: ({ progress }) => {
+        const pct = Math.floor(progress * 100);
+        if (pct >= lastRenderPct + 5) {
+          lastRenderPct = pct;
+          console.log(`[render] Rendering: ${pct}%`);
+        }
+      },
+    });
+  }
 
   console.log(`[render] Wrote ${outputLocation}`);
   console.log("[[STAGE:render:completed]]");

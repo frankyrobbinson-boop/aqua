@@ -1,0 +1,368 @@
+{
+  "default": "floral-02",
+  "presets": [
+    {
+      "name": "brown",
+      "card_id": "GardenFramed",
+      "props": {
+        "title": "Hydrangeas",
+        "index": "1",
+        "durationInSeconds": 5.0,
+        "palette": {
+          "background": "#3e230a",
+          "text": "#ffffff",
+          "accent": "#91ce69"
+        },
+        "lottieRecolorColor": "#91ce69",
+        "foliageColor": "#ffffff",
+        "animation": "scale",
+        "background": "gradient",
+        "fontFamily": "lora",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        }
+      }
+    },
+    {
+      "name": "floral-02",
+      "card_id": "FloralSlide02",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide02",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-03",
+      "card_id": "FloralSlide03",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide03",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-04",
+      "card_id": "FloralSlide04",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide04",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-05",
+      "card_id": "FloralSlide05",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide05",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-06",
+      "card_id": "FloralSlide06",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide06",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-07",
+      "card_id": "FloralSlide07",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide07",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-08",
+      "card_id": "FloralSlide08",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide08",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-09",
+      "card_id": "FloralSlide09",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide09",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-10",
+      "card_id": "FloralSlide10",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide10",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-11",
+      "card_id": "FloralSlide11",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide11",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-12",
+      "card_id": "FloralSlide12",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide12",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-13",
+      "card_id": "FloralSlide13",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide13",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    },
+    {
+      "name": "floral-14",
+      "card_id": "FloralSlide14",
+      "props": {
+        "title": "Hydrangeas",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#8f486d",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide14",
+        "index": "1",
+        "itemNoun": "Flower"
+      }
+    }
+  ],
+  "rotation": [
+    "floral-02",
+    "floral-03",
+    "floral-04",
+    "floral-05",
+    "floral-06",
+    "floral-07",
+    "floral-08",
+    "floral-09",
+    "floral-10",
+    "floral-11",
+    "floral-12",
+    "floral-13",
+    "floral-14"
+  ]
+}

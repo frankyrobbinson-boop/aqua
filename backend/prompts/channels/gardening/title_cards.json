@@ -1,0 +1,106 @@
+{
+  "default": "floral-title",
+  "presets": [
+    {
+      "name": "brown",
+      "card_id": "GardenBloom",
+      "props": {
+        "title": "7 Perrenials to Plant in July",
+        "durationInSeconds": 5.0,
+        "palette": {
+          "background": "#42210a",
+          "text": "#ffffff",
+          "accent": "#e2917f"
+        },
+        "lottieRecolorColor": "#e2917f",
+        "lottieAnimations": [
+          {
+            "name": "flower.json",
+            "loop": false,
+            "recolor": true
+          }
+        ],
+        "lottieDensity": "high",
+        "lottieRecolorAmount": 0.0,
+        "foliageColor": "#9ee98b",
+        "animation": "fade",
+        "background": "gradient",
+        "fontFamily": "lora",
+        "decoration": {
+          "set": "leaves",
+          "density": "high"
+        }
+      }
+    },
+    {
+      "name": "blue",
+      "card_id": "GardenBloom",
+      "props": {
+        "title": "7 Perrenials to Plant in July",
+        "subtitle": "A quick garden guide",
+        "durationInSeconds": 5.0,
+        "palette": {
+          "background": "#6988b0",
+          "text": "#ffffff",
+          "accent": "#e2917f"
+        },
+        "lottieRecolorColor": "#8cd493",
+        "lottieAnimations": [
+          {
+            "name": "flower.json",
+            "loop": false,
+            "recolor": true
+          },
+          {
+            "name": "energyshares-plant-4.json",
+            "loop": false,
+            "recolor": true
+          },
+          {
+            "name": "animated-plant-loader.json",
+            "loop": false,
+            "recolor": true
+          },
+          {
+            "name": "energyshares-plant-4.json",
+            "loop": false,
+            "recolor": true
+          }
+        ],
+        "lottieDensity": "high",
+        "lottieRecolorAmount": 0.6,
+        "foliageColor": "#44603e",
+        "animation": "fade",
+        "background": "gradient",
+        "fontFamily": "lora",
+        "decoration": {
+          "set": "leaves",
+          "density": "high"
+        }
+      }
+    },
+    {
+      "name": "floral-title",
+      "card_id": "FloralSlide01",
+      "props": {
+        "title": "Flora.",
+        "subtitle": "",
+        "animation": "rise",
+        "palette": {
+          "background": "#efe8dc",
+          "text": "#6b4763",
+          "accent": "#9c7f92"
+        },
+        "background": "gradient",
+        "decoration": {
+          "set": "leaves",
+          "density": "low"
+        },
+        "fontFamily": "questrial",
+        "durationInSeconds": 5.0,
+        "bodyColor": "#7f7268",
+        "variant": "FloralSlide01"
+      }
+    }
+  ]
+}

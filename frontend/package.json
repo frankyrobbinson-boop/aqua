@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "render:remotion": "node scripts/render-remotion.mjs"
+    "render:remotion": "node scripts/render-remotion.mjs",
+    "build:phosphor-index": "node scripts/build-phosphor-index.mjs"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.485",
@@ -24,6 +25,7 @@
     "remotion": "^4.0.485"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

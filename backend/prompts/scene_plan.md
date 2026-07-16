@@ -36,6 +36,7 @@ If a scene's narration is a transitional or abstract sentence ("here's where it 
 - **visual_description**: a concrete, specific phrase (3–8 words) naming the literal subject of the shot — the subject plus the state, action, or context it should show. Lead with the subject noun (the image generator weights early tokens). Put NO framing words here (that's `shot_type`) and NO lighting or time-of-day (the channel's Look is applied downstream).
 - **shot_type**: the camera framing / distance for this shot — one of `establishing`, `wide`, `medium`, `close`, `macro`, or `overhead`. This is its OWN field: framing lives HERE, never inside `visual_description`. Vary it across adjacent scenes (see **Shot-type & visual variety**).
 - **on_screen_text**: a deliberate on-screen card — a section/step title, a hard number, or a key term/label. Leave it an **empty string** for most scenes. See **On-screen text** below.
+- **icon**: a 1–2 word CONCEPT for a small symbol that represents the fact on the card. Leave it an **empty string** for most scenes (only ever fill it when `on_screen_text` is non-empty). See **Icon concept** below.
 - **visual_mode**: which kind of source best fits this scene — `"stock_video"` or `"ai_image"`. See **Choosing visual_mode: ai_image vs stock_video** below for the criteria and examples.
 
 # Rules for visual_description
@@ -68,8 +69,19 @@ On-screen text is a DELIBERATE CARD, not a caption. Reserve it for one of:
 
 Hard rules:
 - **NEVER echo or paraphrase the narration.** If the on-screen words are just the sentence being spoken, delete them.
-- **Roughly ONE on-screen card per 20–30 seconds of video** — NOT one per scene. The large majority of scenes have an **empty** `on_screen_text`.
+- **ONE concrete idea per card.** A card carries a single number, spec, or short instruction — roughly **≤5 words**. NEVER cram two facts into one card: no `"A; B"`, no compound like `"Spacing: 12–18 in; Rows: 3–5 ft"`. If a beat carries two facts, keep only the single most memorable one and drop the other.
+- **Use a card where a fact earns it, not on a schedule.** There is no fixed rate or per-minute cap. Most beats emit none — the large majority of scenes have an **empty** `on_screen_text` — so add one only when a beat carries a concrete, memorable fact worth reinforcing. Some videos use a few, some more: don't force a card out on a timer, and don't ration them when several beats each genuinely carry a standout fact.
 - The goal is a few clean title/step cards plus the occasional number, not running captions.
+
+# Icon concept (a symbol for the fact)
+
+`icon` is a 1–2 word CONCEPT for a small symbol that sits next to an on-screen card, reinforcing the fact at a glance.
+
+- **Only emit an `icon` when `on_screen_text` is non-empty.** When `on_screen_text` is an empty string, `icon` is an empty string too — no exceptions.
+- Name the CONCEPT of a symbol that represents the fact, in 1–2 plain words: `measurement`, `sunlight`, `duration`, `temperature`, `yearly schedule`, `cost`, `count`, `location`, `warning`.
+- **It's a CONCEPT, not a guaranteed icon name.** A deterministic backend resolver snaps your concept to a real glyph, and shows NO icon at all if nothing clean fits — so don't try to guess exact icon names or worry about whether one exists. Just describe the idea.
+- **Keep it niche-neutral.** Use a plain, universal concept (`measurement`, `duration`, `cost`), never channel-specific jargon or the literal subject of the video.
+- Leave `icon` an **empty string** when `on_screen_text` is empty, OR when the card is a title/label with no clean symbol behind it. A missing icon is fine and common; a forced or obscure one is not.
 
 # Shot-type & visual variety
 
@@ -88,4 +100,4 @@ Hard rules:
 Return JSON only. No markdown, no backticks, no preamble.
 
 Output fields:
-- `scene_intent`: an array of scene objects, each with `id`, `segment_id`, `segment_title`, `narration`, `emotional_purpose`, `visual_description`, `shot_type`, `on_screen_text`, and `visual_mode`.
+- `scene_intent`: an array of scene objects, each with `id`, `segment_id`, `segment_title`, `narration`, `emotional_purpose`, `visual_description`, `shot_type`, `on_screen_text`, `icon`, and `visual_mode`.

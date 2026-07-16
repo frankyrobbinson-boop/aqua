@@ -39,6 +39,7 @@ SCENE_PLAN_SCHEMA = {
                         ],
                     },
                     "on_screen_text": {"type": "string"},
+                    "icon": {"type": "string"},
                     "visual_mode": {
                         "type": "string",
                         "enum": ["stock_video", "ai_image"],
@@ -53,6 +54,7 @@ SCENE_PLAN_SCHEMA = {
                     "visual_description",
                     "shot_type",
                     "on_screen_text",
+                    "icon",
                     "visual_mode",
                 ],
                 "additionalProperties": False

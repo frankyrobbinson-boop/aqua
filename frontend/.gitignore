@@ -48,3 +48,8 @@ next-env.d.ts
 # blur-dissolve pipeline: scene clips staged into public/ for the headless
 # FootageTransition window render (assembly_service). Transient — never committed.
 /public/blurdissolve-src/
+
+# OST overlay design renders: footage stills staged into public/ for the headless
+# overlay renders (scripts/render-ost-overlays.mjs). The renderer serves public/
+# over http (can't read file://). Transient render inputs — never committed.
+/public/ost-src/

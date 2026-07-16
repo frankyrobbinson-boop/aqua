@@ -3,7 +3,7 @@
 Stored at ``<projects_root>/<name>/edl.json`` with schema::
 
     {
-      "version": 6,
+      "version": 8,
       "scenes": [
         {
           "id": 0,
@@ -101,9 +101,35 @@ centre lands on the original cut with each flanking clip extended by half its
 width; the blur window is capped to EXACTLY 2N frames and replaces the last N of
 clip A + the first N of clip B), so the audio + subtitle timelines are unchanged.
 
+V7 upgrades the ``callout`` overlay for the over-footage fact CHIP (a
+transparent Remotion FloralTag composited by assembly_service, replacing the
+burned-in drawtext). Two fields change on each callout: a resolved ``icon`` (a
+staged Phosphor glyph name from ``icon_resolver.resolve_icon`` on the scene's
+``icon`` concept, or ``None`` → a text-only chip) and a word-timed
+``start_offset`` (``_callout_onset``: the scene-local onset of the fact's key
+spoken word — its first number expanded to the spoken form, else its first
+content word — minus a small ``lead``, located in the audio timeline; falls
+back to the channel constant when the word or timeline is unavailable). This is
+metadata + policy only; assembly owns the chip render and its onset
+quantization.
+
+V8 makes the ``callout`` chip's ``duration`` NARRATION-DERIVED rather than a flat
+channel constant, and DROPS the per-video frequency cap. ``_callout_onset`` is
+replaced by ``_callout_timing``, which returns both the word-timed onset (as V7)
+AND a hold: the chip stays up through the fact's own sentence (the scene-local
+audio ``global_end`` of the last word of the narration sentence carrying the
+fact's key word, ``_callout_sentence_end_local``) but never less than a
+readability floor (``read_base + read_per_word *`` fact word count, floored at
+``read_floor_min``) and never more than ``max_hold`` or the room left in the
+scene (``duration - onset - tail``). With no cap, a callout now fires on EVERY
+non-header / non-card ``on_screen_text`` scene — keeping cards rare is the
+prompt's job now, not a post-hoc trim. Still metadata only; assembly clamps the
+onset + duration to the scene and owns the chip render.
+
 Generation is purely a function of upstream artifacts (scene_windows,
-scene_plan, outline, script_config, channel editing style) — running
-``generate_default_edl`` twice on unchanged inputs yields identical output.
+scene_plan, outline, script_config, channel editing style, audio_timeline) —
+running ``generate_default_edl`` twice on unchanged inputs yields identical
+output.
 Assembly regenerates an EDL when one is absent OR at a stale schema version
 (there is no manual EDL editor, so a deterministic regen reproduces all prior
 data while upgrading the shape), so pre-V2 projects migrate transparently.
@@ -123,10 +149,18 @@ from services.graphics_registry import (
     resolve_section_header_default,
     resolve_title_card_default,
 )
+from services.icon_resolver import resolve_icon
 from services.paths import PROJECTS_ROOT
+from services.scene_timing_service import (
+    _TOKEN_SPLIT_RE,
+    _expand_numbers,
+    _find_subsequence,
+    _normalize_word,
+    _tokenize_narration,
+)
 from services.visual_subject import subject_from_description
 
-EDL_SCHEMA_VERSION = 6
+EDL_SCHEMA_VERSION = 8
 
 # Default fade-to-black width (in frames) recorded on a section-boundary
 # ``lead_in``'s ``params`` — the ``fade_black`` INTO each section_start /
@@ -369,6 +403,210 @@ def _classify_blur_dissolve_seams(
     return blur_ids
 
 
+# ---------------------------------------------------------------------------
+# Callout chip onset + duration
+# ---------------------------------------------------------------------------
+
+# Function words dropped when picking a callout's KEY spoken word (the word its
+# fact chip syncs its onset to). A number in the fact wins outright; otherwise
+# the first non-stopword content word anchors the chip to something meaningful.
+_CALLOUT_STOPWORDS = frozenset({
+    "a", "an", "the", "of", "for", "to", "and", "or", "but", "with",
+    "in", "on", "at", "by", "as", "is", "are", "be", "no", "not",
+    "this", "that", "these", "those", "your", "you", "it", "its",
+})
+
+
+def _callout_key_token(on_screen_text: str) -> str | None:
+    """The single spoken word a fact chip should sync to, normalized to the
+    audio-timeline token form. A NUMBER in the fact is the strongest anchor, so
+    the first numeric run is expanded to its SPOKEN words (``12`` → "twelve") and
+    its leading token returned — matching what TTS actually said. Otherwise the
+    first non-stopword content word. ``None`` when nothing usable is found."""
+    text = on_screen_text or ""
+    num = re.search(r"\d[\d,]*(?:\.\d+)?", text)
+    if num:
+        for piece in _TOKEN_SPLIT_RE.split(_expand_numbers(num.group(0))):
+            tok = _normalize_word(piece)
+            if tok and not tok.isdigit():
+                return tok
+    for piece in _TOKEN_SPLIT_RE.split(text):
+        tok = _normalize_word(piece)
+        if tok and tok not in _CALLOUT_STOPWORDS:
+            return tok
+    return None
+
+
+def _fact_word_count(on_screen_text: str) -> int:
+    """Number of real WORDS in a fact chip's text — whitespace tokens that carry
+    at least one alphanumeric char (so a lone ``;`` / ``=`` / ``—`` doesn't pad
+    the read floor). Drives the readability floor in ``_callout_read_floor``."""
+    return sum(
+        1 for tok in (on_screen_text or "").split() if re.search(r"[A-Za-z0-9]", tok)
+    )
+
+
+def _callout_read_floor(on_screen_text: str, callout_style: dict) -> float:
+    """Minimum seconds a fact chip must hold to stay legible — a base plus a
+    per-word term, never below ``read_floor_min``. Also the WHOLE duration on the
+    degrade paths (no timeline / no window / no sentence end can be placed)."""
+    base = float(callout_style.get("read_base", 1.5))
+    per_word = float(callout_style.get("read_per_word", 0.35))
+    floor_min = float(callout_style.get("read_floor_min", 2.5))
+    return max(floor_min, base + per_word * _fact_word_count(on_screen_text))
+
+
+def _split_sentences(narration: str) -> list[str]:
+    """Split narration into sentences on sentence-final punctuation followed by
+    whitespace. The lookbehind keeps the terminator attached and never splits a
+    decimal (no space after the dot), so ``1.5 inches`` stays intact. Empty list
+    for blank narration."""
+    text = (narration or "").strip()
+    if not text:
+        return []
+    return re.split(r"(?<=[.!?])\s+", text)
+
+
+def _callout_sentence_end_local(
+    scene_words: list[dict],
+    onset_word: dict,
+    narration: str,
+    key: str,
+    start: float,
+) -> float | None:
+    """Scene-local seconds at which the fact's SENTENCE ends — the hold target
+    for its chip.
+
+    Builds a dash-split, normalized haystack of this scene's audio words (the
+    SAME tokenization ``compute_scene_windows`` uses, so a concatenated audio
+    token like ``kettles—Kettle`` lines up with the narration), finds the first
+    narration sentence carrying the fact's ``key`` token, and returns the
+    scene-local ``global_end`` of that sentence's LAST spoken word. The needle is
+    the sentence's final ``min(3, len)`` tokens, located where its match END sits
+    at/after the onset word so an identical tail phrase EARLIER in the scene can't
+    win. ``None`` when no sentence carries ``key`` or the needle can't be placed
+    (the caller then falls back to the read floor)."""
+    # Dash-split haystack of the scene's audio words + a hay->audio index map
+    # (mirrors compute_scene_windows so hyphen-joined tokens split identically).
+    norm_haystack: list[str] = []
+    haystack_to_audio: list[int] = []
+    for audio_idx, w in enumerate(scene_words):
+        for piece in _TOKEN_SPLIT_RE.split(w.get("word", "")):
+            n = _normalize_word(piece)
+            if n:
+                norm_haystack.append(n)
+                haystack_to_audio.append(audio_idx)
+    if not norm_haystack:
+        return None
+
+    # Onset audio-word index (identity — onset_word came from scene_words), then
+    # the first haystack position that maps to it.
+    onset_audio_idx = 0
+    for i, w in enumerate(scene_words):
+        if w is onset_word:
+            onset_audio_idx = i
+            break
+    onset_hay_idx = 0
+    for hay_idx, audio_idx in enumerate(haystack_to_audio):
+        if audio_idx == onset_audio_idx:
+            onset_hay_idx = hay_idx
+            break
+
+    # First narration sentence whose tokens contain the key word.
+    target_tokens: list[str] | None = None
+    for sentence in _split_sentences(narration):
+        toks = _tokenize_narration(sentence)
+        if key in toks:
+            target_tokens = toks
+            break
+    if not target_tokens:
+        return None
+
+    # Needle = the sentence's last <=3 tokens, matched where the match END lands
+    # at/after the onset (start floor onset_hay_idx - len + 1 admits exactly the
+    # matches whose final token index is >= onset_hay_idx).
+    needle = target_tokens[-min(3, len(target_tokens)):]
+    match_start = _find_subsequence(
+        norm_haystack, needle, start=max(0, onset_hay_idx - len(needle) + 1)
+    )
+    if match_start is None:
+        return None
+    end_word = scene_words[haystack_to_audio[match_start + len(needle) - 1]]
+    end = end_word.get("global_end")
+    if end is None:
+        return None
+    return end - start
+
+
+def _callout_timing(
+    scene: dict, audio_timeline: list | None, callout_style: dict
+) -> tuple[float, float]:
+    """Scene-local ``(onset, duration)`` for a scene's fact chip.
+
+    ONSET is the word-timed appearance of the fact's KEY spoken word (as V7's
+    ``_callout_onset``): its scene-local start pulled ``lead`` earlier (clamped
+    >= 0), or the scene's FIRST word when the key word is absent. DURATION is now
+    narration-DERIVED — the chip holds through the fact's own sentence
+    (``_callout_sentence_end_local``) but never less than a readability floor
+    (``_callout_read_floor``) nor more than ``max_hold`` or the room left in the
+    scene (``duration - onset - tail``). Pure + deterministic.
+
+    Degrades to ``(start_offset`` constant``, read_floor)`` when there is no audio
+    timeline, no scene window, or no audio words inside the window. Always returns
+    finite floats; assembly re-clamps both to the scene and owns the chip render."""
+    start_offset = float(callout_style.get("start_offset", 0.3))
+    lead = float(callout_style.get("lead", 0.15))
+    max_hold = float(callout_style.get("max_hold", 5.5))
+    tail = float(callout_style.get("tail", 0.3))
+
+    on_screen_text = scene.get("on_screen_text") or ""
+    read_floor = _callout_read_floor(on_screen_text, callout_style)
+
+    start = scene.get("start_time")
+    end = scene.get("end_time")
+    if audio_timeline is None or start is None or end is None:
+        return (start_offset, read_floor)
+    scene_words = [
+        w
+        for chunk in audio_timeline
+        for w in chunk.get("words", [])
+        if start <= w.get("global_start", -1.0) < end
+    ]
+    if not scene_words:
+        return (start_offset, read_floor)
+
+    # Onset — the fact's key spoken word (or the scene's first word), pulled
+    # ``lead`` earlier so the chip is up as the word lands. Keep the anchor word
+    # so the sentence-end scan can start at/after it.
+    key = _callout_key_token(on_screen_text)
+    onset_word = None
+    if key is not None:
+        for w in scene_words:
+            if _normalize_word(w.get("word", "")) == key:
+                onset_word = w
+                break
+    if onset_word is None:
+        onset_word = scene_words[0]  # key word absent → open with the scene
+    onset = max(0.0, onset_word.get("global_start", start) - start - lead)
+
+    # Sentence end carrying the fact — the hold target (None when unplaceable).
+    sentence_end = None
+    if key is not None:
+        sentence_end = _callout_sentence_end_local(
+            scene_words, onset_word, scene.get("narration") or "", key, start
+        )
+
+    # Clamp: hold through the sentence, but at least the read floor and at most
+    # ``max_hold`` or the scene room left after the onset.
+    scene_dur = scene.get("duration") or (end - start)
+    hi = min(scene_dur - onset - tail, max_hold)
+    raw = read_floor
+    if sentence_end is not None:
+        raw = max(read_floor, sentence_end - onset)
+    duration = round(max(read_floor, min(raw, hi)), 3)
+    return (round(onset, 3), duration)
+
+
 def generate_default_edl(
     project_name: str,
     *,
@@ -435,6 +673,12 @@ def generate_default_edl(
 
     script_draft = _load_json(proj / "script_draft.json")
     script_config = _load_json(proj / "script_config.json")
+    # Word-level audio timeline (list of chunks, each with ``words`` carrying
+    # ``global_start``/``global_end``). Feeds ``_callout_timing`` so a fact chip
+    # syncs its onset to when its key word is spoken and holds through that fact's
+    # sentence; ``None`` when absent → each callout falls back to the channel's
+    # constant ``start_offset`` + the readability-floor duration.
+    audio_timeline = _load_json(proj / "audio_timeline.json")
 
     # Per-channel on-screen editing style (header/callout/counter look +
     # policy). channel_id comes from script_config; None → default channel.
@@ -688,13 +932,19 @@ def generate_default_edl(
             and not has_header
             and card is None
         ):
+            # Word-timed onset + narration-derived hold (both fall back to the
+            # channel constants when the key word / timeline can't place them).
+            onset, duration = _callout_timing(scene, audio_timeline, callout_style)
             overlays.append({
                 "kind": "callout",
                 "text": on_screen,
+                # Resolved staged Phosphor glyph for the chip's icon accent, or
+                # None → a text-only chip. resolve_icon is deterministic + offline.
+                "icon": resolve_icon(scene.get("icon", "") or ""),
                 "position": callout_style["position"],
                 "animation": callout_style["animation"],
-                "start_offset": callout_style["start_offset"],
-                "duration": callout_style["duration"],
+                "start_offset": onset,
+                "duration": duration,
             })
 
         entry: dict = {
