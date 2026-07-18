@@ -64,7 +64,13 @@ _EM_DASHES = ("—", "–")
 # disappear naturally and leave a beat of silence — the kind of pause that's
 # meaningful for the viewer (em-dash beats, sentence breaths). Tune below.
 GAP_BRIDGE_THRESHOLD = 0.5   # s. Gap < this → cards transition back-to-back.
-NATURAL_TAIL = 0.1           # s. Hold the last frame this long when we DON'T bridge.
+# When we DON'T bridge (a genuinely long pause), hold the finished card on
+# screen toward the next card's start, capped at this many seconds. The old
+# fixed 0.1s tail made cards vanish almost the instant the last word was
+# spoken — subtitles "disappearing early" during every meaningful pause.
+# 0.8s keeps the line readable through the breath while still leaving a beat
+# of clean screen before the next card when the pause runs longer than that.
+MAX_TAIL_HOLD = 0.8          # s. Cap on the post-word hold when not bridging.
 
 # Highlight lead-in: a uniform shift (seconds) added to every highlight's
 # start/end relative to the word's global_start. 0 = each word lights up ON its
@@ -77,6 +83,11 @@ NATURAL_TAIL = 0.1           # s. Hold the last frame this long when we DON'T br
 # read worse, not better. Kept as a re-tunable knob: nudge up a hair only if
 # highlights consistently feel early, down if they feel late.
 HIGHLIGHT_LEAD_IN = 0.0   # seconds (0 = highlight on the word's global_start)
+
+# ASS Dialogue times are centisecond-precision; a trimmed cue narrower than
+# one centisecond would be written with equal start/end (a zero-duration
+# line), so _clip_to_blank_windows drops slivers below this instead.
+_MIN_CUE_SPAN = 0.01   # s
 
 
 def _format_time(seconds: float) -> str:
@@ -227,17 +238,33 @@ def _ass_header() -> str:
     )
 
 
-def _overlaps_blank_window(start: float, end: float, blank_windows) -> bool:
-    """True iff the cue span [start, end] overlaps any (bs, be) blank window at
-    all — including a partial straddle. Suppressing on ANY overlap guarantees no
-    karaoke word is visible while a section card is on screen; a cue crossing the
-    card→footage seam (or the card's entry edge) would otherwise linger over the
-    card. Cues that merely abut an edge (end == bs or start == be) do not overlap
-    and are kept."""
+def _clip_to_blank_windows(
+    start: float, end: float, blank_windows
+) -> tuple[float, float] | None:
+    """Trim the cue span [start, end] against the (bs, be) blank windows so no
+    karaoke word is visible while a section card is on screen, WITHOUT dropping
+    the visible part of a cue that merely straddles a card edge (the old
+    suppress-on-any-overlap behavior made the last cue before every section
+    card vanish entirely).
+
+    Per window:
+      - cue fully inside the window        → dropped (returns None)
+      - cue straddles the entry edge (bs)  → trimmed to end at bs
+      - cue straddles the exit edge (be)   → trimmed to start at be
+    A cue that merely abuts an edge (end == bs or start == be) is untouched.
+    Returns the (possibly trimmed) (start, end), or None when nothing visible
+    remains — including slivers below the .ass centisecond precision, which
+    would be emitted with equal start/end times (a zero-duration cue)."""
     for bs, be in blank_windows:
-        if start < be and end > bs:
-            return True
-    return False
+        if start >= bs and end <= be:
+            return None  # fully under the card
+        if start < bs < end:
+            end = bs     # straddles the card's entry edge (or spans the window)
+        elif bs <= start < be:
+            start = be   # straddles the card→footage seam
+        if end - start < _MIN_CUE_SPAN:
+            return None
+    return start, end
 
 
 def build_subtitles(
@@ -250,11 +277,13 @@ def build_subtitles(
     ``blank_windows`` (optional): a list of ``(start, end)`` time windows in
     seconds covered by a section card (see assembly_service — a card fronts a
     section-intro scene, eating into that scene's own frames). Any subtitle cue
-    whose ``[start, end]`` OVERLAPS one of these windows at all — including a cue
-    that straddles the card→footage seam — is dropped, so no karaoke word is ever
-    visible while a card is on screen. ``None`` (the default) drops nothing — the
-    output is byte-for-byte identical to the pre-card behavior, so the normal
-    render path is unaffected."""
+    that plays entirely inside one of these windows is dropped, and a cue that
+    straddles a window edge is TRIMMED at that edge (see
+    ``_clip_to_blank_windows``), so no karaoke word is ever visible while a
+    card is on screen — but the visible part of an edge-straddling cue is kept
+    instead of the whole cue vanishing. ``None`` (the default) drops nothing —
+    the output is identical to the pre-card behavior, so the normal render
+    path is unaffected."""
     blank = blank_windows or []
     timeline_path = PROJECTS_ROOT / project_name / "audio_timeline.json"
     with timeline_path.open() as f:
@@ -306,18 +335,25 @@ def build_subtitles(
                 # Last word of card. Decide whether to bridge into the next card.
                 natural_end = w["global_end"]
                 if next_card_start is None:
-                    end = natural_end + HIGHLIGHT_LEAD_IN  # final card of the video
+                    # Final card of the video: hold the readability tail.
+                    end = natural_end + MAX_TAIL_HOLD + HIGHLIGHT_LEAD_IN
                 elif next_card_start - natural_end < GAP_BRIDGE_THRESHOLD:
                     end = next_card_start + HIGHLIGHT_LEAD_IN  # bridge: next card appears the frame this one ends
                 else:
-                    end = natural_end + NATURAL_TAIL + HIGHLIGHT_LEAD_IN  # real silent gap; fade with readability tail
+                    # Real silent gap: hold toward the next card, capped at
+                    # MAX_TAIL_HOLD, so the line stays readable through the
+                    # pause instead of vanishing right after the last word.
+                    end = min(next_card_start, natural_end + MAX_TAIL_HOLD) + HIGHLIGHT_LEAD_IN
             # Clamp the shifted start (only the very first line can be affected)
             # and guard end > start defensively (holds since both shift equally).
             start = max(0.0, start)
             if end <= start:
                 end = start
-            if blank and _overlaps_blank_window(start, end, blank):
-                continue  # cue overlaps a section card — suppress (no sub over a card)
+            if blank:
+                clipped = _clip_to_blank_windows(start, end, blank)
+                if clipped is None:
+                    continue  # cue plays entirely under a section card — drop
+                start, end = clipped
             text = _render_card_with_highlight(card_words, wi)
             dialogue_lines.append(
                 f"Dialogue: 0,{_format_time(start)},{_format_time(end)},"
