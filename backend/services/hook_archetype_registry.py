@@ -82,14 +82,14 @@ def resolve_archetype(per_video: str | None, channel_id: str | None) -> str:
 def build_archetype_block(archetype_id: str) -> str:
     """Render the splice-ready block for {{HOOK_ARCHETYPE_BLOCK}}:
 
-        Beat 1 archetype: <Label>
+        Hook archetype: <Label>
 
         <module body>
 
-    Built here (not in script_base.md) so the prompt reads naturally with OR
-    without an override — the slot is always filled."""
+    Built here (not in the type script files) so the prompt reads naturally
+    with OR without an override — the slot is always filled."""
     label, body = resolve_archetype_module(archetype_id)
-    return f"Beat 1 archetype: {label}\n\n{body.strip()}"
+    return f"Hook archetype: {label}\n\n{body.strip()}"
 
 
 def verify_archetype_modules_exist() -> None:
@@ -119,10 +119,3 @@ def verify_archetype_modules_exist() -> None:
             "channels.json has unknown preferred_hook_archetype:\n  "
             + "\n  ".join(bad)
         )
-
-
-def verify_hook_slot() -> None:
-    """Raise if script_base.md is missing {{HOOK_ARCHETYPE_BLOCK}}."""
-    text = (_PROMPTS_DIR / "script_base.md").read_text()
-    if HOOK_ARCHETYPE_SLOT not in text:
-        raise RuntimeError(f"script_base.md missing {HOOK_ARCHETYPE_SLOT}")

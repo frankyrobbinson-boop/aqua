@@ -5,6 +5,10 @@ import anthropic
 
 from services import cost_ledger
 from services.channel_registry import resolve_channel
+from services.hook_archetype_registry import (
+    build_archetype_block,
+    resolve_archetype,
+)
 from services.outline_service import load_outline
 from services.paths import PROJECTS_ROOT
 from services.research_filters import strip_research_sources
@@ -85,6 +89,7 @@ def generate_script_draft(
     target_minutes: int,
     channel: str | None = None,
     video_type: str | None = None,
+    hook_archetype: str | None = None,
     additional_instructions: str | None = None,
     sample_script: str | None = None,
     item_count: int | None = None,
@@ -95,6 +100,9 @@ def generate_script_draft(
     core_content = load_core()
     _, script_base = resolve_modules(video_type)
     resolved_sample = _resolve_sample_script(video_type, sample_script)
+    # Per-video override → channel preferred_hook_archetype → registry default.
+    resolved_archetype_id = resolve_archetype(hook_archetype, channel)
+    hook_archetype_block = build_archetype_block(resolved_archetype_id)
 
     n_sections = max(1, len(outline.get("sections", [])))
     total_word_target = target_minutes * WORDS_PER_MINUTE
@@ -116,6 +124,7 @@ def generate_script_draft(
         additional_instructions=additional_instructions,
         sample_script=resolved_sample,
         item_count=item_count,
+        hook_archetype_block=hook_archetype_block,
     )
 
     # max_tokens covers thinking + structured output combined. Opus 4.7 uses

@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 from services.channel_registry import CHANNEL_SLOT
+from services.hook_archetype_registry import HOOK_ARCHETYPE_SLOT
 
 _PROMPTS_DIR = Path("prompts")
 _REGISTRY_PATH = _PROMPTS_DIR / "video_types.json"
@@ -133,13 +134,17 @@ def compose_script_prompt(
     additional_instructions: str | None = None,
     sample_script: str | None = None,
     item_count: int | None = None,
+    hook_archetype_block: str | None = None,
 ) -> str:
-    """Same composition contract as the outline, plus a sample_script slot.
+    """Same composition contract as the outline, plus a sample_script slot and
+    the hook-archetype slot (trusted registry content; empty string when None).
 
-    Trusted content (core/channel/vars) goes first; user content (sample,
-    creator steering) goes last so any braces in pasted content are inert."""
+    Trusted content (core/channel/archetype/vars) goes first; user content
+    (sample, creator steering) goes last so any braces in pasted content are
+    inert."""
     text = base.replace(CORE_SLOT, core_content)
     text = text.replace(CHANNEL_SLOT, channel_content)
+    text = text.replace(HOOK_ARCHETYPE_SLOT, hook_archetype_block or "")
     text = (
         text.replace("{topic}", topic)
         .replace("{target_minutes}", str(target_minutes))
@@ -202,7 +207,8 @@ def verify_base_slots() -> None:
 
     Every outline/script type file must carry {{CORE}}, {{CHANNEL}}, and
     {{ADDITIONAL_INSTRUCTIONS}}; script files must additionally carry
-    {{SAMPLE_SCRIPT}} and the hook/conclusion word-target tokens."""
+    {{SAMPLE_SCRIPT}}, {{HOOK_ARCHETYPE_BLOCK}}, and the hook/conclusion
+    word-target tokens."""
     # core.md must exist so {{CORE}} can be filled.
     core_path = _PROMPTS_DIR / "core.md"
     problems: list[str] = []
@@ -217,7 +223,7 @@ def verify_base_slots() -> None:
                 problems.append(f"{t['outline_module']} missing {slot}")
 
         script_text = (_PROMPTS_DIR / t["script_module"]).read_text()
-        for slot in (CORE_SLOT, CHANNEL_SLOT, SAMPLE_SCRIPT_SLOT, ADDITIONAL_INSTRUCTIONS_SLOT):
+        for slot in (CORE_SLOT, CHANNEL_SLOT, SAMPLE_SCRIPT_SLOT, HOOK_ARCHETYPE_SLOT, ADDITIONAL_INSTRUCTIONS_SLOT):
             if slot not in script_text:
                 problems.append(f"{t['script_module']} missing {slot}")
         for token in ("{hook_word_target}", "{conclusion_word_target}"):
