@@ -1,3 +1,14 @@
+"""TTS-prep: mechanical GPT-5 pass that readies the script draft for ElevenLabs.
+
+Sanitation contract: script_draft.json on disk keeps its original punctuation —
+on-screen text (chips, section cards) is sourced from it. The sanitation in this
+module happens only at the TTS boundary: em/en dashes and hyphen separators are
+rewritten to commas BEFORE the script is sent to GPT-5, and control characters
+are scrubbed from the parsed output AFTER. Everything downstream of
+generate_tts_prep (voice units → ElevenLabs → audio_timeline → subtitles)
+therefore sees clean, speakable text.
+"""
+
 import json
 import os
 import re
@@ -20,8 +31,53 @@ PROMPT = """You are a TTS (text-to-speech) script editor preparing a YouTube nar
 4. Return the exact same JSON structure — only edit the text fields, and only as permitted above."""
 
 
+def _sanitize_spoken_text(text: str) -> str:
+    """Rewrite punctuation that TTS reads badly into speakable commas.
+
+    Em/en dashes and standalone hyphen separators become ", "; the collapse
+    rules then clean up any punctuation artifacts the substitution created.
+    Hyphenated words ("year-old", "half-inch") and negative numbers ("-5")
+    are untouched because the hyphen rule requires whitespace on BOTH sides.
+    """
+    # 1. Em/en dash runs, spaced or not: "word — word" / "word—word" → "word, word".
+    text = re.sub(r'\s*[—–]+\s*', ', ', text)
+    # 2. Standalone hyphen separators (whitespace both sides): "a -- b" → "a, b".
+    text = re.sub(r'\s+-+\s+', ', ', text)
+    # 3. Punctuation-artifact collapse (order matters).
+    text = re.sub(r',(\s*,)+', ',', text)
+    text = re.sub(r'([.!?;:])\s*,\s*', r'\1 ', text)
+    text = re.sub(r',\s*([.!?;:])', r'\1', text)
+    text = re.sub(r'^\s*,\s*', '', text)
+    text = re.sub(r',\s*$', '', text)
+    text = re.sub(r' {2,}', ' ', text)  # spaces only — leave \n and \t alone
+    return text
+
+
+def _scrub_control_chars(text: str) -> str:
+    """Replace C0 control chars + DEL (keeping \\n and \\t) with a space.
+
+    GPT-5 occasionally emits stray control characters; a run becomes a single
+    space, then doubled spaces are collapsed.
+    """
+    text = re.sub(r'[\x00-\x08\x0b-\x1f\x7f]+', ' ', text)
+    return re.sub(r' {2,}', ' ', text)
+
+
+def _walk_strings(obj, fn):
+    """Return a copy of obj with fn applied to every string value."""
+    if isinstance(obj, str):
+        return fn(obj)
+    if isinstance(obj, dict):
+        return {k: _walk_strings(v, fn) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_walk_strings(v, fn) for v in obj]
+    return obj
+
+
 def generate_tts_prep(project_name: str) -> dict:
-    script = load_script_draft(project_name)
+    # Sanitize at the TTS boundary only — script_draft.json keeps its original
+    # punctuation on disk (on-screen text is sourced from it).
+    script = _walk_strings(load_script_draft(project_name), _sanitize_spoken_text)
 
     # max_output_tokens must comfortably exceed the FULL rewritten script — every
     # text field comes back transformed, so the visible output is roughly the
@@ -36,7 +92,7 @@ def generate_tts_prep(project_name: str) -> dict:
         # structured-output idiom mirrors scene_plan_service / visual_prompt_service.
         model="gpt-5",
         instructions=PROMPT,
-        input=f"SCRIPT:\n{json.dumps(script, indent=2)}",
+        input=f"SCRIPT:\n{json.dumps(script, indent=2, ensure_ascii=False)}",
         max_output_tokens=32768,
         text={
             "format": {
@@ -72,7 +128,10 @@ def generate_tts_prep(project_name: str) -> dict:
     if match:
         text = match.group(0)
     try:
-        return json.loads(text)
+        # Scrub stray control characters from the parsed output so run_audio
+        # persists clean text for everything downstream (voice units →
+        # ElevenLabs → audio_timeline → subtitles).
+        return _walk_strings(json.loads(text), _scrub_control_chars)
     except json.JSONDecodeError as e:
         # Surface status + the text head/tail so parse failures are debuggable
         # (mirrors scene_plan / research / visual_prompt). A truncated response
