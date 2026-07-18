@@ -24,3 +24,7 @@ __pycache__/
 
 # Local Claude Code settings (per-machine permissions); commit .claude/agents/
 .claude/settings.local.json
+
+# Local reference material + design-source archives (large binaries, not build inputs)
+/assets/
+/references/
