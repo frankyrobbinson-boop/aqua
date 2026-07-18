@@ -6,7 +6,7 @@ The person watching already has the gap this video is about - a problem they're 
 
 ## Explain it simple
 
-This matters more than anything else here. One idea at a time, plain words, built so a tired person watching between chores gets it on the first pass — no rewinding. Every "why" is concrete cause-and-effect they can picture, not an abstraction; if a point needs two new things held at once, split it. If you can't say it plainly, it isn't ready. Simple isn't dumbed-down and it isn't boring — that effortless understanding IS the engagement: they keep watching because they never fall behind.
+This matters more than anything else here. One idea at a time, plain words, built so a tired person watching between chores gets it on the first pass — no rewinding. Every "why" is concrete cause-and-effect they can picture, not an abstraction; If you can't say it plainly, it isn't ready. Simple is engagement: they keep watching because they never fall behind.
 
 ## The frame
 
