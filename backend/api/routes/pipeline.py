@@ -82,6 +82,34 @@ def _start_stage(
     return StageResponse(task_id=task.id, project_slug=slug)
 
 
+def render_env(
+    ken_burns: bool,
+    render_section_cards: bool,
+    render_section_transitions: bool,
+    background_music: bool,
+    music_volume: float,
+) -> dict[str, str]:
+    """Build the env-var block consumed by run_render.py. Shared by the
+    /render route and the full-pipeline start flow (api.routes.scripts) so
+    both paths honor the same per-render options."""
+    env = {
+        "RENDER_KEN_BURNS": "1" if ken_burns else "0",
+        "RENDER_SECTION_CARDS": "1" if render_section_cards else "0",
+        "RENDER_SECTION_TRANSITIONS": "1" if render_section_transitions else "0",
+        # The Ken Burns toggle also drives the continuous KB camera. run_render is a
+        # fresh subprocess that reads RENDER_KB_CAMERA / RENDER_KB_DRIFT at import,
+        # so threading them through the subprocess env is enough. ON → the targeted
+        # continuous camera with drift OFF (a fixed-anchor targeted zoom); OFF →
+        # camera off (static stills; drift is moot).
+        "RENDER_KB_CAMERA": "1" if ken_burns else "0",
+        "RENDER_MUSIC": "1" if background_music else "0",
+        "RENDER_MUSIC_VOLUME": str(music_volume),
+    }
+    if ken_burns:
+        env["RENDER_KB_DRIFT"] = "0"
+    return env
+
+
 def _patch_script_config(slug: str, updates: dict) -> None:
     """Read script_config.json, apply updates, write back atomically. Skips
     silently if the file doesn't exist (a voiceover called before script
@@ -128,21 +156,13 @@ async def start_visuals(req: ProjectStageRequest) -> StageResponse:
 @router.post("/render", response_model=StageResponse)
 async def start_render(req: RenderRequest) -> StageResponse:
     _check_project(req.project_slug)
-    env = {
-        "RENDER_KEN_BURNS": "1" if req.ken_burns else "0",
-        "RENDER_SECTION_CARDS": "1" if req.render_section_cards else "0",
-        "RENDER_SECTION_TRANSITIONS": "1" if req.render_section_transitions else "0",
-        # The Ken Burns toggle also drives the continuous KB camera. run_render is a
-        # fresh subprocess that reads RENDER_KB_CAMERA / RENDER_KB_DRIFT at import,
-        # so threading them through the subprocess env is enough. ON → the targeted
-        # continuous camera with drift OFF (a fixed-anchor targeted zoom); OFF →
-        # camera off (static stills; drift is moot).
-        "RENDER_KB_CAMERA": "1" if req.ken_burns else "0",
-        "RENDER_MUSIC": "1" if req.background_music else "0",
-        "RENDER_MUSIC_VOLUME": str(req.music_volume),
-    }
-    if req.ken_burns:
-        env["RENDER_KB_DRIFT"] = "0"
+    env = render_env(
+        ken_burns=bool(req.ken_burns),
+        render_section_cards=req.render_section_cards,
+        render_section_transitions=req.render_section_transitions,
+        background_music=req.background_music,
+        music_volume=req.music_volume,
+    )
     return _start_stage("run_render.py", req.project_slug, "render", env=env)
 
 

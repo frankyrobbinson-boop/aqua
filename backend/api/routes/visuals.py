@@ -150,7 +150,13 @@ def update_visual_config(slug: str, payload: VisualConfigPayload) -> dict:
                     detail=f"Invalid scene_override for {sid!r}: {mode!r}",
                 )
 
-    save_visual_config(slug, payload.model_dump(exclude_none=True))
+    # Read-modify-write (not a full overwrite): merge the PUT payload over the
+    # existing saved config so top-level keys the segment editor doesn't send
+    # (default_mode/default_provider from the pipeline start flow) survive
+    # per-segment edits.
+    existing = load_visual_config(slug) or {}
+    existing.update(payload.model_dump(exclude_none=True))
+    save_visual_config(slug, existing)
     return {"ok": True, "config": resolve_visual_config(slug)}
 
 

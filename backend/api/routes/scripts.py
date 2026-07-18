@@ -12,6 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from api.routes.pipeline import render_env
 from api.routes.tasks import start_task
 from services.paths import PROJECTS_ROOT
 from services.channel_preset_registry import (
@@ -36,6 +37,10 @@ from services.research_service import slugify
 from services.video_type_registry import (
     default_type_id,
     list_types,
+)
+from services.visual_config_service import save_visual_config
+from services.visual_provider_registry import (
+    list_providers as list_visual_providers,
 )
 
 
@@ -77,6 +82,20 @@ class ScriptRequest(BaseModel):
     # Wired into the script prompt via {{SAMPLE_SCRIPT}} as a voice reference.
     sample_script: Optional[str] = None
     channel: Optional[str] = None
+    # ------------------------------------------------------------------
+    # Full-pipeline-only options. Consumed by POST /pipeline; POST /scripts
+    # ignores them. Defaults mirror RenderRequest in api.routes.pipeline so
+    # the pipeline's render stage behaves exactly like a render-tab run with
+    # untouched controls.
+    ken_burns: bool = False
+    render_section_cards: bool = True
+    render_section_transitions: bool = True
+    background_music: bool = False
+    music_volume: float = 0.05
+    # If set, pins every segment's visual mode/provider for the run by writing
+    # top-level defaults into visual_config.json (validated against
+    # visual_provider_registry; must be available).
+    visual_provider: Optional[str] = None
 
 
 class ScriptResponse(BaseModel):
@@ -178,6 +197,28 @@ def _migrate_draft_slug(req: ScriptRequest) -> str:
 
     shutil.move(str(src), str(target))
     return desired
+
+
+def _resolve_visual_provider(provider_id: Optional[str]) -> Optional[dict]:
+    """Return the registry entry for a pipeline run's visual_provider, or None
+    when unset. Fails loud with 422 (matching update_visual_config's style in
+    api.routes.visuals) on an unknown or unavailable provider id."""
+    if provider_id is None:
+        return None
+    entry = next(
+        (p for p in list_visual_providers() if p["id"] == provider_id), None
+    )
+    if entry is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unknown visual provider: {provider_id!r}",
+        )
+    if not entry.get("available"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Visual provider {provider_id!r} is not available yet",
+        )
+    return entry
 
 
 def _validate_hook_archetype(archetype_id: Optional[str]) -> None:
@@ -486,6 +527,8 @@ async def create_script(req: ScriptRequest) -> ScriptResponse:
 async def create_pipeline(req: ScriptRequest) -> ScriptResponse:
     """Start an end-to-end pipeline run: script → voiceover → visuals → render."""
     _validate_hook_archetype(req.hook_archetype)
+    # Validate before any filesystem side effects (slug migration, config writes).
+    provider_entry = _resolve_visual_provider(req.visual_provider)
     if req.project_slug:
         project_slug = _migrate_draft_slug(req)
     else:
@@ -493,6 +536,17 @@ async def create_pipeline(req: ScriptRequest) -> ScriptResponse:
     backend_dir = Path(__file__).resolve().parent.parent.parent
     _write_pre_research(project_slug, req.pre_research)
     _write_script_config(project_slug, req)
+    if provider_entry is not None:
+        # Top-level defaults in visual_config.json: resolve_visual_config uses
+        # them for every segment without an explicit saved override, so the
+        # whole run routes through the chosen provider.
+        save_visual_config(
+            project_slug,
+            {
+                "default_mode": provider_entry["mode"],
+                "default_provider": provider_entry["id"],
+            },
+        )
 
     cmd = [
         sys.executable,
@@ -512,6 +566,15 @@ async def create_pipeline(req: ScriptRequest) -> ScriptResponse:
             "project_slug": project_slug,
             "pre_research_provided": bool(req.pre_research),
         },
+        # Same env block as the /render route so the pipeline's render stage
+        # honors the options the user picked at start time.
+        env_overrides=render_env(
+            ken_burns=req.ken_burns,
+            render_section_cards=req.render_section_cards,
+            render_section_transitions=req.render_section_transitions,
+            background_music=req.background_music,
+            music_volume=req.music_volume,
+        ),
         kind="pipeline",
         project_slug=project_slug,
     )

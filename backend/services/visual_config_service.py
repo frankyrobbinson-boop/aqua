@@ -12,6 +12,10 @@ Stored at ``<projects_root>/<name>/visual_config.json`` with schema:
       ]
     }
 
+Optional top-level ``"default_mode"`` / ``"default_provider"`` keys (written by
+the full-pipeline start flow) override the registry defaults for every segment
+that has no per-segment saved entry; per-segment saved entries still win.
+
 Segment IDs match ``scene_plan`` conventions: -1 = hook, 0..N = body segments,
 -2 = conclusion. ``scene_count`` is informational in Phase 1 — the actual scene
 count comes from scene_plan; a mismatch logs a warning. A future phase will
@@ -35,6 +39,7 @@ from services.visual_provider_registry import (
     default_mode,
     default_provider_for_mode,
     default_provider_id,
+    list_providers,
 )
 
 
@@ -186,6 +191,25 @@ def default_visual_config(project_name: str) -> dict:
     }
 
 
+def _saved_defaults(saved: dict | None) -> tuple[str, str] | None:
+    """Validated (mode, provider) pair from the saved config's top-level
+    ``default_mode`` / ``default_provider`` keys, or None to use the registry
+    defaults. Defensive by design: an unknown provider id (registry edited
+    since the config was written) falls back to None rather than raising, and
+    a saved mode that disagrees with the provider's registry mode is corrected
+    to the registry's — a stale saved default must never abort or misroute a
+    run."""
+    if not saved:
+        return None
+    provider_id = saved.get("default_provider")
+    if not provider_id:
+        return None
+    entry = next((p for p in list_providers() if p["id"] == provider_id), None)
+    if entry is None:
+        return None
+    return entry["mode"], entry["id"]
+
+
 def resolve_visual_config(project_name: str) -> dict:
     """Return the effective config: saved if present, otherwise default.
 
@@ -193,10 +217,13 @@ def resolve_visual_config(project_name: str) -> dict:
     so a saved config that's missing a freshly-added segment (e.g. user added
     a body segment after editing visuals) still covers every segment in
     scene_plan. Saved segments win on mode/provider; scene_count always
-    reflects the live scene_plan.
+    reflects the live scene_plan. Skeleton entries with no saved override use
+    the saved top-level defaults (``default_mode``/``default_provider``) when
+    present, else the registry defaults.
     """
     plan = _load_scene_plan(project_name)
     saved = load_visual_config(project_name)
+    defaults = _saved_defaults(saved)
     # Per-scene overrides (for "mixed" segments) live at the top level and are
     # passed through untouched. Default {} so callers can index it safely.
     scene_overrides: dict = (saved.get("scene_overrides") if saved else None) or {}
@@ -225,6 +252,8 @@ def resolve_visual_config(project_name: str) -> dict:
                     "mode": override.get("mode", entry["mode"]),
                     "provider": override.get("provider", entry["provider"]),
                 })
+            elif defaults:
+                merged.append({**entry, "mode": defaults[0], "provider": defaults[1]})
             else:
                 merged.append(entry)
         return {"segments": merged, "scene_overrides": scene_overrides}
@@ -249,6 +278,8 @@ def resolve_visual_config(project_name: str) -> dict:
                 "mode": override.get("mode", entry["mode"]),
                 "provider": override.get("provider", entry["provider"]),
             })
+        elif defaults:
+            merged.append({**entry, "mode": defaults[0], "provider": defaults[1]})
         else:
             merged.append(entry)
     return {"segments": merged, "scene_overrides": scene_overrides}

@@ -64,6 +64,16 @@ export type ScriptRequest = {
   additional_instructions?: string;
   sample_script?: string;
   channel?: string;
+  /** Full-pipeline-only options below: consumed by POST /pipeline, ignored by
+   *  POST /scripts. Defaults mirror the render tab (RenderRequest). */
+  ken_burns?: boolean;
+  render_section_cards?: boolean;
+  render_section_transitions?: boolean;
+  background_music?: boolean;
+  music_volume?: number;
+  /** Pins every segment's visual provider for the run (must be an available
+   *  provider id from GET /visual-providers). */
+  visual_provider?: string;
 };
 
 export type VideoType = {

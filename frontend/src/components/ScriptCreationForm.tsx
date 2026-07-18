@@ -7,14 +7,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   createScript,
   createPipeline,
+  getVisualProviders,
   streamTaskLogs,
   type ScriptRequest,
   type StageEvent,
   type TaskStatus,
+  type VisualProvider,
 } from "@/lib/api";
 import { invalidateForProject } from "@/lib/invalidation";
 
 import { ChannelSelect } from "@/components/ChannelSelect";
+import { HookArchetypeSelect } from "@/components/HookArchetypeSelect";
+import { RenderConfigPanel } from "@/components/RenderConfigPanel";
 import { StageList } from "@/components/StageList";
 import { VideoTypeSelect } from "@/components/VideoTypeSelect";
 
@@ -67,6 +71,45 @@ export function ScriptCreationForm({
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [sampleScript, setSampleScript] = useState("");
   const [channel, setChannel] = useState<string | undefined>(undefined);
+  const [hookArchetype, setHookArchetype] = useState<string | undefined>(
+    undefined,
+  );
+
+  // Full-pipeline-only options: only sent when the "Run full pipeline" button
+  // is used. Render defaults mirror the render tab (RenderTab in ProjectView).
+  const [visualProvider, setVisualProvider] = useState("seedream");
+  const [providers, setProviders] = useState<VisualProvider[]>([]);
+  const [providersError, setProvidersError] = useState<string | null>(null);
+  const [sectionTransitions, setSectionTransitions] = useState(true);
+  const [sectionCards, setSectionCards] = useState(true);
+  const [kenBurns, setKenBurns] = useState(false);
+  const [music, setMusic] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(0.05);
+
+  useEffect(() => {
+    let mounted = true;
+    getVisualProviders()
+      .then((res) => {
+        if (!mounted) return;
+        const available = res.providers.filter((p) => p.available);
+        setProviders(available);
+        // Defensive: if the default ever leaves the registry, fall back to the
+        // first available provider so the dropdown never sits on a dead value.
+        if (
+          available.length > 0 &&
+          !available.some((p) => p.id === "seedream")
+        ) {
+          setVisualProvider(available[0].id);
+        }
+      })
+      .catch((err) => {
+        if (mounted)
+          setProvidersError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -101,9 +144,22 @@ export function ScriptCreationForm({
       // Item count applies to both list video types; omit for any other type.
       item_count: LIST_TYPES.includes(videoType ?? "") ? itemCount : undefined,
       channel: channel,
+      hook_archetype: hookArchetype,
       pre_research: preResearch.trim() || undefined,
       additional_instructions: additionalInstructions.trim() || undefined,
       sample_script: sampleScript.trim() || undefined,
+      // Pipeline-only options: the /scripts route ignores them, so only send
+      // when the full-pipeline button kicked off the run.
+      ...(mode === "pipeline"
+        ? {
+            visual_provider: visualProvider,
+            ken_burns: kenBurns,
+            render_section_cards: sectionCards,
+            render_section_transitions: sectionTransitions,
+            background_music: music,
+            music_volume: musicVolume,
+          }
+        : {}),
     };
 
     try {
@@ -198,6 +254,14 @@ export function ScriptCreationForm({
         </Row>
       </div>
 
+      <Row label="Hook archetype" hint="Opening structure">
+        <HookArchetypeSelect
+          value={hookArchetype}
+          onChange={setHookArchetype}
+          disabled={submitting}
+        />
+      </Row>
+
       {LIST_TYPES.includes(videoType ?? "") && (
         <Row
           label="Number of items"
@@ -279,6 +343,51 @@ export function ScriptCreationForm({
           disabled={submitting}
         />
       </Row>
+
+      {/* Collapsed by default; these knobs only apply when the run starts via
+          the "Run full pipeline" button (the /scripts route ignores them). */}
+      <details className="overflow-hidden rounded-lg border border-border bg-background">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium text-foreground hover:bg-surface-2">
+          Full pipeline options
+          <span className="ml-2 text-xs font-normal text-muted">
+            Only applies to “Run full pipeline”
+          </span>
+        </summary>
+        <div className="space-y-5 border-t border-border p-4">
+          <Row label="Visual provider" hint="One provider for every scene">
+            <div>
+              <select
+                value={visualProvider}
+                onChange={(e) => setVisualProvider(e.target.value)}
+                disabled={submitting || providers.length === 0}
+                className="form-input"
+              >
+                {providers.length === 0 && <option>Loading...</option>}
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+              {providersError && (
+                <p className="mt-1 text-xs text-danger">{providersError}</p>
+              )}
+            </div>
+          </Row>
+          <RenderConfigPanel
+            sectionTransitions={sectionTransitions}
+            setSectionTransitions={setSectionTransitions}
+            sectionCards={sectionCards}
+            setSectionCards={setSectionCards}
+            kenBurns={kenBurns}
+            setKenBurns={setKenBurns}
+            music={music}
+            setMusic={setMusic}
+            musicVolume={musicVolume}
+            setMusicVolume={setMusicVolume}
+          />
+        </div>
+      </details>
 
       {submitError && (
         <div className="rounded-md border border-danger/30 bg-danger/10 p-3 text-sm text-danger">
