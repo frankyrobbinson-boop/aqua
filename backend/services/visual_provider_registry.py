@@ -32,9 +32,8 @@ _REGISTRY_PATH = _PROMPTS_DIR / "visual_providers.json"
 _PROVIDER_CLASSES: dict[str, Type[VisualProvider]] = {
     "pexels": PexelsVisualProvider,
     "seedream": SeedreamProvider,
-    # nano_banana is deprecated as the ai_image default (replaced by seedream)
-    # and marked available:false in the JSON, but the class stays mapped so it
-    # can be flipped back on for comparison without re-wiring.
+    # nano_banana is no longer the ai_image default (seedream is) but stays a
+    # selectable provider (available:true in the JSON) for comparison runs.
     "nano_banana": NanoBananaProvider,
 }
 

@@ -175,6 +175,16 @@ _VISUALS_DEFAULTS: dict = {
     "prompt_enhancement_model": "gpt-5",
 }
 
+# Legacy prompt-enhancer model ids that used to ship in
+# prompts/visual_prompt_models.json but are no longer offered. Remapped at the
+# resolver (not in visual_prompt_service) so compute_cache_key and
+# _call_enhancer both see the SAME resolved id. Only these two known legacy
+# ids are remapped; any other id passes through unchanged.
+_LEGACY_PROMPT_MODEL_MAP: dict[str, str] = {
+    "claude-haiku-4-5-20251001": "gpt-5",
+    "claude-sonnet-4-6": "gpt-5",
+}
+
 
 def _flatten_visuals(nested: dict) -> dict:
     """preset.json ``visuals`` block (nested character{}, image_prompt_model)
@@ -182,6 +192,15 @@ def _flatten_visuals(nested: dict) -> dict:
     (character_enabled / character_image_path / character_strength /
     prompt_enhancement_model). Refactoring the consumer is a later migration."""
     character = nested.get("character") or {}
+    prompt_model = nested.get("image_prompt_model", "gpt-5")
+    if prompt_model in _LEGACY_PROMPT_MODEL_MAP:
+        remapped = _LEGACY_PROMPT_MODEL_MAP[prompt_model]
+        print(
+            f"  [channel_registry] legacy image_prompt_model "
+            f"{prompt_model!r} -> {remapped!r}",
+            flush=True,
+        )
+        prompt_model = remapped
     flat = {
         "style_description": nested.get("style_description", ""),
         "world": nested.get("world", ""),
@@ -192,9 +211,7 @@ def _flatten_visuals(nested: dict) -> dict:
         "character_image_path": character.get("image_path"),
         "character_strength": float(character.get("strength", 0.7)),
         "creative_direction": nested.get("creative_direction", ""),
-        "prompt_enhancement_model": nested.get(
-            "image_prompt_model", "gpt-5"
-        ),
+        "prompt_enhancement_model": prompt_model,
     }
     merged = dict(_VISUALS_DEFAULTS)
     merged.update({k: v for k, v in flat.items() if k in _VISUALS_DEFAULTS})

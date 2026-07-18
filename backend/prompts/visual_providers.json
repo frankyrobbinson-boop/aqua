@@ -11,7 +11,7 @@
   "providers": [
     {"id": "pexels", "label": "Pexels", "mode": "stock_video", "available": true},
     {"id": "seedream", "label": "Seedream 4.5 (fal.ai)", "mode": "ai_image", "available": true, "cost_per_unit": 0.03, "unit": "image"},
-    {"id": "nano_banana", "label": "Nano Banana (Gemini 2.5 Flash Image)", "mode": "ai_image", "available": false, "cost_per_unit": 0.039, "unit": "image"},
+    {"id": "nano_banana", "label": "Nano Banana (Gemini 2.5 Flash Image)", "mode": "ai_image", "available": true, "cost_per_unit": 0.039, "unit": "image"},
     {"id": "imagen_4_fast", "label": "Imagen 4 Fast", "mode": "ai_image", "available": false, "cost_per_unit": 0.02, "unit": "image"},
     {"id": "grok_imagine", "label": "Grok Imagine", "mode": "ai_image", "available": false, "cost_per_unit": 0.02, "unit": "image"},
     {"id": "veo_3_1_fast", "label": "Veo 3.1 Fast", "mode": "ai_video", "available": false, "cost_per_unit": 0.05, "unit": "second"}

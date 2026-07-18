@@ -1,8 +1,6 @@
 {
   "default": "gpt-5",
   "models": [
-    {"id": "gpt-5", "label": "GPT-5 (recommended)", "cost_per_video_estimate": 0.01},
-    {"id": "claude-haiku-4-5-20251001", "label": "Haiku 4.5", "cost_per_video_estimate": 0.06},
-    {"id": "claude-sonnet-4-6", "label": "Sonnet 4.6 (premium)", "cost_per_video_estimate": 0.30}
+    {"id": "gpt-5", "label": "GPT-5 (recommended)", "cost_per_video_estimate": 0.01}
   ]
 }
